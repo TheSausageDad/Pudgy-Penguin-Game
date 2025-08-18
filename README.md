@@ -2,7 +2,7 @@
 
 ## Overview
 
-A TypeScript and Phaser.js template for creating mobile games on the Remix platform. Features 9:16 aspect ratio optimization, professional development environment with SDK testing, and comprehensive HTML5 game tooling.
+A TypeScript and Phaser.js template for creating mobile games on the Remix platform. Features 9:16 aspect ratio for exact mini-app dimensions, professional development environment with SDK testing, and comprehensive HTML5 game tooling.
 
 ## Features
 
@@ -13,12 +13,10 @@ A TypeScript and Phaser.js template for creating mobile games on the Remix platf
 - 🎛️ **Professional Development Environment**:
   - SDK integration testing with visual indicators
   - Phone frame simulation with game overlay
-  - Real-time event monitoring and logging
   - Full/Actual size toggle for responsive testing
-  - Mute/audio controls and persistent preferences
 - 📦 Optimized Remix platform build process
-- 🎨 Demo game scene with click-to-progress
-- 🛡️ Safe one-time setup with data protection
+- 🎨 Test game scene to show successful setup
+- ⚒️ Setup script to get you running in 1 easy command
 
 ## What You Need Before Starting
 
@@ -36,9 +34,8 @@ A TypeScript and Phaser.js template for creating mobile games on the Remix platf
 ## ⚠️ Important Notes
 
 - **Phaser.js is loaded from CDN**: The game framework is loaded in `index.html`, so Phaser is globally available. **Never add Phaser imports** to your TypeScript files - this will break your game.
-- **Mobile-First**: This template is designed for vertical mobile games with a 9:16 aspect ratio (393x695 px).
+- **Mobile-First**: This template is designed for Farcaster mini-apps with a 9:16 aspect ratio.
 - **Development Environment**: The template includes a comprehensive development overlay that simulates the Remix platform environment.
-- **One-Time Setup**: The setup command can only be run once per project for safety.
 
 ## Quick Start (Step-by-Step)
 
@@ -54,7 +51,7 @@ cd my-game-name
 https://github.com/InsideTheSim/remix-starter-ts-phaser
 ```
 
-### Step 2: Run Setup (IMPORTANT - Only Run Once!)
+### Step 2: Run Setup
 ```bash
 npm run remix-setup
 ```
@@ -65,7 +62,7 @@ npm run remix-setup
 - Installs dependencies and creates fresh git repo
 - Removes safety marker file
 
-**⚠️ Safety:** Only runs once on fresh templates (`.is_fresh` file check prevents data loss).
+**⚠️ Safety:** Only runs once on fresh templates. Once run, cannot be run again.
 
 ### Step 3: Start Development
 ```bash
@@ -75,19 +72,17 @@ npm run dev
 **What happens:**
 - Server starts at `localhost:3000` with QR code for mobile testing
 - Browser opens with **Remix Development Overlay**:
-  - Phone frame simulation (9:16 aspect ratio)
-  - SDK status panel (red/yellow/green indicators)
-  - Real-time event monitoring (`ready`, `game_over`, `play_again`, `toggle_mute`)
-  - Full/Actual size toggle for testing
-  - Mute controls and game over testing
-  - Demo game (3 clicks triggers game over)
+  - Mini-app simulation (9:16 aspect ratio)
+  - Remix SDK status panel (red/yellow/green indicators)
+  - Full/Actual size toggle for testing game at actual mini-app scale
+  - Remix "Game Over" Overlay simulation to test game restart loop
 - File changes auto-refresh browser
 
 ### Step 4: Test on Your Phone
 1. Make sure your phone is on the same Wi-Fi network as your computer
 2. Scan the QR code that appears in your terminal
 3. The game opens in your phone's browser
-4. Test the touch controls and aspect ratio
+4. Test your touch controls
 
 <details>
 <summary><strong>📦 Porting an Existing Game (Click to expand)</strong></summary>
@@ -159,27 +154,15 @@ rm -rf src_prev
 The template includes a comprehensive development environment that simulates the Remix platform:
 
 #### **Visual SDK Integration Testing**
-- **Status Panel**: Hover or tap "Remix SDK integration" to see real-time event tracking
+- **Status Panel**: Hover or tap "Remix SDK integration" to see event detection status
 - **Color-coded Indicators**: 
   - 🔴 Red: Event not triggered yet
-  - 🟡 Yellow: Some events triggered  
-  - 🟢 Green: All events working (ready for production)
+  - 🟢 Green: Event has been triggered
 
 #### **Size Testing Options** (Desktop Only)
 - **Full Mode**: Responsive scaling that adapts to your browser window
-- **Actual Mode**: Exact 393x695 pixels (how it appears on Remix platform)
-- Toggle preference is automatically saved and remembered
-
-#### **Interactive Testing**
-- **Phone Frame**: Visual representation of mobile device boundaries
-- **Game Over Overlay**: Test the game over screen and play again functionality
-- **Mute Controls**: Test audio state management
-- **Real-time Logs**: Console shows SDK events as they happen
-
-#### **Background Design**
-- **Textured Background**: Subtle noise pattern helps you see game frame boundaries
-- **Silver Border**: Clean frame around your game area
-- **Centered Layout**: Professional appearance matching Remix platform
+- **Actual Mode**: Exact 393x695 pixels (how it appears on Farcaster mini-app platform)
+- Toggle preference is remembered between sessions
 
 ### Console Logging
 The development environment provides clean, focused logging:
@@ -195,7 +178,7 @@ The development environment provides clean, focused logging:
 ### Remove the Demo Content
 When you're ready to build your actual game, ask an AI assistant (like Claude Code):
 
-> "Please remove the click-to-progress demo and give me a blank game scene to start building my game."
+> "Please remove the demo code and give me a blank game scene to start building my game."
 
 ### Project Structure Explained
 ```
@@ -228,17 +211,15 @@ your-game/
 - **`src/scenes/GameScene.ts`**: Where your game logic lives (currently 3-click demo)
 - **`src/config/GameSettings.ts`**: Adjust canvas size (720x1280), debug mode, etc.
 - **`index.html`**: Loads Phaser and Remix SDK, conditionally loads development environment
-- **`.remix/`**: Complete development environment (hidden in production builds)
+- **`.remix/`**: Development environment tooling — not included in production builds
 
 ## Available Commands
 
 ```bash
-npm run remix-setup    # ⚠️ ONLY RUN ONCE - Sets up fresh project
-npm run dev      # Start development server (most common)
-npm run dev:3001 # Start server on port 3001 (if 3000 is busy)
-npm run dev:any  # Start server on random available port
-npm run build    # Build for production (creates dist/index.html)
-npm run preview  # Preview the built game locally
+npm run remix-setup # Sets up fresh project
+npm run dev         # Start development server (most common)
+npm run build       # Build for production (creates dist/index.html)
+npm run preview     # Preview the built game locally — good for checking build-specific errors such as missing assets
 ```
 
 ## Common Development Workflow
@@ -271,12 +252,6 @@ npm run preview  # Preview the built game locally
 - Try refreshing the page or scanning the QR code again
 - Check that no firewall is blocking the connection
 
-**"Development overlay is too small/large"**
-- Use the Full/Actual toggle in the bottom status bar (desktop only)
-- Full mode: Responsive scaling that fits your browser
-- Actual mode: Exact 393x695 pixels (native Remix size)
-- Your preference is automatically saved
-
 **"TypeScript errors about Phaser"**
 - Never import Phaser in your TypeScript files
 - Phaser is loaded globally via CDN in `index.html`
@@ -303,14 +278,11 @@ This creates `dist/index.html` - a single file containing your entire game ready
 - **TypeScript**: Type-safe development with proper Phaser types
 - **Vite**: Fast build tool and dev server with hot reload
 - **Remix SDK**: Platform integration with comprehensive testing tools
-- **Mobile optimization**: 9:16 aspect ratio (720x1280) with proper scaling
+- **Mobile optimization**: 9:16 aspect ratio for proper mini-app scaling
 - **Professional Development Environment**:
   - Visual SDK integration testing with status indicators
-  - Phone frame simulation with textured background
   - Full/Actual size toggle with persistent preferences
-  - Real-time event monitoring and clean console logging
-  - Interactive game over overlay and mute controls
-- **Development tools**: QR codes, hot reload, build scripts, mobile testing
+  - Interactive game over overlay for testing `game_over` and `play_again` events
 
 ## Getting Help:
 
