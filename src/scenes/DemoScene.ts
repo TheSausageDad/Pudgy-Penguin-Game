@@ -159,6 +159,9 @@ export class DemoScene extends Phaser.Scene {
       ball.velocityX = Phaser.Math.Between(-300, 300)
       ball.velocityY = Phaser.Math.Between(-300, 300)
     })
+    
+    // Focus the canvas to enable keyboard input
+    this.game.canvas.focus()
   }
 
   // --- Scene Shutdown Logic ---
