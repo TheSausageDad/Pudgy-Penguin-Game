@@ -42,7 +42,7 @@ export class RemixDevOverlay {
   private gameIdLoaded: boolean = false;
   private packageManager: string = 'npm';
   private needsSetup: boolean = false;
-  private setupBanner: HTMLElement;
+  private setupOverlay: HTMLElement;
 
   constructor() {
     this.initializeAsync();
@@ -67,9 +67,9 @@ export class RemixDevOverlay {
     this.needsSetup = await this.checkIfNeedsSetup();
     this.gameIdLoaded = true;
     
-    // Show setup banner if needed
+    // Show setup overlay if needed
     if (this.needsSetup) {
-      this.showSetupBanner();
+      this.showSetupOverlay();
     }
     
     // Expose dev environment info to the game
@@ -539,15 +539,16 @@ export class RemixDevOverlay {
     }
   }
 
-  // Check if the project needs setup (has .is_fresh file)
+  // Check if the project needs setup (has .remix/.setup_required file)
   private async checkIfNeedsSetup(): Promise<boolean> {
     try {
-      const response = await fetch('/.is_fresh', { method: 'HEAD' });
-      const needsSetup = response.ok;
+      const response = await fetch('/.remix/.setup_required', { method: 'HEAD' });
+      const setupRequired = response.headers.get('X-Setup-Required');
+      const needsSetup = setupRequired === 'true';
       console.log('[Dev Overlay] Setup needed:', needsSetup);
       return needsSetup;
     } catch (error) {
-      console.log('[Dev Overlay] No .is_fresh file found, setup not needed');
+      console.log('[Dev Overlay] No .remix/.setup_required endpoint found, setup not needed');
       return false;
     }
   }
@@ -583,42 +584,177 @@ export class RemixDevOverlay {
     return 'npm';
   }
 
-  // Show setup banner at the bottom of the game
-  private showSetupBanner(): void {
-    // Create the setup banner
-    this.setupBanner = document.createElement('div');
-    this.setupBanner.className = 'setup-banner';
-    this.setupBanner.innerHTML = `
-      <div class="setup-banner-content">
-        <div class="setup-banner-icon">⚠️</div>
-        <div class="setup-banner-text">
-          <strong>Game setup required</strong><br>
-          Run <code>${this.packageManager} run remix-setup</code> to configure your game
+  // Show setup overlay that covers the game
+  private showSetupOverlay(): void {
+    // Create the setup overlay
+    this.setupOverlay = document.createElement('div');
+    this.setupOverlay.className = 'setup-overlay';
+    this.setupOverlay.innerHTML = `
+      <div class="setup-overlay-content">
+        <div class="setup-overlay-icon">⚠️</div>
+        <div class="setup-overlay-title">Game Setup Required</div>
+        <div class="setup-overlay-text">
+          Before you start working on your game please run the provided setup script.<br>
+          Run the following command in your terminal:
         </div>
-        <button class="setup-banner-close" title="Dismiss">×</button>
+        <div class="setup-overlay-command">
+          <button class="copy-command-btn" title="Copy to clipboard">📋</button>
+          <code>${this.packageManager} run remix-setup</code>
+        </div>
+        <div class="setup-overlay-note">
+          This overlay will disappear once setup is complete.
+        </div>
       </div>
     `;
 
-    // Add click handler to dismiss
-    const closeButton = this.setupBanner.querySelector('.setup-banner-close') as HTMLElement;
-    closeButton.addEventListener('click', () => {
-      this.hideSetupBanner();
-    });
+    // Add overlay styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .setup-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+      }
+      .setup-overlay-content {
+        text-align: center;
+        color: white;
+        max-width: min(500px, 90vw);
+        width: 100%;
+        padding: clamp(24px, 5vw, 48px) clamp(12px, 3vw, 48px);
+        background: rgba(30, 15, 0, 0.6);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 140, 0, 0.3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        box-sizing: border-box;
+      }
+      .setup-overlay-icon {
+        font-size: 64px;
+        margin-bottom: 32px;
+        display: block;
+        line-height: 1;
+        filter: drop-shadow(0 0 8px rgba(255, 140, 0, 0.5));
+      }
+      .setup-overlay-title {
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #ff8c00;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      }
+      .setup-overlay-text {
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 28px;
+        opacity: 0.95;
+        color: #f0f0f0;
+      }
+      .setup-overlay-command {
+        background: rgba(0, 0, 0, 0.8);
+        border: 1px solid rgba(255, 140, 0, 0.4);
+        border-radius: 12px;
+        padding: clamp(12px, 3vw, 20px) clamp(8px, 2vw, 20px);
+        margin-bottom: 24px;
+        font-family: 'Courier New', monospace;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-height: 44px;
+      }
+      .copy-command-btn {
+        background: transparent;
+        border: 1px solid rgba(150, 150, 150, 0.5);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #ccc;
+        cursor: pointer;
+        font-size: clamp(14px, 3vw, 16px);
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+        min-width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .copy-command-btn:hover {
+        background: rgba(150, 150, 150, 0.2);
+        border-color: rgba(200, 200, 200, 0.8);
+        color: #fff;
+        transform: scale(1.05);
+      }
+      .copy-command-btn:active {
+        transform: scale(0.95);
+      }
+      .setup-overlay-command code {
+        color: #4ade80;
+        font-size: clamp(14px, 4vw, 18px);
+        font-weight: 600;
+        text-shadow: 0 0 4px rgba(74, 222, 128, 0.3);
+        word-break: break-word;
+        white-space: normal;
+        flex: 1;
+        min-width: 0;
+      }
+      .setup-overlay-note {
+        font-size: clamp(12px, 3vw, 14px);
+        opacity: 0.8;
+        font-style: italic;
+        color: #ffa500;
+        word-break: break-word;
+        line-height: 1.4;
+      }
+    `;
+    document.head.appendChild(style);
 
-    // Add to the game container
-    const gameContainer = this.container.querySelector('.game-container') as HTMLElement;
-    if (gameContainer) {
-      gameContainer.appendChild(this.setupBanner);
+    // Add to the game frame to cover the iframe
+    const gameFrame = this.container.querySelector('.game-frame') as HTMLElement;
+    if (gameFrame) {
+      gameFrame.appendChild(this.setupOverlay);
     }
 
-    console.log('[Dev Overlay] Setup banner shown');
+    // Add copy functionality
+    const copyButton = this.setupOverlay.querySelector('.copy-command-btn') as HTMLElement;
+    if (copyButton) {
+      copyButton.addEventListener('click', async () => {
+        const command = `${this.packageManager} run remix-setup`;
+        try {
+          await navigator.clipboard.writeText(command);
+          copyButton.textContent = '✅';
+          copyButton.style.color = '#4ade80';
+          setTimeout(() => {
+            copyButton.textContent = '📋';
+            copyButton.style.color = '#ff8c00';
+          }, 2000);
+        } catch (error) {
+          console.warn('[Dev Overlay] Could not copy to clipboard:', error);
+          copyButton.textContent = '❌';
+          setTimeout(() => {
+            copyButton.textContent = '📋';
+          }, 2000);
+        }
+      });
+    }
+
+    console.log('[Dev Overlay] Setup overlay shown');
   }
 
-  // Hide setup banner
-  private hideSetupBanner(): void {
-    if (this.setupBanner && this.setupBanner.parentNode) {
-      this.setupBanner.parentNode.removeChild(this.setupBanner);
-      console.log('[Dev Overlay] Setup banner dismissed');
+  // Hide setup overlay
+  private hideSetupOverlay(): void {
+    if (this.setupOverlay && this.setupOverlay.parentNode) {
+      this.setupOverlay.parentNode.removeChild(this.setupOverlay);
+      console.log('[Dev Overlay] Setup overlay hidden');
     }
   }
 
