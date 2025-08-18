@@ -2,43 +2,36 @@
 
 ## Overview
 
-This is a template for creating games for the Remix platform using TypeScript and Phaser.js. It provides a structured foundation with a mobile-optimized 9:16 aspect ratio, professional development environment with SDK integration testing, and comprehensive tooling for building HTML5 games.
+A TypeScript and Phaser.js template for creating mobile games on the Remix platform. Features 9:16 aspect ratio optimization, professional development environment with SDK testing, and comprehensive HTML5 game tooling.
 
 ## Features
 
-- 📱 Mobile-first design with **9:16 aspect ratio** (optimized for vertical mobile screens)
-- 🎮 Phaser.js game framework integration (loaded via CDN)
-- 🔧 TypeScript support for type-safe development
-- 🔄 Hot-reload development server with QR code for mobile testing
+- 📱 Mobile-first 9:16 aspect ratio design
+- 🎮 Phaser.js framework (CDN-loaded)
+- 🔧 TypeScript support with type safety
+- 🔄 Hot-reload dev server with QR code mobile testing
 - 🎛️ **Professional Development Environment**:
-  - Full Remix SDK integration testing with visual status indicators
-  - Interactive game overlay with phone frame simulation
-  - Real-time SDK event monitoring and logging
-  - Full/Actual size toggle for testing at both responsive and native (393x695) dimensions
-  - Mute/audio controls for development testing
-  - Persistent user preferences with localStorage
-- 📦 Optimized build process for Remix platform
-- 🏗️ Organized project structure for game development
-- 🎨 Pre-configured game scene with click-to-progress demo
-- 🛡️ Safe setup script with protection against accidental data loss
+  - SDK integration testing with visual indicators
+  - Phone frame simulation with game overlay
+  - Real-time event monitoring and logging
+  - Full/Actual size toggle for responsive testing
+  - Mute/audio controls and persistent preferences
+- 📦 Optimized Remix platform build process
+- 🎨 Demo game scene with click-to-progress
+- 🛡️ Safe one-time setup with data protection
 
 ## What You Need Before Starting
 
-### For Complete Beginners:
-1. **Node.js** - Download from [nodejs.org](https://nodejs.org) (choose the LTS version)
-   - This includes `npm` (package manager) automatically
-   - On Windows: Run the installer and follow the setup wizard
-   - On Mac: Download the installer or use `brew install node`
-   - On Linux: Use your package manager (e.g., `sudo apt install nodejs npm`)
+### Required Software:
+1. **Node.js** - Download LTS version from [nodejs.org](https://nodejs.org)
+   - Includes `npm` package manager
+   - Install via downloaded installer or package manager
 
-2. **A Code Editor** - We recommend:
-   - [Visual Studio Code](https://code.visualstudio.com) (free, beginner-friendly)
-   - [Cursor](https://cursor.sh) (VS Code with built-in AI assistance)
+2. **Code Editor** (recommended):
+   - [Visual Studio Code](https://code.visualstudio.com) - free, beginner-friendly
+   - [Cursor](https://cursor.sh) - VS Code with AI assistance
 
-3. **Basic Terminal/Command Line Knowledge**:
-   - Windows: Use Command Prompt or PowerShell
-   - Mac/Linux: Use Terminal
-   - You'll need to navigate to folders and run commands
+3. **Terminal/Command Line** - You'll need to navigate folders and run commands
 
 ## ⚠️ Important Notes
 
@@ -57,7 +50,7 @@ cd my-game-name
 
 # Option B: Download as ZIP
 # Download the ZIP file from GitHub, extract it, and open Terminal/Command Prompt in that folder. 
-# Downnload available at:
+# Download available at:
 https://github.com/InsideTheSim/remix-starter-ts-phaser
 ```
 
@@ -67,13 +60,12 @@ npm run remix-setup
 ```
 
 **What this does:**
-- Detects which package manager you're using (npm, yarn, pnpm, or bun)
-- Removes the template's git history safely
-- Installs all required dependencies
-- Creates a fresh git repository with your first commit
-- Removes the safety marker file
+- Detects your package manager (npm/yarn/pnpm/bun)
+- Safely removes template git history
+- Installs dependencies and creates fresh git repo
+- Removes safety marker file
 
-**⚠️ Safety Warning:** This command includes the `.is_fresh` file check and will only run on a fresh template. If the file is missing, the command will fail to prevent accidental data loss.
+**⚠️ Safety:** Only runs once on fresh templates (`.is_fresh` file check prevents data loss).
 
 ### Step 3: Start Development
 ```bash
@@ -81,17 +73,15 @@ npm run dev
 ```
 
 **What happens:**
-- Development server starts at `http://localhost:3000`
-- A QR code appears in your terminal for mobile testing
-- The browser opens automatically with a professional development environment
-- You'll see the **Remix Development Overlay** featuring:
-  - Phone frame simulation with proper 9:16 aspect ratio
-  - SDK integration status panel (red/yellow/green indicators)
-  - Real-time event monitoring for `ready`, `game_over`, `play_again`, and `toggle_mute`
-  - Full/Actual size toggle for testing responsive vs. native dimensions
-  - Mute controls and game over overlay testing
-  - Sample click-to-progress game (3 clicks triggers game over)
-- File changes trigger automatic browser refresh
+- Server starts at `localhost:3000` with QR code for mobile testing
+- Browser opens with **Remix Development Overlay**:
+  - Phone frame simulation (9:16 aspect ratio)
+  - SDK status panel (red/yellow/green indicators)
+  - Real-time event monitoring (`ready`, `game_over`, `play_again`, `toggle_mute`)
+  - Full/Actual size toggle for testing
+  - Mute controls and game over testing
+  - Demo game (3 clicks triggers game over)
+- File changes auto-refresh browser
 
 ### Step 4: Test on Your Phone
 1. Make sure your phone is on the same Wi-Fi network as your computer
@@ -128,7 +118,7 @@ Follow the Quick Start steps above to set up the template first.
 ### Step 3: Ask Your LLM Assistant to Help Migrate
 Once your existing code is in the `src_prev` folder, ask your AI assistant (like Claude Code) to help you migrate:
 
-> "I have an existing Phaser.js game in the `src_prev` folder that I want to port to this Remix template. Please help me migrate the code into the proper `src` structure, ensuring it works with the 5:9 aspect ratio and Remix platform requirements. Please analyze my existing game structure and guide me through the migration process."
+> "I have an existing Phaser.js game in the `src_prev` folder that I want to port to this Remix template. Please help me migrate the code into the proper `src` structure, ensuring it works with the 9:16 aspect ratio and Remix platform requirements. Please analyze my existing game structure and guide me through the migration process."
 
 ### ⚠️ Important Migration Reality Check:
 **Things WILL break during migration!** This is completely normal and expected. Game porting is an iterative process that requires multiple rounds of fixes:
@@ -145,7 +135,7 @@ Once your existing code is in the `src_prev` folder, ask your AI assistant (like
 **Migration is a collaborative process** - Plan to spend time working with your AI assistant to resolve issues step by step. Don't expect a perfect one-shot migration.
 
 ### Migration Considerations:
-- **Aspect Ratio**: Your game will need to adapt to the 9:16 mobile format (393x695 px)
+- **Aspect Ratio**: Your game will need to adapt to the 9:16 mobile format
 - **Asset Loading**: Assets may need to be restructured for the build process
 - **Phaser Imports**: Remove any Phaser imports since it's loaded globally via CDN
 - **Platform Integration**: Add Remix SDK integration for platform features
@@ -325,7 +315,7 @@ This creates `dist/index.html` - a single file containing your entire game ready
 ## Getting Help:
 
 - Copy and paste any error output to your LLM.
-- Join the [Remix Discord Serve](https://discord.com/invite/a3bgdr4RC6) 
+- Join the [Remix Discord Server](https://discord.com/invite/a3bgdr4RC6) 
 
 ## License
 
