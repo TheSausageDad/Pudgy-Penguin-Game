@@ -124,14 +124,15 @@ export function initializeSDKMock(): void {
     // Listen for messages from parent window (dev UI)
     window.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'remix_dev_command') {
-        const { command, data } = event.data;
+        const { command } = event.data.data;
+        const commandData = event.data.data;
         
         switch (command) {
           case 'play_again':
             mockSDK.triggerPlayAgain();
             break;
           case 'toggle_mute':
-            mockSDK.triggerMute(data.isMuted);
+            mockSDK.triggerMute(commandData.isMuted);
             break;
         }
       }

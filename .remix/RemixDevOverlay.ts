@@ -99,7 +99,7 @@ export class RemixDevOverlay {
                 </svg>
               </button>
             </div>
-            <iframe id="game-iframe" src="/" sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin"></iframe>
+            <iframe id="game-iframe" src="/" sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin allow-top-navigation-by-user-activation"></iframe>
             <div id="game-overlay" class="game-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
               <div class="overlay-content">
                 <div id="overlay-score" class="overlay-score">0</div>
