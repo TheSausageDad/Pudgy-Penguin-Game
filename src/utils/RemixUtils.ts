@@ -1,12 +1,19 @@
-// Function to check if running inside the Farcade iframe environment
-export function isFarcadeEnvironment(): boolean {
+// Dev environment info interface
+interface DevEnvironmentInfo {
+  packageManager: string;
+  gameId: string;
+  lastUpdated: number;
+}
+
+// Function to check if running inside the Remix iframe environment
+export function isRemixEnvironment(): boolean {
   try {
     // Check SDK object exists AND we are in an iframe
     return "FarcadeSDK" in window && window.top !== window.self
   } catch (e) {
     // Catch potential cross-origin errors if not in an iframe
     // This check might fail if run locally in a sandboxed iframe
-    // but should be reliable in the actual Farcade environment.
+    // but should be reliable in the actual Remix environment.
     console.warn(
       "Error checking iframe status (this might be expected locally):",
       e
@@ -15,9 +22,31 @@ export function isFarcadeEnvironment(): boolean {
   }
 }
 
-export function initializeFarcadeSDK(game: Phaser.Game): void {
+// Function to get development environment information (only available in dev mode)
+export function getDevEnvironmentInfo(): DevEnvironmentInfo | null {
+  try {
+    const devInfo = (window as any).__remixDevInfo;
+    return devInfo || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Function to get package manager-specific instructions
+export function getPackageManagerInstructions(): { install: string; dev: string; build: string } {
+  const devInfo = getDevEnvironmentInfo();
+  const pm = devInfo?.packageManager || 'npm';
+  
+  return {
+    install: `${pm} install`,
+    dev: `${pm} run dev`,
+    build: `${pm} run build`
+  };
+}
+
+export function initializeRemixSDK(game: Phaser.Game): void {
   if (!("FarcadeSDK" in window && window.FarcadeSDK)) {
-    console.warn("Farcade SDK not found.")
+    console.warn("Remix SDK not found.")
     return
   }
 
@@ -44,4 +73,21 @@ export function initializeFarcadeSDK(game: Phaser.Game): void {
       console.warn("Could not programmatically focus game canvas:", e)
     }
   })
+}
+
+// Initialize development features (separate from SDK)
+export function initializeDevelopment(): void {
+  // Listen for dev info messages from the overlay
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'remix_dev_info') {
+      (window as any).__remixDevInfo = event.data.data;
+      console.log('[Game] Dev environment info received:', event.data.data);
+      
+      // Example: Display package manager instructions in console
+      const instructions = getPackageManagerInstructions();
+      console.log(`[Game] To install dependencies: ${instructions.install}`);
+      console.log(`[Game] To start dev server: ${instructions.dev}`);
+      console.log(`[Game] To build for production: ${instructions.build}`);
+    }
+  });
 }

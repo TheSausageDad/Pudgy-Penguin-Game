@@ -1,8 +1,6 @@
 import { GameScene } from "./scenes/GameScene"
-import { initializeFarcadeSDK } from "./utils/RemixUtils"
+import { initializeRemixSDK, initializeDevelopment } from "./utils/RemixUtils"
 import GameSettings from "./config/GameSettings"
-
-const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement
 
 // Game configuration
 const config: Phaser.Types.Core.GameConfig = {
@@ -11,9 +9,11 @@ const config: Phaser.Types.Core.GameConfig = {
   height: GameSettings.canvas.height,
   scale: {
     mode: Phaser.Scale.FIT,
-    parent: "gameContainer",
+    parent: document.body,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: GameSettings.canvas.width,
+    height: GameSettings.canvas.height,
   },
-  canvas: canvas,
   backgroundColor: "#111111",
   scene: [GameScene],
   physics: {
@@ -31,7 +31,12 @@ const config: Phaser.Types.Core.GameConfig = {
 // Create the game instance
 const game = new Phaser.Game(config)
 
-// Initialize Farcade SDK
+// Initialize Remix SDK and development features
 game.events.once("ready", () => {
-  initializeFarcadeSDK(game)
+  initializeRemixSDK(game)
+  
+  // Initialize development features (only active in dev mode)
+  if (process.env.NODE_ENV !== 'production') {
+    initializeDevelopment()
+  }
 })

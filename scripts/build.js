@@ -22,7 +22,7 @@ if (!fs.existsSync(distDir)) {
 
 async function buildGame() {
   try {
-    console.log("🚀 Building GAME_NAME for Farcade...")
+    console.log("🚀 Building GAME_NAME for Remix...")
 
     // Step 1: Bundle the TypeScript code with esbuild
     console.log("📦 Bundling TypeScript code...")

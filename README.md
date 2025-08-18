@@ -2,17 +2,24 @@
 
 ## Overview
 
-This is a template for creating games for the Remix platform using TypeScript and Phaser.js. It provides a structured foundation with a mobile-optimized 5:9 aspect ratio, hot-reload development server, and the Remix SDK for building HTML5 games.
+This is a template for creating games for the Remix platform using TypeScript and Phaser.js. It provides a structured foundation with a mobile-optimized 9:16 aspect ratio, professional development environment with SDK integration testing, and comprehensive tooling for building HTML5 games.
 
 ## Features
 
-- 📱 Mobile-first design with **5:9 aspect ratio** (optimized for vertical mobile screens)
+- 📱 Mobile-first design with **9:16 aspect ratio** (optimized for vertical mobile screens)
 - 🎮 Phaser.js game framework integration (loaded via CDN)
 - 🔧 TypeScript support for type-safe development
 - 🔄 Hot-reload development server with QR code for mobile testing
+- 🎛️ **Professional Development Environment**:
+  - Full Remix SDK integration testing with visual status indicators
+  - Interactive game overlay with phone frame simulation
+  - Real-time SDK event monitoring and logging
+  - Full/Actual size toggle for testing at both responsive and native (393x695) dimensions
+  - Mute/audio controls for development testing
+  - Persistent user preferences with localStorage
 - 📦 Optimized build process for Remix platform
 - 🏗️ Organized project structure for game development
-- 🎨 Pre-configured game scene with bouncing balls demo
+- 🎨 Pre-configured game scene with click-to-progress demo
 - 🛡️ Safe setup script with protection against accidental data loss
 
 ## What You Need Before Starting
@@ -36,7 +43,8 @@ This is a template for creating games for the Remix platform using TypeScript an
 ## ⚠️ Important Notes
 
 - **Phaser.js is loaded from CDN**: The game framework is loaded in `index.html`, so Phaser is globally available. **Never add Phaser imports** to your TypeScript files - this will break your game.
-- **Mobile-First**: This template is designed for vertical mobile games with a 5:9 aspect ratio.
+- **Mobile-First**: This template is designed for vertical mobile games with a 9:16 aspect ratio (393x695 px).
+- **Development Environment**: The template includes a comprehensive development overlay that simulates the Remix platform environment.
 - **One-Time Setup**: The setup command can only be run once per project for safety.
 
 ## Quick Start (Step-by-Step)
@@ -75,8 +83,14 @@ npm run dev
 **What happens:**
 - Development server starts at `http://localhost:3000`
 - A QR code appears in your terminal for mobile testing
-- The browser opens automatically
-- You'll see "Remix Server Test" with colorful bouncing balls
+- The browser opens automatically with a professional development environment
+- You'll see the **Remix Development Overlay** featuring:
+  - Phone frame simulation with proper 9:16 aspect ratio
+  - SDK integration status panel (red/yellow/green indicators)
+  - Real-time event monitoring for `ready`, `game_over`, `play_again`, and `toggle_mute`
+  - Full/Actual size toggle for testing responsive vs. native dimensions
+  - Mute controls and game over overlay testing
+  - Sample click-to-progress game (3 clicks triggers game over)
 - File changes trigger automatic browser refresh
 
 ### Step 4: Test on Your Phone
@@ -131,11 +145,12 @@ Once your existing code is in the `src_prev` folder, ask your AI assistant (like
 **Migration is a collaborative process** - Plan to spend time working with your AI assistant to resolve issues step by step. Don't expect a perfect one-shot migration.
 
 ### Migration Considerations:
-- **Aspect Ratio**: Your game will need to adapt to the 5:9 mobile format
+- **Aspect Ratio**: Your game will need to adapt to the 9:16 mobile format (393x695 px)
 - **Asset Loading**: Assets may need to be restructured for the build process
 - **Phaser Imports**: Remove any Phaser imports since it's loaded globally via CDN
 - **Platform Integration**: Add Remix SDK integration for platform features
 - **Mobile Optimization**: Ensure touch controls and mobile performance
+- **Development Testing**: Use the new development overlay to verify SDK integration
 
 ### Step 4: Clean Up
 After successful migration, you can remove the `src_prev` folder:
@@ -147,12 +162,50 @@ rm -rf src_prev
 
 </details>
 
+## Development Environment
+
+### Understanding the Development Overlay
+
+The template includes a comprehensive development environment that simulates the Remix platform:
+
+#### **Visual SDK Integration Testing**
+- **Status Panel**: Hover or tap "Remix SDK integration" to see real-time event tracking
+- **Color-coded Indicators**: 
+  - 🔴 Red: Event not triggered yet
+  - 🟡 Yellow: Some events triggered  
+  - 🟢 Green: All events working (ready for production)
+
+#### **Size Testing Options** (Desktop Only)
+- **Full Mode**: Responsive scaling that adapts to your browser window
+- **Actual Mode**: Exact 393x695 pixels (how it appears on Remix platform)
+- Toggle preference is automatically saved and remembered
+
+#### **Interactive Testing**
+- **Phone Frame**: Visual representation of mobile device boundaries
+- **Game Over Overlay**: Test the game over screen and play again functionality
+- **Mute Controls**: Test audio state management
+- **Real-time Logs**: Console shows SDK events as they happen
+
+#### **Background Design**
+- **Textured Background**: Subtle noise pattern helps you see game frame boundaries
+- **Silver Border**: Clean frame around your game area
+- **Centered Layout**: Professional appearance matching Remix platform
+
+### Console Logging
+The development environment provides clean, focused logging:
+```
+[SDK Event] ready
+[SDK Event] game_over {"score":3}
+[SDK Event] play_again 
+[SDK Event] toggle_mute {"isMuted":true}
+```
+
 ## Customizing Your Game
 
 ### Remove the Demo Content
 When you're ready to build your actual game, ask an AI assistant (like Claude Code):
 
-> "Please remove the bouncing balls demo and give me a blank game scene to start building my game."
+> "Please remove the click-to-progress demo and give me a blank game scene to start building my game."
 
 ### Project Structure Explained
 ```
@@ -160,12 +213,19 @@ your-game/
 ├── .is_fresh              # Safety marker (removed after setup)
 ├── index.html             # Main HTML file - loads Phaser and Remix SDK
 ├── package.json           # Project info and available commands
+├── .remix/                # Development environment (hidden directory)
+│   ├── overlay.ts         # Development overlay entry point
+│   ├── game.ts           # Development game entry point with SDK mock
+│   ├── RemixDevOverlay.ts # Professional development UI
+│   ├── RemixSDKMock.ts   # SDK mock for testing
+│   ├── remix-dev-overlay.css # Development UI styles
+│   └── remix-game-styles.css # Game frame styles
 ├── src/                   # Your game code goes here
 │   ├── main.ts           # Game entry point - creates Phaser game
 │   ├── config/
-│   │   └── GameSettings.ts # Game settings (canvas size, debug mode, etc.)
+│   │   └── GameSettings.ts # Game settings (720x1280, debug mode, etc.)
 │   ├── scenes/
-│   │   └── GameScene.ts   # Main game scene (currently has demo balls)
+│   │   └── GameScene.ts   # Main game scene (click-to-progress demo)
 │   ├── utils/
 │   │   └── RemixUtils.ts  # Remix platform integration
 │   └── types.ts          # TypeScript type definitions
@@ -175,9 +235,10 @@ your-game/
 
 ### Key Files to Understand:
 - **`src/main.ts`**: Creates the Phaser game with your settings
-- **`src/scenes/GameScene.ts`**: Where your game logic lives
-- **`src/config/GameSettings.ts`**: Adjust canvas size, debug mode, etc.
-- **`index.html`**: Loads Phaser and Remix SDK, sets up the game container
+- **`src/scenes/GameScene.ts`**: Where your game logic lives (currently 3-click demo)
+- **`src/config/GameSettings.ts`**: Adjust canvas size (720x1280), debug mode, etc.
+- **`index.html`**: Loads Phaser and Remix SDK, conditionally loads development environment
+- **`.remix/`**: Complete development environment (hidden in production builds)
 
 ## Available Commands
 
@@ -220,6 +281,12 @@ npm run preview  # Preview the built game locally
 - Try refreshing the page or scanning the QR code again
 - Check that no firewall is blocking the connection
 
+**"Development overlay is too small/large"**
+- Use the Full/Actual toggle in the bottom status bar (desktop only)
+- Full mode: Responsive scaling that fits your browser
+- Actual mode: Exact 393x695 pixels (native Remix size)
+- Your preference is automatically saved
+
 **"TypeScript errors about Phaser"**
 - Never import Phaser in your TypeScript files
 - Phaser is loaded globally via CDN in `index.html`
@@ -242,12 +309,18 @@ This creates `dist/index.html` - a single file containing your entire game ready
 
 ## What's Included
 
-- **Phaser**: HTML game framework
-- **TypeScript**: Type-safe development
-- **Vite**: Fast build tool and dev server
-- **Remix SDK**: Platform integration
-- **Mobile optimization**: 5:9 aspect ratio with proper scaling
-- **Development tools**: QR codes, hot reload, build scripts
+- **Phaser**: HTML5 game framework (loaded via CDN)
+- **TypeScript**: Type-safe development with proper Phaser types
+- **Vite**: Fast build tool and dev server with hot reload
+- **Remix SDK**: Platform integration with comprehensive testing tools
+- **Mobile optimization**: 9:16 aspect ratio (720x1280) with proper scaling
+- **Professional Development Environment**:
+  - Visual SDK integration testing with status indicators
+  - Phone frame simulation with textured background
+  - Full/Actual size toggle with persistent preferences
+  - Real-time event monitoring and clean console logging
+  - Interactive game over overlay and mute controls
+- **Development tools**: QR codes, hot reload, build scripts, mobile testing
 
 ## Getting Help:
 

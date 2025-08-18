@@ -1,6 +1,6 @@
 ---
 name: log-janitor
-description: Use this agent when the user explicitly requests removal of logging statements from the codebase, wants to clean up debug logs, or needs to strip console.log/logging calls from production code. Examples: <example>Context: User wants to clean up the codebase before production deployment by removing all console.log statements. user: 'Please remove all console.log statements from the codebase' assistant: 'I'll use the log-janitor agent to systematically find and remove all logging statements from your codebase' <commentary>The user is requesting log removal, so use the log-janitor agent to handle this cleanup task efficiently.</commentary></example> <example>Context: User notices too many debug logs cluttering the code and wants them cleaned up. user: 'Can you clean up all the logging statements? They're making the code messy' assistant: 'I'll use the log-janitor agent to clean up all logging statements throughout your codebase' <commentary>This is a log cleanup request, perfect for the log-janitor agent.</commentary></example>
+description: Use this agent when the user explicitly requests removal of logging statements from the codebase, wants to clean up debug logs, or needs to strip console.log/logging calls from production code.
 tools: Task, Bash, Glob, Grep, LS, Read, Edit
 color: orange
 ---

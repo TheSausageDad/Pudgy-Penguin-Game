@@ -1,6 +1,6 @@
 ---
 name: documentation-maintainer
-description: Use this agent proactively whenever new files are created or large edits have occurred in existing files. This agent should automatically trigger after significant code changes to ensure relevant CLAUDE.md files remain current and accurate. Examples: <example>Context: User just created a new utility file in src/utils/AudioManager.ts with several audio management functions. assistant: 'I notice you've created a new audio management utility. Let me use the documentation-maintainer agent to update the CLAUDE.md file to reflect this new functionality.' <commentary>Since new files were created, proactively use the documentation-maintainer agent to update documentation.</commentary></example> <example>Context: User made substantial changes to the GameSystem.ts file, adding new state management features. assistant: 'I see significant changes were made to the GameSystem. Let me use the documentation-maintainer agent to ensure the documentation accurately reflects these updates.' <commentary>Large edits occurred, so proactively use the documentation-maintainer agent to maintain accurate documentation.</commentary></example>
+description: Use this agent proactively whenever new files are created or large edits have occurred in existing files. This agent should automatically trigger after significant code changes to ensure relevant CLAUDE.md files remain current and accurate.
 tools: Task, Glob, Grep, Bash, LS, Read, Edit, MultiEdit, Write, TodoWrite
 color: blue
 ---

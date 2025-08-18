@@ -1,7 +1,7 @@
 {
   "name": "GAME_NAME",
   "version": "1.0.0",
-  "description": "GAME_NAME game for Farcade platform",
+  "description": "GAME_NAME game for Remix platform",
   "type": "module",
   "scripts": {
     "remix-setup": "node scripts/setup.js",
@@ -14,7 +14,8 @@
   "keywords": [
     "game",
     "phaser",
-    "farcade"
+    "farcade",
+    "remix"
   ],
   "author": "",
   "license": "ISC",
