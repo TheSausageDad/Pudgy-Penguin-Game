@@ -19,10 +19,7 @@ function getLocalIP() {
 
 // Function to generate QR code for a given URL
 function generateQR(url) {
-  console.log(`\n🎮 Game Server Starting (ITS Mode - Setup Check Bypassed)...`)
-  console.log(`📱 Scan QR code to connect from mobile:\n`)
   qrcode.generate(url, { small: true })
-  console.log(`🔗 Direct link: ${url}\n`)
 }
 
 // Start Vite dev server with bypassed config
@@ -64,7 +61,6 @@ viteProcess.stderr.on("data", (data) => {
 
 // Handle process termination
 process.on("SIGINT", () => {
-  console.log("\n🛑 Shutting down dev server...")
   viteProcess.kill("SIGINT")
   process.exit(0)
 })
@@ -76,8 +72,5 @@ process.on("SIGTERM", () => {
 
 // Handle Vite process exit
 viteProcess.on("exit", (code) => {
-  if (code !== 0) {
-    console.error(`\n❌ Vite process exited with code ${code}`)
-  }
   process.exit(code)
 })

@@ -154,23 +154,15 @@ class ParentUnderglow {
       try {
           // Validate canvas has content
           if (canvas.width === 0 || canvas.height === 0) {
-            console.log('Canvas has zero dimensions:', { width: canvas.width, height: canvas.height })
             return
           }
-          
-          console.log('Canvas found:', { 
-            width: canvas.width, 
-            height: canvas.height,
-            tagName: canvas.tagName,
-            style: canvas.style.cssText
-          })
 
           // Ultra-tiny images with asymmetric scaling
           const smallWidth = Math.max(9, Math.floor(canvas.width / UNDERGLOW_CONFIG.horizontalDownscale))
           const smallHeight = Math.max(16, Math.floor(canvas.height / UNDERGLOW_CONFIG.verticalDownscale))
           
           const tempCanvas = document.createElement('canvas')
-          const tempCtx = tempCanvas.getContext('2d')
+          const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
           if (!tempCtx) return
 
           tempCanvas.width = smallWidth
@@ -180,7 +172,6 @@ class ParentUnderglow {
           tempCtx.imageSmoothingEnabled = false // No smoothing for speed
           
           // Draw the canvas (now with preserved drawing buffer)
-          console.log('Drawing canvas with preserved buffer')
           tempCtx.drawImage(
             canvas,
             0, 0, canvas.width, canvas.height,
@@ -193,18 +184,14 @@ class ParentUnderglow {
           for (let i = 0; i < Math.min(40, debugImageData.data.length); i += 4) {
             debugPixels.push([debugImageData.data[i], debugImageData.data[i+1], debugImageData.data[i+2], debugImageData.data[i+3]])
           }
-          console.log('Temp canvas first 10 pixels after drawImage:', debugPixels)
 
           // Quick black frame check with larger sample (only reject completely black frames)
           const sampleSize = Math.min(smallWidth, smallHeight)
           const imageData = tempCtx.getImageData(0, 0, sampleSize, sampleSize)
           const isBlack = this.isImageDataMostlyBlack(imageData)
-          console.log('Frame sample check:', { sampleSize, isBlack, width: smallWidth, height: smallHeight })
           if (isBlack) {
-            console.log('Frame rejected as black - skipping glow update')
             return
           }
-          console.log('Frame accepted - proceeding with glow update')
           
           // Convert to JPEG for better performance
           const jpegDataUrl = tempCanvas.toDataURL('image/jpeg', UNDERGLOW_CONFIG.compressionQuality / 100)
@@ -239,7 +226,6 @@ class ParentUnderglow {
     
     // Accept frame if more than 0.1% of pixels are non-black (very lenient)
     const nonBlackPercentage = nonBlackPixels / totalPixels
-    console.log('Black frame check:', { nonBlackPixels, totalPixels, percentage: nonBlackPercentage.toFixed(4) })
     return nonBlackPercentage < 0.001
   }
 
@@ -481,13 +467,11 @@ class ParentUnderglow {
   private updateGlowFromJpeg(jpegDataUrl: string, width: number, height: number) {
     if (!this.glowCtxTop || !this.glowCanvasTop) return
 
-    console.log('Updating glow from JPEG:', { width, height, dataLength: jpegDataUrl.length })
 
     try {
       // Create image from JPEG data
       const img = new Image()
       img.onload = () => {
-        console.log('JPEG loaded successfully, updating edges')
         this.updateAllEdges(img, width, height)
       }
       

@@ -23,4 +23,4 @@ if (ip === null) {
   ip = `http://localhost:${port}`
 }
 
-console.log(ip)
+process.stdout.write(ip)

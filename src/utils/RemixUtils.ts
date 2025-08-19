@@ -14,10 +14,7 @@ export function isRemixEnvironment(): boolean {
     // Catch potential cross-origin errors if not in an iframe
     // This check might fail if run locally in a sandboxed iframe
     // but should be reliable in the actual Remix environment.
-    console.warn(
-      "Error checking iframe status (this might be expected locally):",
-      e
-    )
+    // Error checking iframe status (this might be expected locally)
     return false
   }
 }
@@ -46,7 +43,6 @@ export function getPackageManagerInstructions(): { install: string; dev: string;
 
 export function initializeRemixSDK(game: Phaser.Game): void {
   if (!("FarcadeSDK" in window && window.FarcadeSDK)) {
-    console.warn("Remix SDK not found.")
     return
   }
 
@@ -70,7 +66,7 @@ export function initializeRemixSDK(game: Phaser.Game): void {
     try {
       game.canvas.focus()
     } catch (e) {
-      console.warn("Could not programmatically focus game canvas:", e)
+      // Could not programmatically focus game canvas
     }
   })
 }
@@ -81,13 +77,6 @@ export function initializeDevelopment(): void {
   window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'remix_dev_info') {
       (window as any).__remixDevInfo = event.data.data;
-      console.log('[Game] Dev environment info received:', event.data.data);
-      
-      // Example: Display package manager instructions in console
-      const instructions = getPackageManagerInstructions();
-      console.log(`[Game] To install dependencies: ${instructions.install}`);
-      console.log(`[Game] To start dev server: ${instructions.dev}`);
-      console.log(`[Game] To build for production: ${instructions.build}`);
     }
   });
 }

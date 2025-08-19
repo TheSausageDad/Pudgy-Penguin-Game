@@ -612,198 +612,89 @@ export class RemixDevOverlay {
 
   // Detect which package manager was used to launch the dev server
   private async detectPackageManager(): Promise<string> {
-    // Check for lock files to infer package manager
     try {
-      const lockFileChecks = [
-        { file: '/pnpm-lock.yaml', manager: 'pnpm' },
-        { file: '/yarn.lock', manager: 'yarn' },
-        { file: '/bun.lockb', manager: 'bun' },
-        { file: '/package-lock.json', manager: 'npm' }
-      ];
-
-      for (const { file, manager } of lockFileChecks) {
-        try {
-          const response = await fetch(file, { method: 'HEAD' });
-          if (response.ok) {
-            return manager;
-          }
-        } catch (e) {
-          // File doesn't exist, continue
-        }
+      // Get package manager info from Vite plugin
+      const response = await fetch('/.remix/package-manager');
+      if (response.ok) {
+        const data = await response.json();
+        return data.packageManager || 'npm';
       }
     } catch (error) {
-      // Could not detect package manager from lock files
+      // Could not get package manager from server
     }
     
     // Default to npm
     return 'npm';
   }
 
-  // Show setup overlay that covers the game
+  // Show setup banner above the developer toolbar
   private showSetupOverlay(): void {
-    // Create the setup overlay
+    // Create the setup banner
     this.setupOverlay = document.createElement('div');
-    this.setupOverlay.className = 'setup-overlay';
+    this.setupOverlay.className = 'setup-banner';
     this.setupOverlay.innerHTML = `
-      <div class="setup-overlay-content">
-        <div class="setup-overlay-icon">⚠️</div>
-        <div class="setup-overlay-title">Game Setup Required</div>
-        <div class="setup-overlay-text">
-          Before you start working on your game please run the provided setup script.<br>
-          Run the following command in your terminal:
-        </div>
-        <div class="setup-overlay-command">
-          <button class="copy-command-btn" title="Copy to clipboard">📋</button>
-          <code>${this.packageManager} run remix-setup</code>
-        </div>
-        <div class="setup-overlay-note">
-          This overlay will disappear once setup is complete.
-        </div>
+      <div class="setup-banner-content">
+        <span class="setup-banner-icon">⚠️</span>
+        <span class="setup-banner-text">Game Setup Required - Run: <code>${this.packageManager} run remix-setup</code></span>
+        <span class="setup-banner-icon">⚠️</span>
       </div>
     `;
 
-    // Add overlay styles
+    // Add banner styles
     const style = document.createElement('style');
     style.textContent = `
-      .setup-overlay {
+      .setup-banner {
         position: absolute;
-        top: 0;
+        bottom: 70px;
         left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.95);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        right: 0;
+        background: rgba(255, 140, 0, 0.9);
+        border-top: 2px solid #ff8c00;
         z-index: 1000;
         backdrop-filter: blur(4px);
+        color: #000;
+        font-family: system-ui, sans-serif;
       }
-      .setup-overlay-content {
-        text-align: center;
-        color: white;
-        max-width: min(500px, 90vw);
-        width: 100%;
-        padding: clamp(24px, 5vw, 48px) clamp(12px, 3vw, 48px);
-        background: rgba(30, 15, 0, 0.6);
-        border-radius: 16px;
-        border: 1px solid rgba(255, 140, 0, 0.3);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        box-sizing: border-box;
-      }
-      .setup-overlay-icon {
-        font-size: 64px;
-        margin-bottom: 32px;
-        display: block;
-        line-height: 1;
-        filter: drop-shadow(0 0 8px rgba(255, 140, 0, 0.5));
-      }
-      .setup-overlay-title {
-        font-size: 28px;
-        font-weight: bold;
-        margin-bottom: 20px;
-        color: #ff8c00;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-      }
-      .setup-overlay-text {
-        font-size: 16px;
-        line-height: 1.6;
-        margin-bottom: 28px;
-        opacity: 0.95;
-        color: #f0f0f0;
-      }
-      .setup-overlay-command {
-        background: rgba(0, 0, 0, 0.8);
-        border: 1px solid rgba(255, 140, 0, 0.4);
-        border-radius: 12px;
-        padding: clamp(12px, 3vw, 20px) clamp(8px, 2vw, 20px);
-        margin-bottom: 24px;
-        font-family: 'Courier New', monospace;
-        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
-        position: relative;
+      .setup-banner-content {
         display: flex;
         align-items: center;
         justify-content: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        min-height: 44px;
+        padding: 14px 16px;
+        gap: 10px;
       }
-      .copy-command-btn {
-        background: transparent;
-        border: 1px solid rgba(150, 150, 150, 0.5);
-        border-radius: 8px;
-        padding: 8px 12px;
-        color: #ccc;
-        cursor: pointer;
-        font-size: clamp(14px, 3vw, 16px);
-        transition: all 0.2s ease;
+      .setup-banner-icon {
+        font-size: 20px;
         flex-shrink: 0;
-        min-width: 44px;
-        height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
       }
-      .copy-command-btn:hover {
-        background: rgba(150, 150, 150, 0.2);
-        border-color: rgba(200, 200, 200, 0.8);
-        color: #fff;
-        transform: scale(1.05);
+      .setup-banner-text {
+        font-size: 15px;
+        font-weight: 500;
+        text-align: center;
       }
-      .copy-command-btn:active {
-        transform: scale(0.95);
-      }
-      .setup-overlay-command code {
-        color: #4ade80;
-        font-size: clamp(14px, 4vw, 18px);
-        font-weight: 600;
-        text-shadow: 0 0 4px rgba(74, 222, 128, 0.3);
-        word-break: break-word;
-        white-space: normal;
-        flex: 1;
-        min-width: 0;
-      }
-      .setup-overlay-note {
-        font-size: clamp(12px, 3vw, 14px);
-        opacity: 0.8;
-        font-style: italic;
-        color: #ffa500;
-        word-break: break-word;
-        line-height: 1.4;
+      .setup-banner-text code {
+        background: #1a1a1a;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+        font-weight: 700;
+        color: #33ff00;
+        border: 1px solid rgba(0, 0, 0, 0.3);
+        letter-spacing: 0.5px;
+        font-size: 14px;
       }
     `;
     document.head.appendChild(style);
 
-    // Add to the game frame to cover the iframe
-    const gameFrame = this.container.querySelector('.game-frame') as HTMLElement;
-    if (gameFrame) {
-      gameFrame.appendChild(this.setupOverlay);
+    // Add to the main container, positioned above the status bar
+    const container = this.container.querySelector('.remix-dev-container') as HTMLElement;
+    if (container) {
+      container.appendChild(this.setupOverlay);
     }
 
-    // Add copy functionality
-    const copyButton = this.setupOverlay.querySelector('.copy-command-btn') as HTMLElement;
-    if (copyButton) {
-      copyButton.addEventListener('click', async () => {
-        const command = `${this.packageManager} run remix-setup`;
-        try {
-          await navigator.clipboard.writeText(command);
-          copyButton.textContent = '✅';
-          copyButton.style.color = '#4ade80';
-          setTimeout(() => {
-            copyButton.textContent = '📋';
-            copyButton.style.color = '#ff8c00';
-          }, 2000);
-        } catch (error) {
-          copyButton.textContent = '❌';
-          setTimeout(() => {
-            copyButton.textContent = '📋';
-          }, 2000);
-        }
-      });
-    }
 
   }
 
-  // Hide setup overlay
+  // Hide setup banner
   private hideSetupOverlay(): void {
     if (this.setupOverlay && this.setupOverlay.parentNode) {
       this.setupOverlay.parentNode.removeChild(this.setupOverlay);

@@ -1,15 +1,80 @@
 import type { Plugin } from 'vite';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+
+function detectPackageManager(): string {
+  // Check multiple environment variables that indicate the package manager
+  const userAgent = process.env.npm_config_user_agent || '';
+  const execPath = process.env.npm_execpath || '';
+  const lifecycle = process.env.npm_lifecycle_script || '';
+  
+  // Check npm_config_user_agent first
+  if (userAgent.includes('pnpm')) return 'pnpm';
+  if (userAgent.includes('yarn')) return 'yarn';
+  if (userAgent.includes('bun')) return 'bun';
+  if (userAgent.includes('npm')) return 'npm';
+  
+  // Check npm_execpath for package manager binary
+  if (execPath.includes('pnpm')) return 'pnpm';
+  if (execPath.includes('yarn')) return 'yarn';
+  if (execPath.includes('bun')) return 'bun';
+  if (execPath.includes('npm')) return 'npm';
+  
+  // Check process.argv for package manager
+  const argv = process.argv.join(' ');
+  if (argv.includes('pnpm')) return 'pnpm';
+  if (argv.includes('yarn')) return 'yarn';
+  if (argv.includes('bun')) return 'bun';
+  
+  // Check for lock files as fallback, prioritizing most recently used
+  const lockFiles = [
+    { file: 'pnpm-lock.yaml', manager: 'pnpm' },
+    { file: 'yarn.lock', manager: 'yarn' },
+    { file: 'bun.lockb', manager: 'bun' },
+    { file: 'package-lock.json', manager: 'npm' }
+  ];
+  
+  // Find the most recently modified lock file
+  let mostRecentManager = 'npm';
+  let mostRecentTime = 0;
+  
+  for (const { file, manager } of lockFiles) {
+    if (existsSync(file)) {
+      try {
+        const { mtimeMs } = require('fs').statSync(file);
+        if (mtimeMs > mostRecentTime) {
+          mostRecentTime = mtimeMs;
+          mostRecentManager = manager;
+        }
+      } catch (e) {
+        // If we can't stat the file, just use it if it's the first found
+        if (mostRecentTime === 0) {
+          mostRecentManager = manager;
+        }
+      }
+    }
+  }
+  
+  return mostRecentManager;
+}
 
 /**
  * Vite plugin that provides Remix SDK emulation during development
  */
-export function remixSDKPlugin(): Plugin {
+export function remixSDKPlugin(options: { packageManager?: string } = {}): Plugin {
+  // Use provided package manager or detect from environment
+  const packageManager = options.packageManager || detectPackageManager();
+  
   return {
     name: 'remix-sdk-emulation',
     
     configureServer(server) {
+      // Add middleware to serve package manager info
+      server.middlewares.use('/.remix/package-manager', (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ packageManager }));
+      });
+      
       // Add middleware to serve the game iframe content
       server.middlewares.use('/game.html', (req, res, next) => {
         try {

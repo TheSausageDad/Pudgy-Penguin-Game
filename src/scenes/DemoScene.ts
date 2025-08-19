@@ -192,11 +192,8 @@ export class DemoScene extends Phaser.Scene {
       try {
         (window as any).FarcadeSDK.singlePlayer.actions.gameOver({ score: this.clickCount })
       } catch (error) {
-        console.error('[Game] Error calling gameOver:', error)
+        // SDK error - silently handle
       }
-    } else {
-      console.warn('[Game] FarcadeSDK not found in window')
-      console.log('[Game] Available in window:', Object.keys(window).filter(k => k.includes('SDK') || k.includes('remix') || k.includes('Remix')))
     }
   }
 

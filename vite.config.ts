@@ -24,6 +24,35 @@ export default defineConfig({
           });
           res.end();
         });
+
+        // Add middleware to serve package manager info
+        server.middlewares.use('/.remix/package-manager', (_req, res) => {
+          // Detect package manager
+          const userAgent = process.env.npm_config_user_agent || '';
+          const execPath = process.env.npm_execpath || '';
+          
+          let packageManager = 'npm';
+          
+          // Check more specific package managers first (pnpm, yarn, bun) before npm
+          if (userAgent.includes('pnpm') || execPath.includes('pnpm')) {
+            packageManager = 'pnpm';
+          } else if (userAgent.includes('yarn') || execPath.includes('yarn')) {
+            packageManager = 'yarn';
+          } else if (userAgent.includes('bun') || execPath.includes('bun')) {
+            packageManager = 'bun';
+          } else if (userAgent.includes('npm') && !userAgent.includes('pnpm')) {
+            packageManager = 'npm';
+          } else if (fs.existsSync('pnpm-lock.yaml')) {
+            packageManager = 'pnpm';
+          } else if (fs.existsSync('yarn.lock')) {
+            packageManager = 'yarn';
+          } else if (fs.existsSync('bun.lockb')) {
+            packageManager = 'bun';
+          }
+          
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ packageManager }));
+        });
       },
     },
   ],
