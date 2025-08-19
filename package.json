@@ -6,8 +6,7 @@
   "scripts": {
     "remix-setup": "node scripts/setup.js",
     "dev": "node scripts/dev-server.js",
-    "dev:3001": "node scripts/dev-server.js 3001",
-    "dev:any": "node scripts/dev-server.js 0",
+    "dev:its": "node scripts/dev-server-its.js",
     "preview": "vite preview",
     "build": "node scripts/build.js"
   },
