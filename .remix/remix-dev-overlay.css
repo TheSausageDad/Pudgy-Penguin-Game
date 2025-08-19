@@ -4,6 +4,11 @@ body,html {
   padding: 0;
 }
 
+/* Remove outlines from all buttons in dev tools */
+.remix-dev-container button {
+  outline: none;
+}
+
 .remix-dev-container {
   position: fixed;
   inset: 0;
@@ -115,12 +120,10 @@ body,html {
 
 .game-frame {
   position: relative;
-  background: #000;
-  border-radius: 12px;
-  box-shadow: 0 0 0 2px #c0c0c012;
-  overflow: hidden;
   transition: width 0.3s ease, height 0.3s ease;
-  container-type: inline-size;
+  background: #000;
+  overflow: hidden;
+  border-radius: 12px;
 }
 
 #game-iframe {
@@ -130,7 +133,9 @@ body,html {
   height: 100%;
   border: 0;
   display: block;
-  background: #000;
+  z-index: 2;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 /* Game Over Overlay */
@@ -146,6 +151,7 @@ body,html {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  z-index: 3;
 }
 
 .game-overlay.show {
@@ -316,13 +322,16 @@ body,html {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 8px 16px;
-  margin: -8px -16px;
+  padding: 6px 12px;
+  margin: -6px -12px;
   border-radius: 8px;
-  transition: background-color 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .publishable-status:hover {
@@ -353,17 +362,25 @@ body,html {
 }
 
 .status-right {
-  opacity: 0.8;
+  opacity: 1;
   font-size: 13px;
   min-width: 120px;
   text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#updated-text {
+  opacity: 0.5;
 }
 
 /* Hover Panel */
 .status-panel {
   position: absolute;
   bottom: 100%;
-  left: 0;
+  left: -12px;
   margin-bottom: 8px;
   background: #2a2a2a;
   border: 1px solid rgba(255,255,255,0.15);
@@ -383,7 +400,7 @@ body,html {
 
 .status-panel.show {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(-5px);
   pointer-events: auto;
 }
 
@@ -493,4 +510,165 @@ body,html {
 
 .setup-banner-close:hover {
   background: rgba(0, 0, 0, 0.2);
+}
+
+/* Settings Status - follows same pattern as publishable-status */
+.settings-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.settings-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* Settings Panel - positioned relative to settings button */
+.settings-panel {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  background: #2a2a2a;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 200px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 500; /* Higher than status-panel */
+}
+
+.settings-panel.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Settings Items - using same status-item styling */
+.settings-panel .status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.settings-panel .status-item:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px;
+  width: 100%;
+}
+
+.setting-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  height: 20px;
+  background: #333;
+  border: 2px solid #555;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  margin: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.setting-checkbox:checked {
+  background: #b7ff00;
+  border-color: #b7ff00;
+}
+
+.setting-checkbox::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.setting-checkbox:checked::after {
+  transform: translateX(16px);
+  background: #000;
+}
+
+.setting-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #333;
+}
+
+.setting-checkbox:disabled::after {
+  opacity: 0.5;
+}
+
+.setting-text {
+  color: #ddd;
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+  text-align: left;
+}
+
+.setting-checkbox:disabled + .setting-text {
+  opacity: 0.5;
+  color: #888;
+}
+
+/* Background pattern control */
+body.show-background-pattern .game-container::before {
+  display: block;
+}
+
+body:not(.show-background-pattern) .game-container::before {
+  display: none;
 }

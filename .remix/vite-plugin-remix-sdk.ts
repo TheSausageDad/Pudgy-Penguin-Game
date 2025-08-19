@@ -38,7 +38,6 @@ export function remixSDKPlugin(): Plugin {
       handler(html, context) {
         // Transform the main index.html in development
         if (context.server) {
-          console.log('[Vite Plugin] Transforming HTML for path:', context.path);
           return transformMainHTML(html);
         }
         return html;

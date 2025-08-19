@@ -4,5 +4,7 @@
  */
 
 import { initializeDevOverlay } from './RemixDevOverlay';
+import './parent-underglow';
+import './dev-settings';
 
 initializeDevOverlay();

@@ -67,6 +67,9 @@ export class RemixDevOverlay {
     this.needsSetup = await this.checkIfNeedsSetup();
     this.gameIdLoaded = true;
     
+    // Load saved integration status if files haven't changed
+    this.loadSavedIntegrationStatus();
+    
     // Show setup overlay if needed
     if (this.needsSetup) {
       this.showSetupOverlay();
@@ -173,53 +176,43 @@ export class RemixDevOverlay {
     this.miniSizeButton = this.container.querySelector('#mini-size-btn') as HTMLElement;
     this.gameFrame = this.container.querySelector('.game-frame') as HTMLElement;
     
-    // Setup hover/tap panel
+    // Setup click-to-toggle panel
     const publishableStatus = this.container.querySelector('#publishable-status') as HTMLElement;
     const statusPanel = this.container.querySelector('#status-panel') as HTMLElement;
     
-    let panelTimeout: number | null = null;
+    let isStatusPanelOpen = false;
     
-    // Show panel on hover/tap
-    const showPanel = () => {
-      if (panelTimeout) {
-        clearTimeout(panelTimeout);
-        panelTimeout = null;
-      }
-      statusPanel.classList.add('show');
-    };
-    
-    // Hide panel with delay
-    const hidePanel = () => {
-      panelTimeout = setTimeout(() => {
-        statusPanel.classList.remove('show');
-      }, 150);
-    };
-    
-    // Mouse events
-    publishableStatus.addEventListener('mouseenter', showPanel);
-    publishableStatus.addEventListener('mouseleave', hidePanel);
-    
-    // Touch events for mobile
-    publishableStatus.addEventListener('touchstart', (e) => {
-      e.preventDefault();
+    // Toggle panel on click
+    const toggleStatusPanel = () => {
       if (statusPanel.classList.contains('show')) {
         statusPanel.classList.remove('show');
+        isStatusPanelOpen = false;
       } else {
-        showPanel();
-        // Auto-hide after 3 seconds on mobile
-        setTimeout(() => {
-          statusPanel.classList.remove('show');
-        }, 3000);
+        // Close the settings panel if it's open
+        const settingsPanel = document.querySelector('.settings-panel');
+        if (settingsPanel?.classList.contains('show')) {
+          settingsPanel.classList.remove('show');
+        }
+        
+        statusPanel.classList.add('show');
+        isStatusPanelOpen = true;
       }
-    });
+    };
     
-    // Click/tap toggle
+    // Click to toggle
     publishableStatus.addEventListener('click', (e) => {
       e.preventDefault();
-      if (statusPanel.classList.contains('show')) {
+      e.stopPropagation();
+      toggleStatusPanel();
+    });
+    
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (isStatusPanelOpen && 
+          !statusPanel.contains(e.target as Node) && 
+          !publishableStatus.contains(e.target as Node)) {
         statusPanel.classList.remove('show');
-      } else {
-        showPanel();
+        isStatusPanelOpen = false;
       }
     });
   }
@@ -399,6 +392,9 @@ export class RemixDevOverlay {
     }
     
     this.publishableIcon.className = `status-light ${statusClass}`;
+    
+    // Save integration status if no files have changed
+    this.saveIntegrationStatusIfStable();
   }
 
   // Initialize game ID by fetching from package.json
@@ -407,8 +403,6 @@ export class RemixDevOverlay {
     const newGameId = await this.fetchGameId();
     
     if (newGameId !== oldGameId) {
-      console.log(`[Dev Overlay] Updating game ID from ${oldGameId} to ${newGameId}`);
-      
       // Migrate timestamp from old ID to new ID if it exists
       try {
         const oldTimestamp = localStorage.getItem(`remix-dev-last-update-${oldGameId}`);
@@ -417,7 +411,7 @@ export class RemixDevOverlay {
           localStorage.removeItem(`remix-dev-last-update-${oldGameId}`);
         }
       } catch (error) {
-        console.warn('[Dev Overlay] Could not migrate timestamp:', error);
+        // Could not migrate timestamp
       }
       
       this.gameId = newGameId;
@@ -437,11 +431,10 @@ export class RemixDevOverlay {
         const gameName = packageJson.name || 'unknown-game';
         // Clean the name to be localStorage-safe
         const cleanName = gameName.replace(/[^a-zA-Z0-9-_]/g, '_');
-        console.log('[Dev Overlay] Game identified as:', cleanName);
         return cleanName;
       }
     } catch (error) {
-      console.warn('[Dev Overlay] Could not fetch package.json, using fallback:', error);
+      // Could not fetch package.json, using fallback
     }
     
     // Fallback to URL-based identifier
@@ -460,10 +453,8 @@ export class RemixDevOverlay {
         hash = hash & hash; // Convert to 32-bit integer
       }
       const fallbackId = `game_${Math.abs(hash).toString(36)}`;
-      console.log('[Dev Overlay] Using fallback game ID:', fallbackId);
       return fallbackId;
     } catch (error) {
-      console.warn('[Dev Overlay] Fallback ID generation failed:', error);
       return 'game_default';
     }
   }
@@ -482,7 +473,7 @@ export class RemixDevOverlay {
   private saveLastUpdateTime(): void {
     try {
       // Don't save timestamps for uninitialized game templates
-      if (this.gameId === 'GAME_NAME') {
+      if (this.gameId === 'Climb or Die') {
         return;
       }
       localStorage.setItem(`remix-dev-last-update-${this.gameId}`, this.lastUpdateTime.toString());
@@ -491,18 +482,87 @@ export class RemixDevOverlay {
     }
   }
 
+  private saveIntegrationStatusIfStable(): void {
+    try {
+      // Don't save for uninitialized game templates
+      if (this.gameId === 'Climb or Die') {
+        return;
+      }
+      
+      // Check if files have changed recently (within last 5 seconds)
+      const now = Date.now();
+      const timeSinceUpdate = now - this.lastUpdateTime;
+      const isStable = timeSinceUpdate > 5000; // 5 seconds
+      
+      if (isStable) {
+        const statusData = {
+          flags: this.flags,
+          savedAt: now
+        };
+        localStorage.setItem(`remix-dev-integration-${this.gameId}`, JSON.stringify(statusData));
+      }
+    } catch (error) {
+      // Silently fail if localStorage is not available
+    }
+  }
+
+  private loadSavedIntegrationStatus(): boolean {
+    try {
+      // Don't load for uninitialized game templates
+      if (this.gameId === 'Climb or Die') {
+        return false;
+      }
+      
+      const stored = localStorage.getItem(`remix-dev-integration-${this.gameId}`);
+      if (!stored) {
+        return false;
+      }
+      
+      const statusData = JSON.parse(stored);
+      
+      // Check if files have changed since we saved the status
+      const hasFilesChanged = this.lastUpdateTime > statusData.savedAt;
+      
+      if (!hasFilesChanged) {
+        // Restore the saved flags
+        this.flags = { ...statusData.flags };
+        
+        // Update all the UI elements
+        this.updateEventLight('ready-light', this.flags.ready);
+        this.updateEventLight('game-over-light', this.flags.gameOver);
+        this.updateEventLight('play-again-light', this.flags.playAgain);
+        this.updateEventLight('toggle-mute-light', this.flags.toggleMute);
+        
+        // Update the main status light without saving again
+        const readyCount = [this.flags.ready, this.flags.gameOver, this.flags.playAgain, this.flags.toggleMute].filter(Boolean).length;
+        const totalEvents = 4;
+        let statusClass = 'red';
+        if (readyCount === totalEvents) {
+          statusClass = 'green';
+        } else if (readyCount > 0) {
+          statusClass = 'yellow';
+        }
+        this.publishableIcon.className = `status-light ${statusClass}`;
+        
+        return true;
+      }
+    } catch (error) {
+      // Silently fail if localStorage is not available or data is corrupted
+    }
+    
+    return false;
+  }
+
   // Setup file watcher using Vite's HMR API
   private setupFileWatcher(): void {
     if (import.meta.hot) {
       // Listen for HMR updates
       import.meta.hot.on('vite:beforeUpdate', (payload) => {
-        console.log('[File Change] Files updated:', payload);
         this.onFileChange(payload.updates?.map((update: any) => update.path) || []);
       });
 
       // Also listen for full page reloads
       import.meta.hot.on('vite:beforeFullReload', () => {
-        console.log('[File Change] Full reload triggered');
         this.onFileChange(['full-reload']);
       });
     } else {
@@ -532,7 +592,6 @@ export class RemixDevOverlay {
     if (srcFiles.length > 0) {
       this.lastUpdateTime = Date.now();
       this.saveLastUpdateTime();
-      console.log('[Dev Overlay] Source file changes detected:', srcFiles);
       
       // Update exposed dev info
       this.exposeDevEnvironmentInfo();
@@ -545,10 +604,8 @@ export class RemixDevOverlay {
       const response = await fetch('/.remix/.setup_required', { method: 'HEAD' });
       const setupRequired = response.headers.get('X-Setup-Required');
       const needsSetup = setupRequired === 'true';
-      console.log('[Dev Overlay] Setup needed:', needsSetup);
       return needsSetup;
     } catch (error) {
-      console.log('[Dev Overlay] No .remix/.setup_required endpoint found, setup not needed');
       return false;
     }
   }
@@ -568,7 +625,6 @@ export class RemixDevOverlay {
         try {
           const response = await fetch(file, { method: 'HEAD' });
           if (response.ok) {
-            console.log(`[Dev Overlay] Package manager detected via lock file ${file}:`, manager);
             return manager;
           }
         } catch (e) {
@@ -576,11 +632,10 @@ export class RemixDevOverlay {
         }
       }
     } catch (error) {
-      console.warn('[Dev Overlay] Could not detect package manager from lock files:', error);
+      // Could not detect package manager from lock files
     }
     
     // Default to npm
-    console.log('[Dev Overlay] Using default package manager: npm');
     return 'npm';
   }
 
@@ -738,7 +793,6 @@ export class RemixDevOverlay {
             copyButton.style.color = '#ff8c00';
           }, 2000);
         } catch (error) {
-          console.warn('[Dev Overlay] Could not copy to clipboard:', error);
           copyButton.textContent = '❌';
           setTimeout(() => {
             copyButton.textContent = '📋';
@@ -747,14 +801,12 @@ export class RemixDevOverlay {
       });
     }
 
-    console.log('[Dev Overlay] Setup overlay shown');
   }
 
   // Hide setup overlay
   private hideSetupOverlay(): void {
     if (this.setupOverlay && this.setupOverlay.parentNode) {
       this.setupOverlay.parentNode.removeChild(this.setupOverlay);
-      console.log('[Dev Overlay] Setup overlay hidden');
     }
   }
 
@@ -771,8 +823,6 @@ export class RemixDevOverlay {
 
     // Also send to game iframe
     this.sendToGame('remix_dev_info', devInfo);
-
-    console.log('[Dev Overlay] Dev environment info exposed:', devInfo);
   }
 
   private startUpdateTimer(): void {
