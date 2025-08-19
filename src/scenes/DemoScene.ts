@@ -12,6 +12,7 @@ export class DemoScene extends Phaser.Scene {
   private clickCount: number = 0
   private clickText?: Phaser.GameObjects.Text
   private gameOver: boolean = false
+  private time: number = 0
 
   constructor() {
     super({ key: "DemoScene" })
@@ -20,6 +21,7 @@ export class DemoScene extends Phaser.Scene {
   preload(): void {}
 
   create(): void {
+
     // Add instructional text
     const title = this.add.text(GameSettings.canvas.width / 2, GameSettings.canvas.height / 2 - 100, 'Remix SDK Demo', {
       fontSize: '64px',
@@ -29,17 +31,17 @@ export class DemoScene extends Phaser.Scene {
 
     const instruction = this.add.text(GameSettings.canvas.width / 2, GameSettings.canvas.height / 2 - 20, 'Click anywhere 3 times to trigger Game Over!', {
       fontSize: '32px',
-      color: '#cccccc',
+      color: '#ffffff',
       fontFamily: 'Arial',
       align: 'center'
     }).setOrigin(0.5).setDepth(100)
 
-    // Add click counter text
-    this.clickText = this.add.text(30, 30, 'Score: 0/3', {
+    // Add click counter text (centered at top)
+    this.clickText = this.add.text(GameSettings.canvas.width / 2, 50, 'Score: 0/3', {
       fontSize: '36px',
       color: '#ffffff',
       fontFamily: 'Arial'
-    }).setDepth(100)
+    }).setOrigin(0.5).setDepth(100)
 
     // Add removal instructions at bottom
     const removeInstructions = this.add.text(
@@ -47,8 +49,8 @@ export class DemoScene extends Phaser.Scene {
       GameSettings.canvas.height - 60,
       'To remove this demo, ask your AI:\n"Remove the demo and create a minimal GameScene"',
       {
-        fontSize: '18px',
-        color: '#888888',
+        fontSize: '24px',
+        color: '#cccccc',
         fontFamily: 'Arial',
         align: 'center',
         wordWrap: { width: GameSettings.canvas.width - 40 }
@@ -75,12 +77,14 @@ export class DemoScene extends Phaser.Scene {
 
   private createBalls(count: number): void {
     for (let i = 0; i < count; i++) {
-      const radius = Phaser.Math.Between(15, 40)
+      const radius = Phaser.Math.Between(25, 60)
       const x = Phaser.Math.Between(radius, GameSettings.canvas.width - radius)
       const y = Phaser.Math.Between(radius, GameSettings.canvas.height - radius)
       
-      const ball = this.add.circle(x, y, radius, Phaser.Math.Between(0x000000, 0xffffff))
-      ball.setStrokeStyle(2, 0xffffff)
+      // Remix green color
+      const color = 0x33ff00
+      const ball = this.add.circle(x, y, radius, color)
+      ball.setStrokeStyle(2, 0x000000)
       ball.setInteractive()
       
       
@@ -95,8 +99,10 @@ export class DemoScene extends Phaser.Scene {
     }
   }
 
+
   update(_time: number, deltaTime: number): void {
     const dt = deltaTime / 1000
+
 
     this.balls.forEach(ball => {
       // Update position
@@ -114,6 +120,56 @@ export class DemoScene extends Phaser.Scene {
         ball.sprite.y = Phaser.Math.Clamp(ball.sprite.y, ball.radius, GameSettings.canvas.height - ball.radius)
       }
     })
+
+    // Check ball-to-ball collisions
+    this.checkBallCollisions()
+  }
+
+  private checkBallCollisions(): void {
+    for (let i = 0; i < this.balls.length; i++) {
+      for (let j = i + 1; j < this.balls.length; j++) {
+        const ball1 = this.balls[i]
+        const ball2 = this.balls[j]
+        
+        const dx = ball2.sprite.x - ball1.sprite.x
+        const dy = ball2.sprite.y - ball1.sprite.y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        const minDistance = ball1.radius + ball2.radius
+        
+        if (distance < minDistance) {
+          // Collision detected - separate balls
+          const overlap = minDistance - distance
+          const separationX = (dx / distance) * (overlap / 2)
+          const separationY = (dy / distance) * (overlap / 2)
+          
+          ball1.sprite.x -= separationX
+          ball1.sprite.y -= separationY
+          ball2.sprite.x += separationX
+          ball2.sprite.y += separationY
+          
+          // Calculate collision response
+          const angle = Math.atan2(dy, dx)
+          const sin = Math.sin(angle)
+          const cos = Math.cos(angle)
+          
+          // Rotate velocities to collision normal
+          const vx1 = ball1.velocityX * cos + ball1.velocityY * sin
+          const vy1 = ball1.velocityY * cos - ball1.velocityX * sin
+          const vx2 = ball2.velocityX * cos + ball2.velocityY * sin
+          const vy2 = ball2.velocityY * cos - ball2.velocityX * sin
+          
+          // Apply conservation of momentum (assuming equal mass)
+          const newVx1 = vx2
+          const newVx2 = vx1
+          
+          // Rotate velocities back
+          ball1.velocityX = newVx1 * cos - vy1 * sin
+          ball1.velocityY = vy1 * cos + newVx1 * sin
+          ball2.velocityX = newVx2 * cos - vy2 * sin
+          ball2.velocityY = vy2 * cos + newVx2 * sin
+        }
+      }
+    }
   }
 
   private handleClick(): void {

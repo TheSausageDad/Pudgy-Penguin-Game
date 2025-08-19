@@ -6,25 +6,25 @@
 // ===== UNDERGLOW CONFIGURATION =====
 const UNDERGLOW_CONFIG = {
   // === VISUAL APPEARANCE ===
-  blurAmount: 30,            // Higher = softer glow (0-50)
-  glowBrightness: 0.55,      // Higher = brighter glow (0-1)
-  glowDistance: 8,         // How far glow extends beyond edges (pixels)
+  blurAmount: 22,            // Higher = softer glow (0-50)
+  glowBrightness: .6,       // Higher = brighter glow (0-1)
+  glowDistance: 12,          // How far glow extends beyond edges (pixels)
   
   // === PERFORMANCE ===
-  updatesPerSecond: 10,     // How often to update the glow (1-60)
+  updatesPerSecond: 30,     // How often to update the glow (1-60)
   
   // === TECHNICAL SETTINGS (Advanced) ===
   // Image capture
-  horizontalDownscale: 5,   // Compress width by this factor (higher = faster)
-  verticalDownscale: 5,   // Compress height by this factor (higher = faster)
-  compressionQuality: 20,   // JPEG quality 1-100 (lower = faster)
-  sampleSize: 25,           // Sample size for black frame detection
+  horizontalDownscale: 2,   // Compress width by this factor (higher = faster)
+  verticalDownscale: 2,// Compress height by this factor (higher = faster)
+  compressionQuality: 1,   // JPEG quality 1-100 (lower = faster)
+  sampleSize: 10,           // Sample size for black frame detecti5n
   
-  // Edge sampling (how much of each edge to sample from source)
-  topEdgeSample: 5,        // Pixels from top of source
-  bottomEdgeSample: 5,     // Pixels from bottom of source  
-  leftEdgeSample: 5,       // Pixels from left of source
-  rightEdgeSample: 5,      // Pixels from right of source
+  // Edge sampl5ng (how much of each edge to sample from source)
+  topEdgeSample: 22,        // Pixels from top of source
+  bottomEdgeSample: 22,     // Pixels from bottom of source  
+  leftEdgeSample: 22,       // Pixels from left of source
+  rightEdgeSample: 22,      // Pixels from right of source
 }
 
 class ParentUnderglow {
@@ -154,8 +154,16 @@ class ParentUnderglow {
       try {
           // Validate canvas has content
           if (canvas.width === 0 || canvas.height === 0) {
+            console.log('Canvas has zero dimensions:', { width: canvas.width, height: canvas.height })
             return
           }
+          
+          console.log('Canvas found:', { 
+            width: canvas.width, 
+            height: canvas.height,
+            tagName: canvas.tagName,
+            style: canvas.style.cssText
+          })
 
           // Ultra-tiny images with asymmetric scaling
           const smallWidth = Math.max(9, Math.floor(canvas.width / UNDERGLOW_CONFIG.horizontalDownscale))
@@ -171,21 +179,34 @@ class ParentUnderglow {
           // Fastest possible settings
           tempCtx.imageSmoothingEnabled = false // No smoothing for speed
           
-          // Draw the iframe canvas downscaled
+          // Draw the canvas (now with preserved drawing buffer)
+          console.log('Drawing canvas with preserved buffer')
           tempCtx.drawImage(
             canvas,
             0, 0, canvas.width, canvas.height,
             0, 0, smallWidth, smallHeight
           )
+          
+          // Debug: Check what we actually drew
+          const debugImageData = tempCtx.getImageData(0, 0, Math.min(10, smallWidth), Math.min(10, smallHeight))
+          const debugPixels = []
+          for (let i = 0; i < Math.min(40, debugImageData.data.length); i += 4) {
+            debugPixels.push([debugImageData.data[i], debugImageData.data[i+1], debugImageData.data[i+2], debugImageData.data[i+3]])
+          }
+          console.log('Temp canvas first 10 pixels after drawImage:', debugPixels)
 
-          // Quick black frame check with tiny sample (only reject completely black frames)
-          const sampleSize = Math.min(9, smallWidth, smallHeight)
+          // Quick black frame check with larger sample (only reject completely black frames)
+          const sampleSize = Math.min(smallWidth, smallHeight)
           const imageData = tempCtx.getImageData(0, 0, sampleSize, sampleSize)
-          if (this.isImageDataMostlyBlack(imageData)) {
+          const isBlack = this.isImageDataMostlyBlack(imageData)
+          console.log('Frame sample check:', { sampleSize, isBlack, width: smallWidth, height: smallHeight })
+          if (isBlack) {
+            console.log('Frame rejected as black - skipping glow update')
             return
           }
+          console.log('Frame accepted - proceeding with glow update')
           
-          // Convert to JPEG with extreme compression for speed
+          // Convert to JPEG for better performance
           const jpegDataUrl = tempCanvas.toDataURL('image/jpeg', UNDERGLOW_CONFIG.compressionQuality / 100)
           this.updateGlowFromJpeg(jpegDataUrl, smallWidth, smallHeight)
           
@@ -202,6 +223,7 @@ class ParentUnderglow {
   private isImageDataMostlyBlack(imageData: ImageData): boolean {
     const data = imageData.data
     let nonBlackPixels = 0
+    const totalPixels = data.length / 4
     
     // Check every pixel for any non-black content
     for (let i = 0; i < data.length; i += 4) {
@@ -209,18 +231,16 @@ class ParentUnderglow {
       const g = data[i + 1] 
       const b = data[i + 2]
       
-      // If any channel has reasonable brightness, it's not black
-      if (r > 20 || g > 20 || b > 20) {
+      // If any channel has some brightness, it's not black
+      if (r > 0 || g > 0 || b > 0) {
         nonBlackPixels++
-        // If we find even a few non-black pixels, allow the frame
-        if (nonBlackPixels > 3) {
-          return false
-        }
       }
     }
     
-    // Only reject if virtually all pixels are black
-    return nonBlackPixels <= 3
+    // Accept frame if more than 0.1% of pixels are non-black (very lenient)
+    const nonBlackPercentage = nonBlackPixels / totalPixels
+    console.log('Black frame check:', { nonBlackPixels, totalPixels, percentage: nonBlackPercentage.toFixed(4) })
+    return nonBlackPercentage < 0.001
   }
 
   private postMessageSender: (() => void) | null = null
@@ -297,7 +317,7 @@ class ParentUnderglow {
     
     // Reset game frame positioning since it's now in a controlled container
     this.gameFrame.style.position = 'relative'
-    this.gameFrame.style.zIndex = '1'
+    this.gameFrame.style.zIndex = '2'
   }
 
   private createGlowCanvas() {
@@ -343,11 +363,11 @@ class ParentUnderglow {
     canvas.style.position = 'absolute'
     canvas.style.pointerEvents = 'none'
     canvas.style.zIndex = '0'
-    canvas.style.filter = `blur(${this.blurRadius}px) brightness(1.5) saturate(1.3)`
+    canvas.style.filter = `blur(${this.blurRadius}px) brightness(1) saturate(1.25) contrast(0.9)`
     canvas.style.opacity = this.glowOpacity.toString()
     
     // Debug: Add a visible border to see edge placement (comment out for production)
-    // canvas.style.border = '1px solid red'
+    // canvas.style.border = '2px solid lime'
     
     switch (edge) {
       case 'top':
@@ -461,10 +481,13 @@ class ParentUnderglow {
   private updateGlowFromJpeg(jpegDataUrl: string, width: number, height: number) {
     if (!this.glowCtxTop || !this.glowCanvasTop) return
 
+    console.log('Updating glow from JPEG:', { width, height, dataLength: jpegDataUrl.length })
+
     try {
       // Create image from JPEG data
       const img = new Image()
       img.onload = () => {
+        console.log('JPEG loaded successfully, updating edges')
         this.updateAllEdges(img, width, height)
       }
       
@@ -531,7 +554,7 @@ class ParentUnderglow {
   // Configuration methods
   setBlurRadius(radius: number) {
     this.blurRadius = Math.max(0, Math.min(50, radius))
-    const filter = `blur(${this.blurRadius}px) brightness(1.5) saturate(1.3)`
+    const filter = `blur(${this.blurRadius}px) brightness(1.0) saturate(1.25) contrast(1)`
     if (this.glowCanvasTop) this.glowCanvasTop.style.filter = filter
     if (this.glowCanvasBottom) this.glowCanvasBottom.style.filter = filter
     if (this.glowCanvasLeft) this.glowCanvasLeft.style.filter = filter

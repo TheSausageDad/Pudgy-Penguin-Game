@@ -14,7 +14,7 @@ const config: Phaser.Types.Core.GameConfig = {
     width: GameSettings.canvas.width,
     height: GameSettings.canvas.height,
   },
-  backgroundColor: "#111111",
+  backgroundColor: "#1a1a1a",
   scene: [GameScene],
   physics: {
     default: "arcade",
@@ -26,6 +26,10 @@ const config: Phaser.Types.Core.GameConfig = {
   // Additional WebGL settings
   pixelArt: false,
   antialias: true,
+  // Preserve drawing buffer for underglow effect
+  render: {
+    preserveDrawingBuffer: true,
+  },
 }
 
 // Create the game instance
