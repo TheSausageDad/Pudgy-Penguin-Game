@@ -131,7 +131,7 @@ function transformMainHTML(html: string): string {
   </style>
 </head>
 <body>
-  <script type="module" src="/src/dev-main.ts"></script>
+  <script type="module" src="/.remix/overlay.ts"></script>
 </body>
 </html>
   `;

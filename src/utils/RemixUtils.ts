@@ -29,17 +29,6 @@ export function getDevEnvironmentInfo(): DevEnvironmentInfo | null {
   }
 }
 
-// Function to get package manager-specific instructions
-export function getPackageManagerInstructions(): { install: string; dev: string; build: string } {
-  const devInfo = getDevEnvironmentInfo();
-  const pm = devInfo?.packageManager || 'npm';
-  
-  return {
-    install: `${pm} install`,
-    dev: `${pm} run dev`,
-    build: `${pm} run build`
-  };
-}
 
 export function initializeRemixSDK(game: Phaser.Game): void {
   if (!("FarcadeSDK" in window && window.FarcadeSDK)) {

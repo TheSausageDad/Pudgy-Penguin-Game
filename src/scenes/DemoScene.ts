@@ -12,7 +12,6 @@ export class DemoScene extends Phaser.Scene {
   private clickCount: number = 0
   private clickText?: Phaser.GameObjects.Text
   private gameOver: boolean = false
-  private time: number = 0
 
   constructor() {
     super({ key: "DemoScene" })

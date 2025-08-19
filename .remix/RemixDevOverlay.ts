@@ -650,7 +650,7 @@ export class RemixDevOverlay {
         right: 0;
         background: rgba(255, 140, 0, 0.9);
         border-top: 2px solid #ff8c00;
-        z-index: 1000;
+        z-index: 100;
         backdrop-filter: blur(4px);
         color: #000;
         font-family: system-ui, sans-serif;
