@@ -1279,7 +1279,7 @@ export class RemixDevOverlay {
         
         // Line color based on current FPS
         if (currentFPS >= 55) {
-          ctx.strokeStyle = '#33ff00';
+          ctx.strokeStyle = '#22c55e';
         } else if (currentFPS >= 30) {
           ctx.strokeStyle = '#eab308';
         } else {
@@ -1311,7 +1311,7 @@ export class RemixDevOverlay {
     
     // Draw current FPS indicator and scale
     if (latestData) {
-      const color = currentFPS >= 60 ? '#33ff00' : 
+      const color = currentFPS >= 60 ? '#22c55e' : 
                    currentFPS >= 30 ? '#eab308' : '#ef4444';
       
       // Draw scale indicators first (left side) - now they have proper space
@@ -1375,16 +1375,16 @@ export class RemixDevOverlay {
     const sparklineData = data.slice(-30);
     
     // Render FPS sparkline
-    this.renderSparkline('fps-sparkline', sparklineData.map(d => d.fps), 0, 60, '#33ff00');
+    this.renderSparkline('fps-sparkline', sparklineData.map(d => d.fps), 0, 60, '#22c55e');
     
     // Render frame time sparkline
-    this.renderSparkline('timing-sparkline', sparklineData.map(d => d.frameTime), 0, 33.33, '#33ff00');
+    this.renderSparkline('timing-sparkline', sparklineData.map(d => d.frameTime), 0, 33.33, '#22c55e');
     
     // Render memory sparkline if available
     const memoryData = sparklineData.filter(d => d.memory).map(d => d.memory!.used);
     if (memoryData.length > 0) {
       const maxMemory = Math.max(...memoryData) * 1.2;
-      this.renderSparkline('memory-sparkline', memoryData, 0, maxMemory, '#33ff00');
+      this.renderSparkline('memory-sparkline', memoryData, 0, maxMemory, '#22c55e');
     }
   }
 

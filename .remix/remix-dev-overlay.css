@@ -820,7 +820,7 @@ body:not(.show-background-pattern) .game-container::before {
 
 .perf-value {
   font-weight: 700;
-  color: #33ff00;
+  color: #22c55e;
   text-align: right;
   min-width: 40px;
   margin-right: 4px;
@@ -837,7 +837,7 @@ body:not(.show-background-pattern) .game-container::before {
 
 .perf-range {
   font-weight: 700;
-  color: #33ff00;
+  color: #22c55e;
   font-size: 11px;
   text-align: right;
   min-width: 40px;
