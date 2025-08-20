@@ -68,4 +68,46 @@ export function initializeDevelopment(): void {
       (window as any).__remixDevInfo = event.data.data;
     }
   });
+
+  // Load performance monitoring plugin
+  loadRemixPerformancePlugin();
+}
+
+// Load and inject the performance monitoring plugin
+function loadRemixPerformancePlugin(): void {
+  // Only load in development mode
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  try {
+    // Fetch the plugin code from the .remix directory
+    fetch('/.remix/performance-plugin.js')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Performance plugin not found');
+        }
+        return response.text();
+      })
+      .then(pluginCode => {
+        // Execute the plugin code in the game context
+        const script = document.createElement('script');
+        script.textContent = pluginCode;
+        document.head.appendChild(script);
+
+        // Clean up the script element
+        setTimeout(() => {
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+        }, 100);
+      })
+      .catch(error => {
+        // Performance plugin loading failed, but this is non-critical
+        console.log('Performance plugin not available (fallback mode will be used):', error.message);
+      });
+  } catch (error) {
+    // Silently fail if plugin loading fails
+    console.log('Performance plugin loading failed (fallback mode will be used)');
+  }
 }

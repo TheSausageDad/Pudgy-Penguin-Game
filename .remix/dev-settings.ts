@@ -6,6 +6,7 @@
 interface DevSettings {
   canvasGlow: boolean;
   backgroundPattern: boolean;
+  fullSize: boolean;
 }
 
 class DevSettingsManager {
@@ -43,7 +44,8 @@ class DevSettingsManager {
   private getDefaultSettings(): DevSettings {
     return {
       canvasGlow: true,
-      backgroundPattern: true
+      backgroundPattern: true,
+      fullSize: false
     }
   }
 
@@ -94,20 +96,36 @@ class DevSettingsManager {
   private createSettingsPanel() {
     this.settingsPanel = document.createElement('div')
     this.settingsPanel.className = 'settings-panel'
-    this.settingsPanel.innerHTML = `
-      <div class="status-item">
-        <label class="setting-label">
-          <input type="checkbox" class="setting-checkbox" data-setting="canvasGlow" ${this.settings.canvasGlow ? 'checked' : ''} ${(this.isSafari || this.isMobileDevice) ? 'disabled' : ''}>
-          <span class="setting-text">Canvas Glow${(this.isSafari || this.isMobileDevice) ? ' (disabled)' : ''}</span>
-        </label>
-      </div>
+    let settingsHTML = '';
+    
+    // Only show Canvas Glow on supported devices
+    if (!this.isSafari && !this.isMobileDevice) {
+      settingsHTML += `
+        <div class="status-item">
+          <label class="setting-label">
+            <input type="checkbox" class="setting-checkbox" data-setting="canvasGlow" ${this.settings.canvasGlow ? 'checked' : ''}>
+            <span class="setting-text">Canvas Glow</span>
+          </label>
+        </div>
+      `;
+    }
+    
+    settingsHTML += `
       <div class="status-item">
         <label class="setting-label">
           <input type="checkbox" class="setting-checkbox" data-setting="backgroundPattern" ${this.settings.backgroundPattern ? 'checked' : ''}>
           <span class="setting-text">Background Pattern</span>
         </label>
       </div>
-    `
+      <div class="status-item">
+        <label class="setting-label">
+          <input type="checkbox" class="setting-checkbox" data-setting="fullSize" ${this.settings.fullSize ? 'checked' : ''}>
+          <span class="setting-text">Canvas Scaling</span>
+        </label>
+      </div>
+    `;
+    
+    this.settingsPanel.innerHTML = settingsHTML;
 
     // Prevent panel from closing when clicking inside it
     this.settingsPanel.addEventListener('click', (e) => {
@@ -125,6 +143,11 @@ class DevSettingsManager {
           this.settings[setting] = target.checked
           this.saveSettings()
           this.applySettings()
+          
+          // Notify RemixDevOverlay of size changes
+          if (setting === 'fullSize' && window.__remixDevOverlay) {
+            window.__remixDevOverlay.setSize(!target.checked); // fullSize=true means isMini=false
+          }
         }
       })
     })

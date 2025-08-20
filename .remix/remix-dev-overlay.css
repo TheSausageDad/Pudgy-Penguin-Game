@@ -238,39 +238,34 @@ body,html {
 }
 
 /* Bottom Status Bar */
+/* Toolbar - Natural Spacing */
 .dev-status-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  padding: 12px 16px;
   background: #1a1a1a;
   border-top: 1px solid rgba(255,255,255,0.1);
   color: #ddd;
   font-size: 14px;
-  flex-shrink: 0;
-  height: 46px; /* Fixed height for consistent calculations */
   min-height: 46px;
   position: relative;
-  z-index: 300; /* Higher than setup banner and other elements */
+  z-index: 300;
 }
 
 .status-left {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  /* Natural size */
 }
 
 .status-center {
-  display: none;
-  align-items: center;
+  /* Natural size */
+  margin: 0 auto;
 }
 
-/* Show size toggle on larger screens */
-@media (min-width: 1024px) {
-  .status-center {
-    display: flex;
-  }
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .size-toggle-group {
@@ -321,7 +316,6 @@ body,html {
   gap: 8px;
   cursor: pointer;
   padding: 6px 12px;
-  margin: -6px -12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.2s ease;
@@ -359,10 +353,42 @@ body,html {
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
 }
 
+/* 2x2 Grid of Mini Status Lights */
+.status-light-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 16px;
+  height: 16px;
+}
+
+.status-light-mini {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.status-light-mini.red {
+  background: #ef4444;
+  box-shadow: 0 0 2px rgba(239, 68, 68, 0.6);
+}
+
+.status-light-mini.yellow {
+  background: #eab308;
+  box-shadow: 0 0 2px rgba(234, 179, 8, 0.6);
+}
+
+.status-light-mini.green {
+  background: #22c55e;
+  box-shadow: 0 0 2px rgba(34, 197, 94, 0.6);
+}
+
 .status-right {
   opacity: 1;
   font-size: 13px;
-  min-width: 120px;
   text-align: right;
   display: flex;
   align-items: center;
@@ -378,15 +404,15 @@ body,html {
 .status-panel {
   position: absolute;
   bottom: 100%;
-  left: -12px;
+  left: 16px;
   margin-bottom: 8px;
-  background: #2a2a2a;
-  border: 1px solid rgba(255,255,255,0.15);
+  background: #1f1f1f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 12px;
   min-width: 180px;
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(25px);
   pointer-events: none;
   transition: all 0.2s ease;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -398,7 +424,7 @@ body,html {
 
 .status-panel.show {
   opacity: 1;
-  transform: translateY(-5px);
+  transform: translateY(16px);
   pointer-events: auto;
 }
 
@@ -407,7 +433,7 @@ body,html {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-  font-size: 13px;
+  font-size: 14px;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
 }
 
@@ -554,8 +580,8 @@ body,html {
   bottom: 100%;
   right: 0;
   margin-bottom: 8px;
-  background: #2a2a2a;
-  border: 1px solid rgba(255,255,255,0.15);
+  background: #1f1f1f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 12px;
   min-width: 200px;
@@ -582,7 +608,7 @@ body,html {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-  font-size: 13px;
+  font-size: 14px;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
 }
 
@@ -617,8 +643,8 @@ body,html {
 }
 
 .setting-checkbox:checked {
-  background: #b7ff00;
-  border-color: #b7ff00;
+  background: #22c55e;
+  border-color: #22c55e;
 }
 
 .setting-checkbox::after {
@@ -670,3 +696,191 @@ body.show-background-pattern .game-container::before {
 body:not(.show-background-pattern) .game-container::before {
   display: none;
 }
+
+/* Performance Chart Styles */
+.performance-chart-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 4px; /* Extra space for left-side text */
+}
+
+.performance-chart {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(26, 26, 26, 0.8);
+}
+
+.performance-chart:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Performance Panel - similar to status panel */
+.performance-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  margin-bottom: 8px;
+  background: #1f1f1f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 260px;
+  max-width: 300px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 600; /* Higher than other panels */
+  backdrop-filter: blur(8px);
+}
+
+.performance-panel.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.performance-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+
+/* Performance Panel Sections */
+.perf-section {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+}
+
+.perf-section:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.perf-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.perf-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.perf-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.perf-chart {
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.perf-data {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.perf-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  color: #ddd;
+  min-height: 16px;
+  line-height: 1.2;
+}
+
+.perf-row span:first-child {
+  color: #999;
+  flex: 1;
+  text-align: left;
+  font-weight: 500;
+}
+
+.perf-value {
+  font-weight: 700;
+  color: #33ff00;
+  text-align: right;
+  min-width: 40px;
+  margin-right: 4px;
+}
+
+.perf-unit {
+  font-size: 10px;
+  color: #777;
+  font-weight: 400;
+  min-width: 24px;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.perf-range {
+  font-weight: 700;
+  color: #33ff00;
+  font-size: 11px;
+  text-align: right;
+  min-width: 40px;
+  margin-right: 4px;
+}
+
+/* Responsive Layout for Performance Chart */
+
+/* Desktop: Show chart to the left, next to SDK integration */
+
+/* Minimal Responsive Adjustments */
+
+/* Desktop - show labels */
+@media (min-width: 768px) {
+  .publishable-status span {
+    display: inline;
+  }
+  
+  .status-right #updated-text {
+    display: block;
+  }
+}
+
+/* Mobile - hide labels for space */
+@media (max-width: 767px) {
+  .publishable-status span {
+    display: none;
+  }
+  
+  .status-right #updated-text {
+    display: none;
+  }
+}
+  
+  .perf-row {
+    font-size: 11px;
+    min-height: 16px;
+  }
+  
+  .perf-value {
+    min-width: 32px;
+  }
+  
+  .perf-unit {
+    min-width: 20px;
+  }
