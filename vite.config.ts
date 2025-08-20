@@ -1,6 +1,8 @@
 import { defineConfig } from "vite"
 import path from "path"
 import fs from "fs"
+import os from "os"
+import { buildApiPlugin } from "./.remix/vite-plugin-build-api"
 
 export default defineConfig({
   server: {
@@ -9,6 +11,7 @@ export default defineConfig({
     middlewareMode: false,
   },
   plugins: [
+    buildApiPlugin(),
     {
       name: 'setup-detection-middleware',
       configureServer(server) {
@@ -52,6 +55,20 @@ export default defineConfig({
           
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ packageManager }));
+        });
+
+        // Add middleware to execute get-ip.js script and return result
+        server.middlewares.use('/.remix/get-ip', (_req, res) => {
+          const { execSync } = require('child_process');
+          try {
+            const result = execSync('node scripts/get-ip.js 3000', { encoding: 'utf8', cwd: process.cwd() });
+            res.setHeader('Content-Type', 'text/plain');
+            res.end(result.trim());
+          } catch (error) {
+            console.error('Error executing get-ip.js:', error);
+            res.statusCode = 500;
+            res.end('Error executing get-ip.js');
+          }
         });
       },
     },

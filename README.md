@@ -15,6 +15,7 @@ A TypeScript and Phaser.js template for creating mobile games on the Remix platf
   - Real-time performance monitoring with interactive FPS charts
   - Phone frame simulation with game overlay
   - Intelligent canvas scaling with mobile-optimized responsive design
+  - Build your game and copy the minified HTML code without leaving the dashboard
 - 📦 Optimized Remix platform build process
 - 🎨 Test game scene to show successful setup
 - ⚒️ Setup script to get you running in 1 easy command
@@ -178,6 +179,9 @@ The template includes a comprehensive development environment that simulates the
 - **Canvas Scaling Toggle**: Control whether game scales to fill screen or shows at native size
 - **Background Pattern Toggle**: Show/hide decorative background texture
 - **Consistent Design**: All settings use unified green color theme matching SDK integration status
+
+#### **Integrated Build System**
+- **One-Click Building**: Build your game instantly without leaving the dashboard
 
 #### **Responsive Design Improvements**
 - **Mobile-first Layout**: Optimized toolbar spacing and button sizing for touch interfaces

@@ -1,5 +1,6 @@
 import { defineConfig } from "vite"
 import path from "path"
+import { buildApiPlugin } from "./.remix/vite-plugin-build-api"
 
 export default defineConfig({
   server: {
@@ -8,6 +9,7 @@ export default defineConfig({
     middlewareMode: false,
   },
   plugins: [
+    buildApiPlugin(),
     {
       name: 'setup-detection-middleware-bypass',
       configureServer(server) {

@@ -3,8 +3,6 @@ html, body {
   padding: 0;
   overflow: hidden;
   height: 100%;
-  line-height: 0;
-  font-size: 0;
 }
 
 canvas {

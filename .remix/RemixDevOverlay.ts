@@ -5,7 +5,7 @@
 
 import { PerformanceMonitor } from './PerformanceMonitor'
 
-// Type declarations for Vite's import.meta
+// Type declarations for Vite's import.meta and external libraries
 declare global {
   interface ImportMeta {
     hot?: {
@@ -13,6 +13,17 @@ declare global {
     };
     env?: {
       DEV?: boolean;
+    };
+  }
+
+  interface Window {
+    hljs?: {
+      highlightElement: (element: HTMLElement) => void;
+      configure: (options: any) => void;
+    };
+    devSettings?: {
+      getSetting: (key: string) => any;
+      setSetting: (key: string, value: any) => void;
     };
   }
 }
@@ -24,10 +35,6 @@ interface RemixDevFlags {
   toggleMute: boolean;
 }
 
-interface FileChangeEvent {
-  timestamp: number;
-  files: string[];
-}
 
 interface DevEnvironmentInfo {
   packageManager: string;
@@ -64,6 +71,36 @@ export class RemixDevOverlay {
   private performanceChart: HTMLCanvasElement;
   private performancePanel: HTMLElement;
   private isPerformancePanelOpen: boolean = false;
+
+  // Build panel
+  private buildPanel: HTMLElement;
+  private buildPanelContent: HTMLElement;
+  private buildToggleBtn: HTMLElement;
+  
+  // Mobile QR panel
+  private mobileQrBtn: HTMLElement;
+  private mobileQrPanel: HTMLElement;
+  private buildGameBtn: HTMLButtonElement;
+  private buildBtnMessage: HTMLElement;
+  private buildStatus: HTMLElement;
+  private buildInfo: HTMLElement;
+  private buildSpinner: HTMLElement;
+  private sdkWarning: HTMLElement;
+  private sdkWarningText: HTMLElement;
+  private buildSuccess: HTMLElement;
+  private buildSuccessText: HTMLElement;
+  private buildOutput: HTMLElement;
+  private buildOutputCode: HTMLElement;
+  private buildCodeDisplay: HTMLElement;
+  private buildFileSize: HTMLElement;
+  private buildTimeAgo: HTMLElement;
+  private copyBuildBtn: HTMLElement;
+  private isBuildPanelOpen: boolean = false;
+  private lastBuildCode: string = '';
+  private lastBuildTime: number = 0;
+  private lastBuildCodeTimestamp: number = 0;
+  private resizeObserver?: ResizeObserver;
+  private mutationObserver?: MutationObserver;
 
   constructor() {
     this.initializeAsync();
@@ -104,6 +141,18 @@ export class RemixDevOverlay {
     
     // Initialize performance monitoring
     this.initializePerformanceMonitoring();
+    
+    // Initialize SDK integration status check
+    this.checkSDKIntegrationStatus();
+    
+    // Load saved build if code hasn't changed
+    this.loadSavedBuildCode();
+    
+    // Update build button state
+    this.updateBuildButtonState();
+    
+    // Setup dynamic height calculation for code block
+    this.setupCodeBlockResizing();
   }
 
   private createUI(): void {
@@ -111,41 +160,107 @@ export class RemixDevOverlay {
     this.container = document.createElement('div');
     this.container.innerHTML = `
       <div class="remix-dev-container">
-        <div class="game-container">
-          <div class="game-frame">
-            <div class="top-nav-bar">
-              <div class="nav-left">
-                <button class="nav-back-btn" disabled>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20.79 33.27" fill="currentColor" class="nav-icon">
-                    <title>chevron</title>
-                    <path d="M16.87,0l3.92,3.92-12.94,12.72,12.94,12.71-3.92,3.92L0,16.64,16.87,0Z"></path>
+        <!-- Flex container for main content and spacer -->
+        <div class="main-content-wrapper">
+          <div class="game-container">
+            <div class="game-frame">
+              <div class="top-nav-bar">
+                <div class="nav-left">
+                  <button class="nav-back-btn" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20.79 33.27" fill="currentColor" class="nav-icon">
+                      <title>chevron</title>
+                      <path d="M16.87,0l3.92,3.92-12.94,12.72,12.94,12.71-3.92,3.92L0,16.64,16.87,0Z"></path>
+                    </svg>
+                  </button>
+                </div>
+                <button type="button" id="mute-toggle-btn" class="nav-mute-btn">
+                  <svg id="mute-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="nav-icon">
+                    <title>sound on</title>
+                    <path d="M6 7l8-5v20l-8-5v-10zm-6 10h4v-10h-4v10zm20.264-13.264l-1.497 1.497c1.847 1.783 2.983 4.157 2.983 6.767 0 2.61-1.135 4.984-2.983 6.766l1.498 1.498c2.305-2.153 3.735-5.055 3.735-8.264s-1.43-6.11-3.736-8.264zm-.489 8.264c0-2.084-.915-3.967-2.384-5.391l-1.503 1.503c1.011 1.049 1.637 2.401 1.637 3.888 0 1.488-.623 2.841-1.634 3.891l1.503 1.503c1.468-1.424 2.381-3.309 2.381-5.394z"></path>
                   </svg>
                 </button>
               </div>
-              <button type="button" id="mute-toggle-btn" class="nav-mute-btn">
-                <svg id="mute-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="nav-icon">
-                  <title>sound on</title>
-                  <path d="M6 7l8-5v20l-8-5v-10zm-6 10h4v-10h-4v10zm20.264-13.264l-1.497 1.497c1.847 1.783 2.983 4.157 2.983 6.767 0 2.61-1.135 4.984-2.983 6.766l1.498 1.498c2.305-2.153 3.735-5.055 3.735-8.264s-1.43-6.11-3.736-8.264zm-.489 8.264c0-2.084-.915-3.967-2.384-5.391l-1.503 1.503c1.011 1.049 1.637 2.401 1.637 3.888 0 1.488-.623 2.841-1.634 3.891l1.503 1.503c1.468-1.424 2.381-3.309 2.381-5.394z"></path>
-                </svg>
-              </button>
-            </div>
-            <iframe id="game-iframe" src="/" sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin allow-top-navigation-by-user-activation"></iframe>
-            <div id="game-overlay" class="game-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
-              <div class="overlay-content">
-                <div id="overlay-score" class="overlay-score">0</div>
-                <div id="overlay-title" class="overlay-title">GAME OVER</div>
-              </div>
-              <div class="overlay-button-container">
-                <button id="play-again-btn" class="play-again-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 61.09 67.69" fill="currentColor" class="play-icon">
-                    <path d="M56.43,41.91l-42.46,24.51c-6.21,3.59-13.97-.9-13.97-8.07V9.33C0,2.16,7.76-2.32,13.97,1.26l42.46,24.51c6.21,3.59,6.21,12.55,0,16.13Z"></path>
-                  </svg>
-                  <span>Play Again</span>
-                </button>
+              <iframe id="game-iframe" src="/" sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin allow-top-navigation-by-user-activation"></iframe>
+              <div id="game-overlay" class="game-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+                <div class="overlay-content">
+                  <div id="overlay-score" class="overlay-score">0</div>
+                  <div id="overlay-title" class="overlay-title">GAME OVER</div>
+                </div>
+                <div class="overlay-button-container">
+                  <button id="play-again-btn" class="play-again-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 61.09 67.69" fill="currentColor" class="play-icon">
+                      <path d="M56.43,41.91l-42.46,24.51c-6.21,3.59-13.97-.9-13.97-8.07V9.33C0,2.16,7.76-2.32,13.97,1.26l42.46,24.51c6.21,3.59,6.21,12.55,0,16.13Z"></path>
+                    </svg>
+                    <span>Play Again</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+          
+          <!-- Invisible spacer element that forces main content adjustment -->
+          <div class="build-panel-spacer"></div>
         </div>
+        
+        <!-- Build Panel (integrated layout) -->
+        <div id="build-panel" class="build-panel">
+          <div class="build-panel-content">
+            <!-- Build Controls -->
+            <div class="build-controls">
+              <button id="build-game-btn" class="build-btn">
+                <span class="build-btn-text">Build Game</span>
+                <div class="build-spinner" id="build-spinner"></div>
+              </button>
+              <div id="build-btn-message" class="build-btn-message" style="display: none;">
+                Code unchanged since last build
+              </div>
+              
+              <!-- SDK Integration Status -->
+              <div id="sdk-warning" class="sdk-warning" style="display: none;">
+                <div class="warning-icon">⚠️</div>
+                <div class="warning-content">
+                  <strong>SDK Integration Incomplete</strong>
+                  <p id="sdk-warning-text">Missing SDK handlers: game_over</p>
+                </div>
+              </div>
+              
+              <!-- Build Success Status -->
+              <div id="build-success" class="build-success" style="display: none;">
+                <div class="success-icon">✅</div>
+                <div class="success-content">
+                  <strong>Build Successful</strong>
+                  <p id="build-success-text">Game code has been copied to your clipboard</p>
+                </div>
+              </div>
+              
+              <div id="build-status" class="build-status">Checking SDK integration...</div>
+              <div id="build-info" class="build-info"></div>
+            </div>
+            
+            <!-- Build Output -->
+            <div id="build-output" class="build-output" style="display: none;">
+              <div class="build-output-header">
+                <div class="build-output-title">
+                  <h4>Generated Code</h4>
+                  <span id="build-time-ago" class="build-time-ago">Built just now</span>
+                </div>
+                <div class="build-output-actions">
+                  <span id="build-file-size" class="file-size">0 KB</span>
+                </div>
+              </div>
+              <div class="build-output-code">
+                <button id="copy-build-btn" class="copy-btn-float">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                  </svg>
+                </button>
+                <pre id="build-code-display" class="code-display language-html"></pre>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
         <div class="dev-status-bar">
           <div class="status-left">
             <div id="publishable-status" class="publishable-status">
@@ -294,8 +409,12 @@ export class RemixDevOverlay {
           </div>
           <div class="status-right">
             <span id="updated-text">Updated just now</span>
+            <button id="mobile-qr-btn" class="settings-btn" title="Mobile QR Code">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21C5,22.11 5.89,23 7,23H17C18.11,23 19,22.11 19,21V3C19,1.89 18.11,1 17,1Z"/>
+              </svg>
+            </button>
           </div>
-        </div>
       </div>
     `;
 
@@ -323,6 +442,31 @@ export class RemixDevOverlay {
     // Get performance chart references
     this.performanceChart = this.container.querySelector('#performance-chart') as HTMLCanvasElement;
     this.performancePanel = this.container.querySelector('#performance-panel') as HTMLElement;
+    
+    // Get build panel references
+    this.buildPanel = this.container.querySelector('#build-panel') as HTMLElement;
+    this.buildPanelContent = this.container.querySelector('.build-panel-content') as HTMLElement;
+    
+    // Setup mobile QR button after it's potentially created
+    this.setupMobileQrButton();
+    
+    // Create build toggle button dynamically (after settings button gets added)
+    this.createBuildToggleButton();
+    this.buildGameBtn = this.container.querySelector('#build-game-btn') as HTMLButtonElement;
+    this.buildBtnMessage = this.container.querySelector('#build-btn-message') as HTMLElement;
+    this.buildStatus = this.container.querySelector('#build-status') as HTMLElement;
+    this.buildInfo = this.container.querySelector('#build-info') as HTMLElement;
+    this.buildSpinner = this.container.querySelector('#build-spinner') as HTMLElement;
+    this.sdkWarning = this.container.querySelector('#sdk-warning') as HTMLElement;
+    this.sdkWarningText = this.container.querySelector('#sdk-warning-text') as HTMLElement;
+    this.buildSuccess = this.container.querySelector('#build-success') as HTMLElement;
+    this.buildSuccessText = this.container.querySelector('#build-success-text') as HTMLElement;
+    this.buildOutput = this.container.querySelector('#build-output') as HTMLElement;
+    this.buildOutputCode = this.container.querySelector('.build-output-code') as HTMLElement;
+    this.buildCodeDisplay = this.container.querySelector('#build-code-display') as HTMLElement;
+    this.buildFileSize = this.container.querySelector('#build-file-size') as HTMLElement;
+    this.buildTimeAgo = this.container.querySelector('#build-time-ago') as HTMLElement;
+    this.copyBuildBtn = this.container.querySelector('#copy-build-btn') as HTMLElement;
     
     // Setup click-to-toggle panel
     const publishableStatus = this.container.querySelector('#publishable-status') as HTMLElement;
@@ -411,6 +555,235 @@ export class RemixDevOverlay {
     document.head.appendChild(style);
   }
 
+  private createBuildToggleButton(): void {
+    // Wait for the settings button to be added by dev-settings.ts, then add build button after it
+    const checkForSettings = () => {
+      const statusRight = this.container.querySelector('.status-right');
+      const settingsStatus = statusRight?.querySelector('.settings-status');
+      
+      if (settingsStatus) {
+        // Create the build toggle button with consistent styling
+        const buildButton = document.createElement('button');
+        buildButton.id = 'build-toggle-btn';
+        buildButton.className = 'build-toggle-btn-clean'; // Use a cleaner style
+        buildButton.title = 'Build Game';
+        buildButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14.6 16.6l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4zm-5.2 0L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"/>
+          </svg>
+          <span>Build</span>
+        `;
+        
+        // Add it to the status-right container (after settings button)
+        statusRight.appendChild(buildButton);
+        this.buildToggleBtn = buildButton;
+        
+        // Setup event listener for the build button now that it exists
+        this.setupBuildButtonEvents();
+      } else {
+        // Settings button not ready yet, try again
+        setTimeout(checkForSettings, 50);
+      }
+    };
+    
+    checkForSettings();
+  }
+
+  private setupMobileQrButton(): void {
+    // Wait for the mobile QR button to exist in the DOM
+    const checkForButton = () => {
+      const button = this.container.querySelector('#mobile-qr-btn') as HTMLElement;
+      if (button) {
+        this.mobileQrBtn = button;
+        this.createMobileQrPanel();
+        this.setupMobileQrPanel();
+      } else {
+        // Button not ready yet, try again
+        setTimeout(checkForButton, 50);
+      }
+    };
+    
+    checkForButton();
+  }
+
+  private createMobileQrPanel(): void {
+    // Create a container for the mobile QR button (similar to settings)
+    const qrContainer = document.createElement('div');
+    qrContainer.className = 'mobile-qr-status';
+    qrContainer.style.position = 'relative';
+    qrContainer.style.display = 'inline-block';
+    
+    // Move the existing button into this container
+    const statusRight = this.container.querySelector('.status-right');
+    if (statusRight && this.mobileQrBtn) {
+      // Remove button from its current location
+      this.mobileQrBtn.remove();
+      
+      // Add button to the new container
+      qrContainer.appendChild(this.mobileQrBtn);
+      
+      // Create the QR panel
+      this.mobileQrPanel = document.createElement('div');
+      this.mobileQrPanel.className = 'settings-panel';
+      this.mobileQrPanel.style.maxWidth = '200px';
+      this.mobileQrPanel.innerHTML = `
+        <div class="status-item">
+          <div style="text-align: center; width: 100%;">
+            <div style="margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #fff;">
+              Scan to test on mobile
+            </div>
+            <div id="qr-code-container" style="background: white; padding: 12px; border-radius: 8px; display: inline-block;">
+              <!-- QR code will be inserted here -->
+            </div>
+            <div style="margin-top: 12px; font-size: 12px; color: #999; text-align: center;">
+              Make sure your phone and computer are on the same Wi-Fi network
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Add panel to the container
+      qrContainer.appendChild(this.mobileQrPanel);
+      
+      // Add the container to status-right
+      statusRight.appendChild(qrContainer);
+    }
+
+    // Regenerate QR code in the new container
+    this.generateQRCode();
+  }
+
+  private generateQRCode(): void {
+    // Get the local IP address URL instead of localhost
+    const currentUrl = window.location.href;
+    const url = this.getLocalIPUrl(currentUrl);
+    
+    // Simple QR code generation using a web service (fallback approach)
+    const qrContainer = this.container.querySelector('#qr-code-container');
+    if (qrContainer) {
+      // Create QR code using QR Server API (simple and reliable)
+      const qrSize = 160;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=000000&margin=0`;
+      
+      qrContainer.innerHTML = `
+        <img src="${qrUrl}" 
+             alt="QR Code for ${url}" 
+             style="display: block; width: ${qrSize}px; height: ${qrSize}px;"
+             onerror="this.parentElement.innerHTML='<div style=\\'padding: 20px; color: #666;\\'>QR code unavailable</div>'" />
+      `;
+    }
+  }
+
+  private getLocalIPUrl(currentUrl: string): string {
+    try {
+      const url = new URL(currentUrl);
+      
+      // If already using an IP address, return as-is
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) {
+        return currentUrl;
+      }
+      
+      // If using localhost, get the IP from the get-ip.js script
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        this.getIPFromScript().then(fullUrl => {
+          if (fullUrl && !fullUrl.includes('localhost')) {
+            console.log('Updating QR code URL to:', fullUrl);
+            this.updateQRCodeUrl(fullUrl);
+          }
+        }).catch((error) => {
+          console.log('IP script failed:', error);
+        });
+        
+        // Return original URL for now, will be updated when script responds
+        return currentUrl;
+      }
+      
+      return currentUrl;
+    } catch (error) {
+      return currentUrl;
+    }
+  }
+
+  private async getIPFromScript(): Promise<string> {
+    try {
+      console.log('Getting IP from get-ip.js script...');
+      const response = await fetch('/.remix/api/local-ip');
+      if (response.ok) {
+        const fullUrl = await response.text();
+        console.log('Script returned:', fullUrl.trim());
+        return fullUrl.trim();
+      }
+      throw new Error('Script request failed');
+    } catch (error) {
+      console.error('Error running get-ip script:', error);
+      throw error;
+    }
+  }
+
+
+  private updateQRCodeUrl(url: string): void {
+    // Look for QR container in the mobile QR panel specifically
+    const qrContainer = this.mobileQrPanel?.querySelector('#qr-code-container') || 
+                       this.container.querySelector('#qr-code-container');
+    
+    console.log('Updating QR container with URL:', url);
+    console.log('QR container found:', !!qrContainer);
+    
+    if (qrContainer) {
+      const qrSize = 160;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=000000&margin=0`;
+      
+      qrContainer.innerHTML = `
+        <img src="${qrUrl}" 
+             alt="QR Code for ${url}" 
+             style="display: block; width: ${qrSize}px; height: ${qrSize}px;"
+             onerror="this.parentElement.innerHTML='<div style=\\'padding: 20px; color: #666;\\'>QR code unavailable</div>'" />
+      `;
+    } else {
+      console.error('QR code container not found');
+    }
+  }
+
+  private setupMobileQrPanel(): void {
+    if (!this.mobileQrBtn || !this.mobileQrPanel) return;
+    
+    let isQrPanelOpen = false;
+    
+    // Toggle QR panel on button click
+    this.mobileQrBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (this.mobileQrPanel.classList.contains('show')) {
+        this.mobileQrPanel.classList.remove('show');
+        isQrPanelOpen = false;
+      } else {
+        // Close other panels if open
+        const statusPanel = document.querySelector('#status-panel');
+        const settingsPanel = document.querySelector('.settings-panel.show');
+        if (statusPanel?.classList.contains('show')) {
+          statusPanel.classList.remove('show');
+        }
+        if (settingsPanel && settingsPanel !== this.mobileQrPanel) {
+          settingsPanel.classList.remove('show');
+        }
+        
+        this.mobileQrPanel.classList.add('show');
+        isQrPanelOpen = true;
+      }
+    });
+    
+    // Close panel on outside click
+    document.addEventListener('click', (e) => {
+      if (isQrPanelOpen && 
+          !this.mobileQrPanel.contains(e.target as Node) && 
+          !this.mobileQrBtn.contains(e.target as Node)) {
+        this.mobileQrPanel.classList.remove('show');
+        isQrPanelOpen = false;
+      }
+    });
+  }
+
   private setupEventListeners(): void {
     // Listen for messages from game iframe
     window.addEventListener('message', (event) => {
@@ -440,6 +813,9 @@ export class RemixDevOverlay {
     window.addEventListener('resize', () => {
       this.updateGameFrameSize();
     });
+
+    // Build panel event listeners
+    this.setupBuildPanelEvents();
   }
 
   private handleGameMessage(data: any): void {
@@ -475,6 +851,9 @@ export class RemixDevOverlay {
           this.updateMiniLight(this.toggleMuteStatusLight, true);
           break;
       }
+      
+      // Update SDK integration status in real-time
+      this.checkSDKIntegrationStatus();
     }
   }
 
@@ -519,6 +898,475 @@ export class RemixDevOverlay {
         <title>sound on</title>
         <path d="M6 7l8-5v20l-8-5v-10zm-6 10h4v-10h-4v10zm20.264-13.264l-1.497 1.497c1.847 1.783 2.983 4.157 2.983 6.767 0 2.61-1.135 4.984-2.983 6.766l1.498 1.498c2.305-2.153 3.735-5.055 3.735-8.264s-1.43-6.11-3.736-8.264zm-.489 8.264c0-2.084-.915-3.967-2.384-5.391l-1.503 1.503c1.011 1.049 1.637 2.401 1.637 3.888 0 1.488-.623 2.841-1.634 3.891l1.503 1.503c1.468-1.424 2.381-3.309 2.381-5.394z"></path>
       `;
+    }
+  }
+
+  // Setup build button event listener (called after button is created)
+  private setupBuildButtonEvents(): void {
+    this.buildToggleBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await this.toggleBuildPanel();
+    });
+  }
+
+  // Setup build panel event listeners
+  private setupBuildPanelEvents(): void {
+
+
+    // Build game button
+    this.buildGameBtn.addEventListener('click', () => {
+      this.triggerBuild();
+    });
+
+    // Copy build code button
+    this.copyBuildBtn.addEventListener('click', () => {
+      this.copyBuildCode();
+    });
+  }
+
+  // Toggle build panel visibility
+  private async toggleBuildPanel(): Promise<void> {
+    if (this.isBuildPanelOpen) {
+      this.hideBuildPanel();
+    } else {
+      await this.showBuildPanel();
+    }
+  }
+
+  // Show build panel
+  private async showBuildPanel(): Promise<void> {
+    this.buildPanel.classList.add('show');
+    const devContainer = this.container.querySelector('.remix-dev-container') as HTMLElement;
+    if (devContainer) {
+      devContainer.classList.add('build-panel-open');
+    }
+    this.isBuildPanelOpen = true;
+    
+    // Update build toggle button to green (open state)
+    this.buildToggleBtn.classList.add('active');
+    
+    // Hide build success message when panel reopens
+    this.buildSuccess.style.display = 'none';
+    
+    // Check SDK integration status when panel opens
+    await this.checkSDKIntegrationStatus();
+  }
+
+  // Hide build panel
+  private hideBuildPanel(): void {
+    this.buildPanel.classList.remove('show');
+    const devContainer = this.container.querySelector('.remix-dev-container') as HTMLElement;
+    if (devContainer) {
+      devContainer.classList.remove('build-panel-open');
+    }
+    this.isBuildPanelOpen = false;
+    
+    // Update build toggle button to gray (closed state)
+    this.buildToggleBtn.classList.remove('active');
+  }
+
+  // Clear build content when game code changes
+  private clearBuildContent(): void {
+    this.buildOutput.style.display = 'none';
+    this.buildSuccess.style.display = 'none';
+    this.lastBuildCode = '';
+    this.lastBuildTime = 0;
+    this.lastBuildCodeTimestamp = 0;
+    this.updateBuildButtonState();
+  }
+  
+  // Save build code to localStorage per-game
+  private saveBuildCode(): void {
+    try {
+      const buildData = {
+        code: this.lastBuildCode,
+        buildTime: this.lastBuildTime,
+        codeTimestamp: this.lastBuildCodeTimestamp, // When the code was last built
+        savedAt: Date.now()
+      };
+      localStorage.setItem(`remix-build-${this.gameId}`, JSON.stringify(buildData));
+    } catch (error) {
+      console.warn('Failed to save build code to localStorage:', error);
+    }
+  }
+  
+  // Load saved build code if game code hasn't changed
+  private loadSavedBuildCode(): boolean {
+    try {
+      const saved = localStorage.getItem(`remix-build-${this.gameId}`);
+      if (!saved) return false;
+      
+      const buildData = JSON.parse(saved);
+      
+      // Check if the saved build matches the current code timestamp
+      if (buildData.codeTimestamp === this.lastUpdateTime && buildData.code) {
+        this.lastBuildCode = buildData.code;
+        this.lastBuildTime = buildData.savedAt;
+        this.lastBuildCodeTimestamp = buildData.codeTimestamp;
+        
+        // Restore build UI
+        this.buildSuccess.style.display = 'flex';
+        this.buildSuccessText.textContent = `Game code has been copied to your clipboard.`;
+        this.buildStatus.style.display = 'none';
+        this.buildInfo.style.display = 'none';
+        
+        // Show build output
+        this.displayBuildResult({
+          code: buildData.code,
+          buildTime: buildData.buildTime || 0,
+          fileSize: buildData.code.length
+        });
+        
+        this.updateBuildButtonState();
+        return true;
+      }
+    } catch (error) {
+      console.warn('Failed to load build code from localStorage:', error);
+    }
+    return false;
+  }
+  
+  // Setup dynamic height calculation for code block
+  private setupCodeBlockResizing(): void {
+    if (!this.buildOutput) return;
+    
+    // Calculate height whenever content changes
+    const calculateHeight = () => {
+      this.calculateCodeBlockHeight();
+    };
+    
+    // Setup MutationObserver to watch for content changes
+    this.mutationObserver = new MutationObserver(calculateHeight);
+    this.mutationObserver.observe(this.buildPanel, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
+    
+    // Setup ResizeObserver to watch for window/panel size changes
+    if (window.ResizeObserver) {
+      this.resizeObserver = new ResizeObserver(calculateHeight);
+      this.resizeObserver.observe(this.buildPanel);
+      this.resizeObserver.observe(document.body);
+    }
+    
+    // Also listen for window resize as fallback
+    window.addEventListener('resize', calculateHeight);
+    
+    // Initial calculation
+    calculateHeight();
+  }
+  
+  // Calculate and set the correct height for the code block
+  private calculateCodeBlockHeight(): void {
+    if (!this.buildOutput || !this.buildOutputCode) return;
+    
+    // Get the build panel dimensions
+    const panelRect = this.buildPanel.getBoundingClientRect();
+    const panelContentRect = this.buildPanelContent.getBoundingClientRect();
+    
+    if (panelRect.height === 0 || panelContentRect.height === 0) return;
+    
+    // Calculate space taken by other elements
+    let usedHeight = 0;
+    
+    // Measure build controls
+    if (this.buildGameBtn.offsetHeight) {
+      usedHeight += this.buildGameBtn.offsetHeight;
+    }
+    
+    // Measure build button message if visible
+    if (this.buildBtnMessage.style.display !== 'none' && this.buildBtnMessage.offsetHeight) {
+      usedHeight += this.buildBtnMessage.offsetHeight;
+    }
+    
+    // Measure SDK warning if visible
+    if (this.sdkWarning.style.display !== 'none' && this.sdkWarning.offsetHeight) {
+      usedHeight += this.sdkWarning.offsetHeight;
+    }
+    
+    // Measure build success if visible
+    if (this.buildSuccess.style.display !== 'none' && this.buildSuccess.offsetHeight) {
+      usedHeight += this.buildSuccess.offsetHeight;
+    }
+    
+    // Measure build output header
+    const buildOutputHeader = this.buildOutput.querySelector('.build-output-header') as HTMLElement;
+    if (buildOutputHeader && buildOutputHeader.offsetHeight) {
+      usedHeight += buildOutputHeader.offsetHeight;
+    }
+    
+    // Account for gaps and padding
+    const buildControlsStyle = getComputedStyle(this.buildPanel.querySelector('.build-controls') as HTMLElement);
+    const gapSize = parseInt(buildControlsStyle.gap) || 16;
+    const numGaps = 5; // Approximate number of gaps between elements
+    usedHeight += gapSize * numGaps;
+    
+    // Account for panel content padding
+    const panelContentStyle = getComputedStyle(this.buildPanelContent);
+    const paddingTop = parseInt(panelContentStyle.paddingTop) || 0;
+    const paddingBottom = parseInt(panelContentStyle.paddingBottom) || 0;
+    usedHeight += paddingTop + paddingBottom;
+    
+    // Calculate available height for code block
+    const availableHeight = panelContentRect.height - usedHeight;
+    const minHeight = 200; // Minimum height for usability
+    const maxHeight = Math.max(availableHeight, minHeight);
+    
+    // Apply the calculated height
+    this.buildOutputCode.style.maxHeight = `${maxHeight}px`;
+  }
+
+  // Update build button state based on whether code has changed
+  private updateBuildButtonState(): void {
+    const codeHasChanged = this.lastBuildCodeTimestamp !== this.lastUpdateTime;
+    const shouldDisable = !codeHasChanged && this.lastBuildCode !== '';
+    
+    this.buildGameBtn.disabled = shouldDisable;
+    
+    if (shouldDisable) {
+      this.buildGameBtn.title = 'Code unchanged since last build';
+      this.buildBtnMessage.style.display = 'block';
+      this.buildBtnMessage.textContent = 'Code unchanged since last build';
+    } else {
+      this.buildGameBtn.title = 'Build the current game code';
+      this.buildBtnMessage.style.display = 'none';
+    }
+  }
+
+  // Trigger game build
+  private async triggerBuild(): Promise<void> {
+    // Clear UI below build button before starting new build
+    this.buildStatus.style.display = 'block';
+    this.buildInfo.style.display = 'none';
+    this.buildOutput.style.display = 'none';
+    this.buildSuccess.style.display = 'none';
+    
+    this.setBuildStatus('building', 'Building game...');
+    this.buildGameBtn.disabled = true;
+    this.buildSpinner.style.display = 'inline-block';
+
+    try {
+      // Track build start time for minimum delay
+      const buildStartTime = Date.now();
+      
+      // Call build API endpoint
+      const response = await fetch('/.remix/api/build', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+      
+      // Ensure at least 1 second has passed for better UX
+      const elapsed = Date.now() - buildStartTime;
+      const minBuildTime = 1000; // 1 second minimum
+      if (elapsed < minBuildTime) {
+        await new Promise(resolve => setTimeout(resolve, minBuildTime - elapsed));
+      }
+
+      if (result.success) {
+        // Copy game code to clipboard automatically
+        try {
+          await navigator.clipboard.writeText(result.code);
+        } catch (error) {
+          console.log('Could not copy to clipboard:', error);
+        }
+        
+        // Show success panel below build button
+        this.buildSuccess.style.display = 'flex';
+        this.buildSuccessText.textContent = `Game code has been copied to your clipboard.`;
+        
+        // Hide build status and build info
+        this.buildStatus.style.display = 'none';
+        this.buildInfo.style.display = 'none';
+        
+        // Set build time for "time ago" tracking
+        this.lastBuildTime = Date.now();
+        
+        // Store the build code
+        this.lastBuildCode = result.code;
+        
+        // Mark that we've built the current code version
+        this.lastBuildCodeTimestamp = this.lastUpdateTime;
+        
+        // Save build code to localStorage
+        this.saveBuildCode();
+        
+        await this.displayBuildResult(result);
+        
+        // Update build button state (should disable since code hasn't changed)
+        this.updateBuildButtonState();
+      } else {
+        this.setBuildStatus('error', `Build failed: ${result.error}`);
+      }
+    } catch (error: any) {
+      this.setBuildStatus('error', `Build error: ${error.message}`);
+    } finally {
+      this.buildSpinner.style.display = 'none';
+      // Don't unconditionally re-enable button - let updateBuildButtonState() handle it
+    }
+  }
+
+  // Set build status
+  private setBuildStatus(status: 'ready' | 'building' | 'success' | 'error' | 'warning', message: string): void {
+    this.buildStatus.className = `build-status ${status}`;
+    this.buildStatus.textContent = message;
+  }
+
+  // Display build result
+  private async displayBuildResult(result: any): Promise<void> {
+    // Update file size
+    const fileSizeKB = (result.fileSize / 1024).toFixed(1);
+    this.buildFileSize.textContent = `${fileSizeKB} KB`;
+    
+    // Update build info
+    this.buildInfo.textContent = `Build completed in ${result.buildTime}ms`;
+    
+    // SDK integration status is now handled by checkSDKIntegrationStatus() in real-time
+    
+    // Display code with HTML syntax highlighting
+    await this.highlightHTML(result.code);
+    this.buildOutput.style.display = 'block';
+  }
+
+  // Load and apply syntax highlighting
+  private async highlightHTML(html: string): Promise<void> {
+    // Load highlight.js if not already loaded
+    if (!window.hljs) {
+      await this.loadHighlightJS();
+    }
+    
+    // Clear previous highlighting to allow re-highlighting
+    this.buildCodeDisplay.removeAttribute('data-highlighted');
+    this.buildCodeDisplay.className = 'code-display language-html';
+    
+    // Set the raw HTML content
+    this.buildCodeDisplay.textContent = html;
+    
+    // Apply syntax highlighting
+    if (window.hljs) {
+      window.hljs.highlightElement(this.buildCodeDisplay);
+    }
+  }
+
+  // Dynamically load highlight.js
+  private async loadHighlightJS(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Skip if already loaded
+      if (window.hljs) {
+        resolve();
+        return;
+      }
+
+      // Load CSS
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+      document.head.appendChild(link);
+
+      // Load JS
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
+      script.onload = () => {
+        // Initialize highlight.js
+        if (window.hljs) {
+          window.hljs.configure({
+            languages: ['html', 'xml']
+          });
+        }
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Check SDK integration status using existing overlay flags
+  private async checkSDKIntegrationStatus(): Promise<void> {
+    try {
+      // Use the existing SDK integration flags from the overlay
+      const passedChecks = [
+        this.flags.ready,
+        this.flags.gameOver, 
+        this.flags.playAgain,
+        this.flags.toggleMute
+      ].filter(flag => flag).length;
+      
+      const totalChecks = 4;
+      const allPassed = passedChecks === totalChecks;
+      
+      if (!allPassed) {
+        // Show only the SDK integration status box with incomplete status
+        this.sdkWarning.style.display = 'flex';
+        this.sdkWarning.className = 'sdk-warning incomplete';
+        
+        // Hide the build status and build info - we only show the SDK warning box
+        this.buildStatus.style.display = 'none';
+        this.buildInfo.style.display = 'none';
+        
+        // Show which specific checks are failing
+        const failedChecks: string[] = [];
+        if (!this.flags.ready) failedChecks.push('ready');
+        if (!this.flags.gameOver) failedChecks.push('game_over');
+        if (!this.flags.playAgain) failedChecks.push('play_again');
+        if (!this.flags.toggleMute) failedChecks.push('toggle_mute');
+        
+        this.sdkWarningText.textContent = `Missing SDK handlers: ${failedChecks.join(', ')}`;
+      } else {
+        // Hide SDK integration status box when complete
+        this.sdkWarning.style.display = 'none';
+        // Hide build status and info when all checks pass
+        this.buildStatus.style.display = 'none';
+        this.buildInfo.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Failed to check SDK integration:', error);
+      this.setBuildStatus('warning', '⚠️ Unable to verify SDK integration');
+    }
+  }
+
+  // Copy build code to clipboard
+  private async copyBuildCode(): Promise<void> {
+    if (!this.lastBuildCode) return;
+
+    try {
+      await navigator.clipboard.writeText(this.lastBuildCode);
+      
+      // Visual feedback - show checkmark and replace file size with "Code Copied!"
+      const originalFileSize = this.buildFileSize.textContent;
+      const originalFileSizeColor = this.buildFileSize.style.color;
+      
+      // Show checkmark icon (different from the original copy icon)
+      this.copyBuildBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      `;
+      this.copyBuildBtn.style.background = '#22c55e';
+      
+      // Replace file size with green "Code Copied!" text
+      this.buildFileSize.textContent = 'Code Copied!';
+      this.buildFileSize.style.color = '#22c55e';
+      
+      setTimeout(() => {
+        // Restore original copy icon
+        this.copyBuildBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+          </svg>
+        `;
+        this.copyBuildBtn.style.background = '';
+        // Restore original file size and color
+        this.buildFileSize.textContent = originalFileSize;
+        this.buildFileSize.style.color = originalFileSizeColor;
+      }, 1500);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
     }
   }
 
@@ -608,29 +1456,30 @@ export class RemixDevOverlay {
     }
   }
 
-  private saveIntegrationStatusIfStable(): void {
-    try {
-      // Don't save for uninitialized game templates
-      if (this.gameId === 'Climb or Die') {
-        return;
-      }
-      
-      // Check if files have changed recently (within last 5 seconds)
-      const now = Date.now();
-      const timeSinceUpdate = now - this.lastUpdateTime;
-      const isStable = timeSinceUpdate > 5000; // 5 seconds
-      
-      if (isStable) {
-        const statusData = {
-          flags: this.flags,
-          savedAt: now
-        };
-        localStorage.setItem(`remix-dev-integration-${this.gameId}`, JSON.stringify(statusData));
-      }
-    } catch (error) {
-      // Silently fail if localStorage is not available
-    }
-  }
+  // Currently unused - may be needed for future functionality
+  // private saveIntegrationStatusIfStable(): void {
+  //   try {
+  //     // Don't save for uninitialized game templates
+  //     if (this.gameId === 'Climb or Die') {
+  //       return;
+  //     }
+  //     
+  //     // Check if files have changed recently (within last 5 seconds)
+  //     const now = Date.now();
+  //     const timeSinceUpdate = now - this.lastUpdateTime;
+  //     const isStable = timeSinceUpdate > 5000; // 5 seconds
+  //     
+  //     if (isStable) {
+  //       const statusData = {
+  //         flags: this.flags,
+  //         savedAt: now
+  //       };
+  //       localStorage.setItem(`remix-dev-integration-${this.gameId}`, JSON.stringify(statusData));
+  //     }
+  //   } catch (error) {
+  //     // Silently fail if localStorage is not available
+  //   }
+  // }
 
   private loadSavedIntegrationStatus(): boolean {
     try {
@@ -714,8 +1563,14 @@ export class RemixDevOverlay {
       this.lastUpdateTime = Date.now();
       this.saveLastUpdateTime();
       
+      // Clear build content when game code changes
+      this.clearBuildContent();
+      
       // Update exposed dev info
       this.exposeDevEnvironmentInfo();
+      
+      // Update build button state (should enable since code has changed)
+      this.updateBuildButtonState();
     }
   }
 
@@ -815,12 +1670,6 @@ export class RemixDevOverlay {
 
   }
 
-  // Hide setup banner
-  private hideSetupOverlay(): void {
-    if (this.setupOverlay && this.setupOverlay.parentNode) {
-      this.setupOverlay.parentNode.removeChild(this.setupOverlay);
-    }
-  }
 
   // Expose development environment information to the game
   private exposeDevEnvironmentInfo(): void {
@@ -839,25 +1688,25 @@ export class RemixDevOverlay {
 
   private startUpdateTimer(): void {
     const updateText = () => {
-      // Don't show anything until we have the real game ID and timestamp
-      if (!this.gameIdLoaded) {
-        this.updatedText.textContent = '';
-        return;
-      }
-
-      const seconds = Math.floor((Date.now() - this.lastUpdateTime) / 1000);
+      // Hide the updated text - no longer needed
+      this.updatedText.textContent = '';
       
-      if (seconds < 5) {
-        this.updatedText.textContent = 'Updated just now';
-      } else if (seconds < 60) {
-        this.updatedText.textContent = `Updated ${seconds}s ago`;
-      } else {
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) {
-          this.updatedText.textContent = `Updated ${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+      // Update build time ago text if we have a build
+      if (this.lastBuildTime > 0 && this.buildTimeAgo) {
+        const buildSeconds = Math.floor((Date.now() - this.lastBuildTime) / 1000);
+        
+        if (buildSeconds < 5) {
+          this.buildTimeAgo.textContent = 'Built just now';
+        } else if (buildSeconds < 60) {
+          this.buildTimeAgo.textContent = `Built ${buildSeconds}s ago`;
         } else {
-          const hours = Math.floor(minutes / 60);
-          this.updatedText.textContent = `Updated ${hours} hour${hours === 1 ? '' : 's'} ago`;
+          const buildMinutes = Math.floor(buildSeconds / 60);
+          if (buildMinutes < 60) {
+            this.buildTimeAgo.textContent = `Built ${buildMinutes} minute${buildMinutes === 1 ? '' : 's'} ago`;
+          } else {
+            const buildHours = Math.floor(buildMinutes / 60);
+            this.buildTimeAgo.textContent = `Built ${buildHours} hour${buildHours === 1 ? '' : 's'} ago`;
+          }
         }
       }
     };
