@@ -11,9 +11,10 @@ A TypeScript and Phaser.js template for creating mobile games on the Remix platf
 - 🔧 TypeScript support with type safety
 - 🔄 Hot-reload dev server with QR code mobile testing
 - 🎛️ **Professional Development Environment**:
-  - SDK integration testing with visual indicators
+  - Advanced SDK integration testing with 2x2 grid status indicators
+  - Real-time performance monitoring with interactive FPS charts
   - Phone frame simulation with game overlay
-  - Full/Actual size toggle for responsive testing
+  - Intelligent canvas scaling with mobile-optimized responsive design
 - 📦 Optimized Remix platform build process
 - 🎨 Test game scene to show successful setup
 - ⚒️ Setup script to get you running in 1 easy command
@@ -154,15 +155,35 @@ rm -rf src_prev
 The template includes a comprehensive development environment that simulates the Remix platform:
 
 #### **Visual SDK Integration Testing**
-- **Status Panel**: Hover or tap "Remix SDK integration" to see event detection status
-- **Color-coded Indicators**: 
+- **2x2 Grid Status Indicator**: Visual grid showing individual integration status at a glance
+  - Each mini-light represents one SDK event: `ready`, `game_over`, `play_again`, `toggle_mute`
   - 🔴 Red: Event not triggered yet
   - 🟢 Green: Event has been triggered
+- **Detailed Status Panel**: Hover or tap "Remix SDK integration" to see detailed event status
+- **Real-time Updates**: Both grid and panel update instantly when SDK events are triggered
 
-#### **Size Testing Options** (Desktop Only)
-- **Full Mode**: Responsive scaling that adapts to your browser window
-- **Actual Mode**: Exact 393x695 pixels (how it appears on Farcaster mini-app platform)
-- Toggle preference is remembered between sessions
+#### **Real-time Performance Monitoring**
+- **Live FPS Chart**: Centered performance chart showing frame rate in real-time
+- **Interactive Performance Panel**: Hover over chart to see detailed metrics:
+  - **Frame Rate**: Current, average, and min/max FPS with sparkline visualization
+  - **Frame Timing**: Frame time, update time, and render time (Phaser plugin integration)
+  - **Memory Usage**: JavaScript heap usage with optional texture memory tracking
+  - **Rendering Stats**: Draw calls, game objects, physics bodies, and active tweens
+  - **Performance Health**: Jank event tracking for performance bottlenecks
+- **Tier-based Monitoring**: Automatic detection of available performance data sources
+- **Mobile-optimized**: Chart scales appropriately for different screen sizes
+
+#### **Enhanced Settings Panel**
+- **Device-specific Settings**: Canvas glow setting only appears on supported devices
+- **Canvas Scaling Toggle**: Control whether game scales to fill screen or shows at native size
+- **Background Pattern Toggle**: Show/hide decorative background texture
+- **Consistent Design**: All settings use unified green color theme matching SDK integration status
+
+#### **Responsive Design Improvements**
+- **Mobile-first Layout**: Optimized toolbar spacing and button sizing for touch interfaces
+- **Intelligent Canvas Sizing**: "Actual size" mode respects screen boundaries while maintaining aspect ratio
+- **Natural Content Flow**: Flexbox layout allows each section to occupy space as needed
+- **Consistent Spacing**: Unified padding and margin system across all screen sizes
 
 ### Console Logging
 The development environment provides clean, focused logging:
@@ -189,7 +210,10 @@ your-game/
 ├── .remix/                # Development environment (hidden directory)
 │   ├── overlay.ts         # Development overlay entry point
 │   ├── game.ts           # Development game entry point with SDK mock
-│   ├── RemixDevOverlay.ts # Professional development UI
+│   ├── RemixDevOverlay.ts # Professional development UI with performance monitoring
+│   ├── PerformanceMonitor.ts # Real-time performance tracking system
+│   ├── performance-plugin.js # Phaser plugin for detailed game metrics
+│   ├── dev-settings.ts   # Settings panel with device-specific options
 │   ├── RemixSDKMock.ts   # SDK mock for testing
 │   ├── remix-dev-overlay.css # Development UI styles
 │   └── remix-game-styles.css # Game frame styles
@@ -280,9 +304,12 @@ This creates `dist/index.html` - a single file containing your entire game ready
 - **Remix SDK**: Platform integration with comprehensive testing tools
 - **Mobile optimization**: 9:16 aspect ratio for proper mini-app scaling
 - **Professional Development Environment**:
-  - Visual SDK integration testing with status indicators
-  - Full/Actual size toggle with persistent preferences
-  - Interactive game over overlay for testing `game_over` and `play_again` events
+  - **Advanced SDK Testing**: 2x2 grid status indicators with detailed hover panel
+  - **Real-time Performance Monitoring**: Live FPS charts, memory tracking, and performance metrics
+  - **Intelligent Settings Panel**: Device-specific options with consistent theming
+  - **Responsive Design**: Mobile-optimized layout with intelligent canvas sizing
+  - **Interactive Overlays**: Game over simulation and settings management
+  - **Multi-tier Monitoring**: Automatic detection of available performance data sources
 
 ## Getting Help:
 
