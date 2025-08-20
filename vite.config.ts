@@ -1,4 +1,5 @@
 import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
 import path from "path"
 import fs from "fs"
 import os from "os"
@@ -11,6 +12,7 @@ export default defineConfig({
     middlewareMode: false,
   },
   plugins: [
+    react(),
     buildApiPlugin(),
     {
       name: 'setup-detection-middleware',

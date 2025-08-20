@@ -18,9 +18,10 @@ for (const name of Object.keys(nets)) {
   if (ip !== null) break // Stop after finding the first external IPv4 address
 }
 
-// Fallback to localhost if no external IP found
+// Don't fallback to localhost - return error instead
 if (ip === null) {
-  ip = `http://localhost:${port}`
+  console.error('No external IP address found')
+  process.exit(1)
 }
 
 process.stdout.write(ip)

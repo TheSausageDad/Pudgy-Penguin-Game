@@ -87,7 +87,9 @@ export function buildApiPlugin(): Plugin {
         }
 
         try {
-          const result = execSync('node scripts/get-ip.js 3000', { 
+          // Get the current server port from the Vite server config
+          const port = server.config.server.port || 3000;
+          const result = execSync(`node scripts/get-ip.js ${port}`, { 
             encoding: 'utf8', 
             cwd: process.cwd() 
           });
