@@ -1,6 +1,6 @@
 import { defineConfig } from "vite"
 import path from "path"
-import { buildApiPlugin } from "./.remix/vite-plugin-build-api"
+import { buildApiPlugin } from "./.remix/plugins/vite-plugin-build-api"
 
 export default defineConfig({
   server: {

@@ -1,6 +1,21 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react'
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { useDashboard } from '../../contexts'
-import { PerformanceData } from '../../types'
+import { PerformanceData, PerformanceStats } from '../../types'
+import { 
+  PerformanceChartContainer, 
+  PerformanceChart as PerformanceChartCanvas,
+  PerformancePanel,
+  PerformanceStats as PerformanceStatsWrapper,
+  PerfSection,
+  PerfHeader,
+  PerfContent,
+  PerfChart,
+  PerfData,
+  PerfRow,
+  PerfValue,
+  PerfUnit,
+  PerfRange
+} from '../Performance/PerformanceChart.styled'
 
 interface OptimisticDataPoint extends PerformanceData {
   isReal?: boolean
@@ -40,7 +55,9 @@ export const PerformanceChart: React.FC = () => {
     return { fpsTrend, frameTimeTrend }
   }, [])
 
-  const createOptimisticData = useCallback((rawData: PerformanceData[]): OptimisticDataPoint[] => {
+  // Memoize the expensive optimistic data calculation
+  const optimisticData = useMemo((): OptimisticDataPoint[] => {
+    const rawData = state.performance.data
     if (rawData.length === 0) return []
     
     const now = performance.now()
@@ -94,7 +111,7 @@ export const PerformanceChart: React.FC = () => {
     }
     
     return optimisticData
-  }, [calculateTrend])
+  }, [state.performance.data, calculateTrend])
 
   const drawChart = useCallback(() => {
     const canvas = canvasRef.current
@@ -149,8 +166,8 @@ export const PerformanceChart: React.FC = () => {
       return
     }
 
-    // Create optimistic data with future projections
-    const data = createOptimisticData(rawData)
+    // Use memoized optimistic data with future projections
+    const data = optimisticData
     const chartWidth = width - leftMargin
     const maxFPS = 60 // Always cap at 60fps for consistent scale
 
@@ -365,7 +382,7 @@ export const PerformanceChart: React.FC = () => {
 
     // Continue animation
     animationRef.current = requestAnimationFrame(drawChart)
-  }, [state.performance.data, createOptimisticData])
+  }, [state.performance.data, optimisticData])
 
   useEffect(() => {
     drawChart()
@@ -385,10 +402,9 @@ export const PerformanceChart: React.FC = () => {
   }
 
   return (
-    <div className="performance-chart-container">
-      <canvas
+    <PerformanceChartContainer>
+      <PerformanceChartCanvas
         ref={canvasRef}
-        className="performance-chart"
         width={200}
         height={50}
         onMouseEnter={handleMouseEnter}
@@ -404,20 +420,20 @@ export const PerformanceChart: React.FC = () => {
           onMouseLeave={handleMouseLeave}
         />
       )}
-    </div>
+    </PerformanceChartContainer>
   )
 }
 
 // Detailed performance panel that appears on hover
 interface DetailedPerformancePanelProps {
-  data: any[]
-  stats: any
+  data: PerformanceData[]
+  stats: PerformanceStats
   tier: string
   onMouseEnter: () => void
   onMouseLeave: () => void
 }
 
-const DetailedPerformancePanel: React.FC<DetailedPerformancePanelProps> = ({ 
+const DetailedPerformancePanelComponent: React.FC<DetailedPerformancePanelProps> = ({ 
   data, 
   stats,
   tier,
@@ -430,19 +446,20 @@ const DetailedPerformancePanel: React.FC<DetailedPerformancePanelProps> = ({
 
   const latestData = data[data.length - 1]
   
-  // Use 60-second rolling window for all calculations
-  const now = performance.now()
-  const windowStart = now - 60000 // 60 seconds ago
-  const sparklineData = data.filter(d => d.timestamp >= windowStart)
-  
-  // Calculate stats from 60-second window data
-  const windowData = data.filter(d => d.timestamp >= windowStart)
-  const calculatedStats = {
-    current: windowData.length > 0 ? windowData[windowData.length - 1].fps : 0,
-    average: windowData.length > 0 ? Math.round(windowData.reduce((sum, d) => sum + d.fps, 0) / windowData.length) : 0,
-    min: windowData.length > 0 ? Math.min(...windowData.map(d => d.fps)) : 0,
-    max: windowData.length > 0 ? Math.max(...windowData.map(d => d.fps)) : 0
-  }
+  // Memoize 60-second rolling window calculations
+  const { sparklineData, windowData, calculatedStats } = useMemo(() => {
+    const now = performance.now()
+    const windowStart = now - 60000 // 60 seconds ago
+    const sparklineData = data.filter(d => d.timestamp >= windowStart)
+    const windowData = data.filter(d => d.timestamp >= windowStart)
+    const calculatedStats = {
+      current: windowData.length > 0 ? windowData[windowData.length - 1].fps : 0,
+      average: windowData.length > 0 ? Math.round(windowData.reduce((sum, d) => sum + d.fps, 0) / windowData.length) : 0,
+      min: windowData.length > 0 ? Math.min(...windowData.map(d => d.fps)) : 0,
+      max: windowData.length > 0 ? Math.max(...windowData.map(d => d.fps)) : 0
+    }
+    return { sparklineData, windowData, calculatedStats }
+  }, [data])
 
   const drawSparkline = useCallback((
     canvas: HTMLCanvasElement, 
@@ -506,139 +523,141 @@ const DetailedPerformancePanel: React.FC<DetailedPerformancePanelProps> = ({
   }, [sparklineData, drawSparkline])
 
   return (
-    <div 
-      className="performance-panel show"
+    <PerformancePanel
+      $show={true}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className="performance-stats">
+      <PerformanceStatsWrapper>
         
         {/* FPS Section */}
-        <div className="perf-section">
-          <div className="perf-header">Frame Rate</div>
-          <div className="perf-content">
-            <canvas ref={fpsSparklineRef} className="perf-chart" width={60} height={20} />
-            <div className="perf-data">
-              <div className="perf-row">
+        <PerfSection>
+          <PerfHeader>Frame Rate</PerfHeader>
+          <PerfContent>
+            <PerfChart ref={fpsSparklineRef} width={60} height={20} />
+            <PerfData>
+              <PerfRow>
                 <span>Current:</span>
-                <span className="perf-value">{calculatedStats.current}</span>
-                <span className="perf-unit">fps</span>
-              </div>
-              <div className="perf-row">
+                <PerfValue>{calculatedStats.current}</PerfValue>
+                <PerfUnit>fps</PerfUnit>
+              </PerfRow>
+              <PerfRow>
                 <span>Average:</span>
-                <span className="perf-value">{calculatedStats.average}</span>
-                <span className="perf-unit">fps</span>
-              </div>
-              <div className="perf-row">
+                <PerfValue>{calculatedStats.average}</PerfValue>
+                <PerfUnit>fps</PerfUnit>
+              </PerfRow>
+              <PerfRow>
                 <span>Range:</span>
-                <span className="perf-range">
+                <PerfRange>
                   <span>{calculatedStats.min}</span>-<span>{calculatedStats.max}</span>
-                </span>
-                <span className="perf-unit">fps</span>
-              </div>
-            </div>
-          </div>
-        </div>
+                </PerfRange>
+                <PerfUnit>fps</PerfUnit>
+              </PerfRow>
+            </PerfData>
+          </PerfContent>
+        </PerfSection>
 
         {/* Timing Section */}
-        <div className="perf-section">
-          <div className="perf-header">Timing</div>
-          <div className="perf-content">
-            <canvas ref={timingSparklineRef} className="perf-chart" width={60} height={20} />
-            <div className="perf-data">
-              <div className="perf-row">
+        <PerfSection>
+          <PerfHeader>Timing</PerfHeader>
+          <PerfContent>
+            <PerfChart ref={timingSparklineRef} width={60} height={20} />
+            <PerfData>
+              <PerfRow>
                 <span>Frame Time:</span>
-                <span className="perf-value">{latestData ? latestData.frameTime.toFixed(1) : '--'}</span>
-                <span className="perf-unit">ms</span>
-              </div>
+                <PerfValue>{latestData ? latestData.frameTime.toFixed(1) : '--'}</PerfValue>
+                <PerfUnit>ms</PerfUnit>
+              </PerfRow>
               {latestData?.updateTime && (
-                <div className="perf-row">
+                <PerfRow>
                   <span>Update:</span>
-                  <span className="perf-value">{latestData.updateTime.toFixed(1)}</span>
-                  <span className="perf-unit">ms</span>
-                </div>
+                  <PerfValue>{latestData.updateTime.toFixed(1)}</PerfValue>
+                  <PerfUnit>ms</PerfUnit>
+                </PerfRow>
               )}
               {latestData?.renderTime && (
-                <div className="perf-row">
+                <PerfRow>
                   <span>Render:</span>
-                  <span className="perf-value">{latestData.renderTime.toFixed(1)}</span>
-                  <span className="perf-unit">ms</span>
-                </div>
+                  <PerfValue>{latestData.renderTime.toFixed(1)}</PerfValue>
+                  <PerfUnit>ms</PerfUnit>
+                </PerfRow>
               )}
-            </div>
-          </div>
-        </div>
+            </PerfData>
+          </PerfContent>
+        </PerfSection>
 
         {/* Memory Section - only show when available */}
         {latestData?.memory && (
-          <div className="perf-section">
-            <div className="perf-header">Memory</div>
-            <div className="perf-content">
-              <canvas ref={memorySparklineRef} className="perf-chart" width={60} height={20} />
-              <div className="perf-data">
-                <div className="perf-row">
+          <PerfSection>
+            <PerfHeader>Memory</PerfHeader>
+            <PerfContent>
+              <PerfChart ref={memorySparklineRef} width={60} height={20} />
+              <PerfData>
+                <PerfRow>
                   <span>JS Heap:</span>
-                  <span className="perf-value">{latestData.memory.used}</span>
-                  <span className="perf-unit">MB</span>
-                </div>
+                  <PerfValue>{latestData.memory.used}</PerfValue>
+                  <PerfUnit>MB</PerfUnit>
+                </PerfRow>
                 {latestData.memory.textureMemory && (
-                  <div className="perf-row">
+                  <PerfRow>
                     <span>Textures:</span>
-                    <span className="perf-value">{(latestData.memory.textureMemory / 1024 / 1024).toFixed(1)}</span>
-                    <span className="perf-unit">MB</span>
-                  </div>
+                    <PerfValue>{(latestData.memory.textureMemory / 1024 / 1024).toFixed(1)}</PerfValue>
+                    <PerfUnit>MB</PerfUnit>
+                  </PerfRow>
                 )}
-              </div>
-            </div>
-          </div>
+              </PerfData>
+            </PerfContent>
+          </PerfSection>
         )}
 
         {/* Rendering Section - only show when available */}
         {latestData?.rendering && (
-          <div className="perf-section">
-            <div className="perf-header">Rendering</div>
-            <div className="perf-content">
-              <div className="perf-data">
-                <div className="perf-row">
+          <PerfSection>
+            <PerfHeader>Rendering</PerfHeader>
+            <PerfContent>
+              <PerfData>
+                <PerfRow>
                   <span>Draw Calls:</span>
-                  <span className="perf-value">{latestData.rendering.drawCalls}</span>
-                </div>
-                <div className="perf-row">
+                  <PerfValue>{latestData.rendering.drawCalls}</PerfValue>
+                </PerfRow>
+                <PerfRow>
                   <span>Game Objects:</span>
-                  <span className="perf-value">{latestData.rendering.gameObjects}</span>
-                </div>
+                  <PerfValue>{latestData.rendering.gameObjects}</PerfValue>
+                </PerfRow>
                 {latestData.rendering.physicsBodies > 0 && (
-                  <div className="perf-row">
+                  <PerfRow>
                     <span>Physics Bodies:</span>
-                    <span className="perf-value">{latestData.rendering.physicsBodies}</span>
-                  </div>
+                    <PerfValue>{latestData.rendering.physicsBodies}</PerfValue>
+                  </PerfRow>
                 )}
                 {latestData.rendering.activeTweens > 0 && (
-                  <div className="perf-row">
+                  <PerfRow>
                     <span>Tweens:</span>
-                    <span className="perf-value">{latestData.rendering.activeTweens}</span>
-                  </div>
+                    <PerfValue>{latestData.rendering.activeTweens}</PerfValue>
+                  </PerfRow>
                 )}
-              </div>
-            </div>
-          </div>
+              </PerfData>
+            </PerfContent>
+          </PerfSection>
         )}
 
         {/* Health Section */}
-        <div className="perf-section">
-          <div className="perf-header">Health</div>
-          <div className="perf-content">
-            <div className="perf-data">
-              <div className="perf-row">
+        <PerfSection>
+          <PerfHeader>Health</PerfHeader>
+          <PerfContent>
+            <PerfData>
+              <PerfRow>
                 <span>Jank Events:</span>
-                <span className="perf-value">{windowData.filter(d => d.isJank).length}</span>
-                <span className="perf-unit">last 60s</span>
-              </div>
-            </div>
-          </div>
-        </div>
+                <PerfValue>{windowData.filter(d => d.isJank).length}</PerfValue>
+                <PerfUnit>last 60s</PerfUnit>
+              </PerfRow>
+            </PerfData>
+          </PerfContent>
+        </PerfSection>
 
-      </div>
-    </div>
+      </PerformanceStatsWrapper>
+    </PerformancePanel>
   )
 }
+
+const DetailedPerformancePanel = React.memo(DetailedPerformancePanelComponent)

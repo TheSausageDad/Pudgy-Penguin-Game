@@ -1,5 +1,5 @@
 import { Plugin } from 'vite'
-import { buildGame, checkSDKIntegration } from '../scripts/build-service.js'
+import { buildGame } from '../../scripts/build-service.js'
 import { execSync } from 'child_process'
 
 export function buildApiPlugin(): Plugin {
@@ -14,18 +14,11 @@ export function buildApiPlugin(): Plugin {
         }
 
         try {
-          console.log('🔨 Building game via API...')
           const result = await buildGame()
           
           res.setHeader('Content-Type', 'application/json')
           res.statusCode = result.success ? 200 : 500
           res.end(JSON.stringify(result))
-          
-          if (result.success) {
-            console.log(`✅ Build completed in ${result.buildTime}ms (${(result.fileSize / 1024).toFixed(1)}KB)`)
-          } else {
-            console.log(`❌ Build failed: ${result.error}`)
-          }
         } catch (error: any) {
           console.error('Build API error:', error)
           

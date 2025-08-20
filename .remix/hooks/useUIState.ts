@@ -37,7 +37,6 @@ export function useUIState() {
       // Build panel and performance panel don't close others
     }
     
-    console.log('togglePanel dispatching:', { panel, panelProperty, newVisible })
     dispatch({
       type: 'UI_TOGGLE_PANEL',
       payload: { 
@@ -109,9 +108,17 @@ export function useUIState() {
       }
     }
 
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [dispatch])
+    // Use setTimeout to add the listener after the current event loop
+    // This prevents the click that opens the panel from immediately closing it
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside)
+    }, 0)
+    
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [dispatch, state.ui])
 
   // Handle escape key to close panels (except build panel)
   useEffect(() => {

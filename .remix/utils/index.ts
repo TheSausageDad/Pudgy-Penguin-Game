@@ -8,6 +8,9 @@ export function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
+// Alias for memory formatting (same as file size formatting)
+export const formatMemory = formatFileSize
+
 export function formatTimeAgo(timestamp: number): string {
   if (!timestamp) return 'Never'
   
@@ -86,11 +89,6 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-export function generateLocalIP(): string {
-  // This would typically be done server-side, but for development
-  // we can attempt to detect local network IP
-  return window.location.hostname
-}
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -107,7 +105,6 @@ export function lerp(start: number, end: number, factor: number): number {
 export function sendToGame(type: string, data: any): void {
   const gameIframe = document.querySelector('#game-iframe') as HTMLIFrameElement
   if (gameIframe?.contentWindow) {
-    console.log(`📤 Sending to game: ${type}`, data)
     gameIframe.contentWindow.postMessage({ type, data }, '*')
   } else {
     console.warn('❌ Could not send to game: iframe not found or not ready')

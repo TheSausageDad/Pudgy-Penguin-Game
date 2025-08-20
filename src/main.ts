@@ -1,6 +1,6 @@
 import { GameScene } from "./scenes/GameScene"
 import { initializeRemixSDK, initializeDevelopment } from "./utils/RemixUtils"
-import { initializeSDKMock } from "../.remix/RemixSDKMock"
+import { initializeSDKMock } from "../.remix/mocks/RemixSDKMock"
 import GameSettings from "./config/GameSettings"
 
 // Game configuration

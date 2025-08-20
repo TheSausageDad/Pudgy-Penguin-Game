@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 import fs from "fs"
 import os from "os"
-import { buildApiPlugin } from "./.remix/vite-plugin-build-api"
+import { buildApiPlugin } from "./.remix/plugins/vite-plugin-build-api"
 
 export default defineConfig({
   server: {

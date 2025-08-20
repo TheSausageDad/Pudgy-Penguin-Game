@@ -82,7 +82,7 @@ function loadRemixPerformancePlugin(): void {
 
   try {
     // Fetch the plugin code from the .remix directory
-    fetch('/.remix/performance-plugin.js')
+    fetch('/.remix/plugins/performance-plugin.js')
       .then(response => {
         if (!response.ok) {
           throw new Error('Performance plugin not found');

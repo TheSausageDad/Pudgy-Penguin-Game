@@ -1,37 +1,54 @@
-import React, { useEffect, useRef, useCallback } from 'react'
-import { useUIState } from '../../hooks'
+import React, { useRef, useCallback, useMemo } from 'react'
+import { useUIState, useOutsideClick } from '../../hooks'
 import { useDashboard } from '../../contexts'
 import { PerformanceData } from '../../types'
+import { formatMemory } from '../../utils'
+import { SparklineChart } from '../Common'
+import {
+  PerformancePanelWrapper,
+  PerformancePanelHeader,
+  PerformanceTier,
+  TierBadge,
+  PanelCloseButton,
+  PerformanceSection,
+  PerformanceSectionHeader,
+  PerformanceSparklineContainer,
+  PerformanceStatsGrid,
+  PerformanceStat,
+  PerformanceStatLabel,
+  PerformanceStatValue,
+  PerformanceTimingGrid,
+  PerformanceTimingItem,
+  PerformanceTimingLabel,
+  PerformanceTimingValue,
+  PerformanceMemoryGrid,
+  PerformanceMemoryItem,
+  PerformanceMemoryLabel,
+  PerformanceMemoryValue,
+  PerformanceRenderingGrid,
+  PerformanceRenderingItem,
+  PerformanceRenderingLabel,
+  PerformanceRenderingValue,
+  PerformanceQuality,
+  PerformanceQualityItem,
+  PerformanceQualityLabel,
+  PerformanceQualityStatus,
+  PerformanceQualityValue,
+  PerformanceFooter,
+  PerformanceDataSource,
+  PerformanceDataSourceLabel,
+  PerformanceDataSourceValue,
+  PerformanceMonitoringStatus,
+  MonitoringIndicator
+} from './PerformancePanel.styled'
 
 export const PerformancePanel: React.FC = () => {
   const { state } = useDashboard()
   const { showPerformancePanel, togglePerformancePanel } = useUIState()
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Close panel when clicking outside
-  useEffect(() => {
-    if (!showPerformancePanel) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
-        togglePerformancePanel()
-      }
-    }
-
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        togglePerformancePanel()
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscapeKey)
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscapeKey)
-    }
-  }, [showPerformancePanel, togglePerformancePanel])
+  // Close panel when clicking outside or pressing escape
+  useOutsideClick(panelRef, togglePerformancePanel, showPerformancePanel)
 
   if (!showPerformancePanel) {
     return null
@@ -39,308 +56,235 @@ export const PerformancePanel: React.FC = () => {
 
   const { performance } = state
   const latestData = performance.data[performance.data.length - 1]
+  
+  // Memoize expensive data transformations for sparklines
+  const fpsData = useMemo(() => performance.data.map(d => d.fps), [performance.data])
+  const frameTimeData = useMemo(() => performance.data.map(d => d.frameTime), [performance.data])
+  const memoryData = useMemo(() => performance.data.map(d => d.memory?.used || 0), [performance.data])
+  
+  // Memoize jank frame count calculation
+  const jankFrameCount = useMemo(() => performance.data.filter(d => d.isJank).length, [performance.data])
 
   return (
-    <div ref={panelRef} className="performance-panel show">
+    <PerformancePanelWrapper ref={panelRef} $show={showPerformancePanel}>
       {/* Header */}
-      <div className="performance-panel-header">
+      <PerformancePanelHeader>
         <h3>Performance Monitor</h3>
-        <div className="performance-tier">
-          <span className={`tier-badge ${performance.tier}`}>
+        <PerformanceTier>
+          <TierBadge $tier={performance.tier}>
             {performance.tier === 'plugin' ? 'Plugin Data' : 'Iframe Monitoring'}
-          </span>
-        </div>
-        <button 
-          className="panel-close-btn" 
+          </TierBadge>
+        </PerformanceTier>
+        <PanelCloseButton 
           onClick={togglePerformancePanel}
           title="Close performance panel"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
           </svg>
-        </button>
-      </div>
+        </PanelCloseButton>
+      </PerformancePanelHeader>
 
       {/* FPS Statistics */}
-      <div className="performance-section">
-        <div className="performance-section-header">
+      <PerformanceSection>
+        <PerformanceSectionHeader>
           <h4>Frame Rate (FPS)</h4>
-          <div className="performance-sparkline-container">
+          <PerformanceSparklineContainer>
             <SparklineChart 
-              data={performance.data.map(d => d.fps)} 
+              data={fpsData} 
               width={60} 
               height={20}
               color="#4CAF50"
             />
-          </div>
-        </div>
-        <div className="performance-stats-grid">
-          <div className="performance-stat">
-            <div className="performance-stat-label">Current</div>
-            <div className="performance-stat-value">{performance.stats.current}</div>
-          </div>
-          <div className="performance-stat">
-            <div className="performance-stat-label">Average</div>
-            <div className="performance-stat-value">{performance.stats.average}</div>
-          </div>
-          <div className="performance-stat">
-            <div className="performance-stat-label">Min</div>
-            <div className="performance-stat-value">{performance.stats.min}</div>
-          </div>
-          <div className="performance-stat">
-            <div className="performance-stat-label">Max</div>
-            <div className="performance-stat-value">{performance.stats.max}</div>
-          </div>
-        </div>
-      </div>
+          </PerformanceSparklineContainer>
+        </PerformanceSectionHeader>
+        <PerformanceStatsGrid>
+          <PerformanceStat>
+            <PerformanceStatLabel>Current</PerformanceStatLabel>
+            <PerformanceStatValue>{performance.stats.current}</PerformanceStatValue>
+          </PerformanceStat>
+          <PerformanceStat>
+            <PerformanceStatLabel>Average</PerformanceStatLabel>
+            <PerformanceStatValue>{performance.stats.average}</PerformanceStatValue>
+          </PerformanceStat>
+          <PerformanceStat>
+            <PerformanceStatLabel>Min</PerformanceStatLabel>
+            <PerformanceStatValue>{performance.stats.min}</PerformanceStatValue>
+          </PerformanceStat>
+          <PerformanceStat>
+            <PerformanceStatLabel>Max</PerformanceStatLabel>
+            <PerformanceStatValue>{performance.stats.max}</PerformanceStatValue>
+          </PerformanceStat>
+        </PerformanceStatsGrid>
+      </PerformanceSection>
 
       {/* Frame Time Analysis */}
-      <div className="performance-section">
-        <div className="performance-section-header">
+      <PerformanceSection>
+        <PerformanceSectionHeader>
           <h4>Frame Timing (ms)</h4>
-          <div className="performance-sparkline-container">
+          <PerformanceSparklineContainer>
             <SparklineChart 
-              data={performance.data.map(d => d.frameTime)} 
+              data={frameTimeData} 
               width={60} 
               height={20}
               color="#2196F3"
             />
-          </div>
-        </div>
-        <div className="performance-timing-grid">
-          <div className="performance-timing-item">
-            <div className="performance-timing-label">Frame Time</div>
-            <div className="performance-timing-value">
+          </PerformanceSparklineContainer>
+        </PerformanceSectionHeader>
+        <PerformanceTimingGrid>
+          <PerformanceTimingItem>
+            <PerformanceTimingLabel>Frame Time</PerformanceTimingLabel>
+            <PerformanceTimingValue>
               {latestData?.frameTime?.toFixed(2) || '0.00'} ms
-            </div>
-          </div>
+            </PerformanceTimingValue>
+          </PerformanceTimingItem>
           {latestData?.updateTime && (
-            <div className="performance-timing-item">
-              <div className="performance-timing-label">Update</div>
-              <div className="performance-timing-value">
+            <PerformanceTimingItem>
+              <PerformanceTimingLabel>Update</PerformanceTimingLabel>
+              <PerformanceTimingValue>
                 {latestData.updateTime.toFixed(2)} ms
-              </div>
-            </div>
+              </PerformanceTimingValue>
+            </PerformanceTimingItem>
           )}
           {latestData?.renderTime && (
-            <div className="performance-timing-item">
-              <div className="performance-timing-label">Render</div>
-              <div className="performance-timing-value">
+            <PerformanceTimingItem>
+              <PerformanceTimingLabel>Render</PerformanceTimingLabel>
+              <PerformanceTimingValue>
                 {latestData.renderTime.toFixed(2)} ms
-              </div>
-            </div>
+              </PerformanceTimingValue>
+            </PerformanceTimingItem>
           )}
-        </div>
-      </div>
+        </PerformanceTimingGrid>
+      </PerformanceSection>
 
       {/* Memory Usage */}
       {latestData?.memory && (
-        <div className="performance-section">
-          <div className="performance-section-header">
+        <PerformanceSection>
+          <PerformanceSectionHeader>
             <h4>Memory Usage</h4>
-            <div className="performance-sparkline-container">
+            <PerformanceSparklineContainer>
               <SparklineChart 
-                data={performance.data.map(d => d.memory?.used || 0)} 
+                data={memoryData} 
                 width={60} 
                 height={20}
                 color="#FF9800"
               />
-            </div>
-          </div>
-          <div className="performance-memory-grid">
-            <div className="performance-memory-item">
-              <div className="performance-memory-label">Used</div>
-              <div className="performance-memory-value">
+            </PerformanceSparklineContainer>
+          </PerformanceSectionHeader>
+          <PerformanceMemoryGrid>
+            <PerformanceMemoryItem>
+              <PerformanceMemoryLabel>Used</PerformanceMemoryLabel>
+              <PerformanceMemoryValue>
                 {formatMemory(latestData.memory.used)}
-              </div>
-            </div>
-            <div className="performance-memory-item">
-              <div className="performance-memory-label">Total</div>
-              <div className="performance-memory-value">
+              </PerformanceMemoryValue>
+            </PerformanceMemoryItem>
+            <PerformanceMemoryItem>
+              <PerformanceMemoryLabel>Total</PerformanceMemoryLabel>
+              <PerformanceMemoryValue>
                 {formatMemory(latestData.memory.total)}
-              </div>
-            </div>
-            <div className="performance-memory-item">
-              <div className="performance-memory-label">Usage</div>
-              <div className="performance-memory-value">
+              </PerformanceMemoryValue>
+            </PerformanceMemoryItem>
+            <PerformanceMemoryItem>
+              <PerformanceMemoryLabel>Usage</PerformanceMemoryLabel>
+              <PerformanceMemoryValue>
                 {((latestData.memory.used / latestData.memory.total) * 100).toFixed(1)}%
-              </div>
-            </div>
+              </PerformanceMemoryValue>
+            </PerformanceMemoryItem>
             {latestData.memory.textureMemory && (
-              <div className="performance-memory-item">
-                <div className="performance-memory-label">Textures</div>
-                <div className="performance-memory-value">
+              <PerformanceMemoryItem>
+                <PerformanceMemoryLabel>Textures</PerformanceMemoryLabel>
+                <PerformanceMemoryValue>
                   {formatMemory(latestData.memory.textureMemory)}
-                </div>
-              </div>
+                </PerformanceMemoryValue>
+              </PerformanceMemoryItem>
             )}
-          </div>
-        </div>
+          </PerformanceMemoryGrid>
+        </PerformanceSection>
       )}
 
       {/* Rendering Statistics */}
       {latestData?.rendering && (
-        <div className="performance-section">
-          <div className="performance-section-header">
+        <PerformanceSection>
+          <PerformanceSectionHeader>
             <h4>Rendering</h4>
-          </div>
-          <div className="performance-rendering-grid">
-            <div className="performance-rendering-item">
-              <div className="performance-rendering-label">Draw Calls</div>
-              <div className="performance-rendering-value">
+          </PerformanceSectionHeader>
+          <PerformanceRenderingGrid>
+            <PerformanceRenderingItem>
+              <PerformanceRenderingLabel>Draw Calls</PerformanceRenderingLabel>
+              <PerformanceRenderingValue>
                 {latestData.rendering.drawCalls}
-              </div>
-            </div>
-            <div className="performance-rendering-item">
-              <div className="performance-rendering-label">Game Objects</div>
-              <div className="performance-rendering-value">
+              </PerformanceRenderingValue>
+            </PerformanceRenderingItem>
+            <PerformanceRenderingItem>
+              <PerformanceRenderingLabel>Game Objects</PerformanceRenderingLabel>
+              <PerformanceRenderingValue>
                 {latestData.rendering.gameObjects}
-              </div>
-            </div>
-            <div className="performance-rendering-item">
-              <div className="performance-rendering-label">Physics Bodies</div>
-              <div className="performance-rendering-value">
+              </PerformanceRenderingValue>
+            </PerformanceRenderingItem>
+            <PerformanceRenderingItem>
+              <PerformanceRenderingLabel>Physics Bodies</PerformanceRenderingLabel>
+              <PerformanceRenderingValue>
                 {latestData.rendering.physicsBodies}
-              </div>
-            </div>
-            <div className="performance-rendering-item">
-              <div className="performance-rendering-label">Active Tweens</div>
-              <div className="performance-rendering-value">
+              </PerformanceRenderingValue>
+            </PerformanceRenderingItem>
+            <PerformanceRenderingItem>
+              <PerformanceRenderingLabel>Active Tweens</PerformanceRenderingLabel>
+              <PerformanceRenderingValue>
                 {latestData.rendering.activeTweens}
-              </div>
-            </div>
-          </div>
-        </div>
+              </PerformanceRenderingValue>
+            </PerformanceRenderingItem>
+          </PerformanceRenderingGrid>
+        </PerformanceSection>
       )}
 
       {/* Jank Detection */}
-      <div className="performance-section">
-        <div className="performance-section-header">
+      <PerformanceSection>
+        <PerformanceSectionHeader>
           <h4>Performance Quality</h4>
-        </div>
-        <div className="performance-quality">
-          <div className="performance-quality-item">
-            <div className="performance-quality-label">Current Frame</div>
-            <div className={`performance-quality-status ${latestData?.isJank ? 'jank' : 'smooth'}`}>
+        </PerformanceSectionHeader>
+        <PerformanceQuality>
+          <PerformanceQualityItem>
+            <PerformanceQualityLabel>Current Frame</PerformanceQualityLabel>
+            <PerformanceQualityStatus $status={latestData?.isJank ? 'jank' : 'smooth'}>
               {latestData?.isJank ? 'Jank Detected' : 'Smooth'}
-            </div>
-          </div>
-          <div className="performance-quality-item">
-            <div className="performance-quality-label">Jank Frames (last 60s)</div>
-            <div className="performance-quality-value">
-              {performance.data.filter(d => d.isJank).length}
-            </div>
-          </div>
-          <div className="performance-quality-item">
-            <div className="performance-quality-label">Data Points</div>
-            <div className="performance-quality-value">
+            </PerformanceQualityStatus>
+          </PerformanceQualityItem>
+          <PerformanceQualityItem>
+            <PerformanceQualityLabel>Jank Frames (last 60s)</PerformanceQualityLabel>
+            <PerformanceQualityValue>
+              {jankFrameCount}
+            </PerformanceQualityValue>
+          </PerformanceQualityItem>
+          <PerformanceQualityItem>
+            <PerformanceQualityLabel>Data Points</PerformanceQualityLabel>
+            <PerformanceQualityValue>
               {performance.data.length}
-            </div>
-          </div>
-        </div>
-      </div>
+            </PerformanceQualityValue>
+          </PerformanceQualityItem>
+        </PerformanceQuality>
+      </PerformanceSection>
 
       {/* Data Source Info */}
-      <div className="performance-footer">
-        <div className="performance-data-source">
-          <div className="performance-data-source-label">
+      <PerformanceFooter>
+        <PerformanceDataSource>
+          <PerformanceDataSourceLabel>
             Data Source: 
-          </div>
-          <div className="performance-data-source-value">
+          </PerformanceDataSourceLabel>
+          <PerformanceDataSourceValue>
             {performance.tier === 'plugin' 
               ? 'Phaser Performance Plugin' 
               : 'RAF-based Iframe Monitoring'
             }
-          </div>
-        </div>
-        <div className="performance-monitoring-status">
-          <div className={`monitoring-indicator ${performance.isMonitoring ? 'active' : 'inactive'}`}>
+          </PerformanceDataSourceValue>
+        </PerformanceDataSource>
+        <PerformanceMonitoringStatus>
+          <MonitoringIndicator $active={performance.isMonitoring}>
             {performance.isMonitoring ? 'Monitoring Active' : 'Monitoring Paused'}
-          </div>
-        </div>
-      </div>
-    </div>
+          </MonitoringIndicator>
+        </PerformanceMonitoringStatus>
+      </PerformanceFooter>
+    </PerformancePanelWrapper>
   )
 }
 
-// Sparkline chart component for 60x20px mini charts
-interface SparklineChartProps {
-  data: number[]
-  width: number
-  height: number
-  color: string
-}
 
-const SparklineChart: React.FC<SparklineChartProps> = ({ data, width, height, color }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  const drawSparkline = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas || data.length === 0) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height)
-
-    if (data.length < 2) return
-
-    // Calculate min/max for scaling
-    const min = Math.min(...data)
-    const max = Math.max(...data)
-    const range = max - min || 1
-
-    // Draw line
-    ctx.strokeStyle = color
-    ctx.lineWidth = 1
-    ctx.beginPath()
-
-    data.forEach((value, index) => {
-      const x = (index / (data.length - 1)) * width
-      const y = height - ((value - min) / range) * height
-      
-      if (index === 0) {
-        ctx.moveTo(x, y)
-      } else {
-        ctx.lineTo(x, y)
-      }
-    })
-
-    ctx.stroke()
-
-    // Draw fill area
-    ctx.globalAlpha = 0.2
-    ctx.fillStyle = color
-    ctx.lineTo(width, height)
-    ctx.lineTo(0, height)
-    ctx.closePath()
-    ctx.fill()
-    ctx.globalAlpha = 1
-
-  }, [data, width, height, color])
-
-  useEffect(() => {
-    drawSparkline()
-  }, [drawSparkline])
-
-  return (
-    <canvas 
-      ref={canvasRef} 
-      width={width} 
-      height={height}
-      className="performance-sparkline"
-    />
-  )
-}
-
-// Utility function to format memory values
-function formatMemory(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}

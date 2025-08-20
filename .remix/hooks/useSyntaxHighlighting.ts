@@ -77,7 +77,10 @@ export function useSyntaxHighlighting() {
 
       // Clear previous highlighting to allow re-highlighting
       element.removeAttribute('data-highlighted')
-      element.className = 'code-display language-html'
+      
+      // Preserve the styled-component className and add highlight.js classes
+      const originalClasses = element.className.split(' ').filter(c => !c.startsWith('language-') && c !== 'code-display')
+      element.className = [...originalClasses, 'code-display', 'language-html'].join(' ')
 
       // Set the raw HTML content
       element.textContent = htmlContent
@@ -90,7 +93,9 @@ export function useSyntaxHighlighting() {
       console.warn('Failed to apply syntax highlighting:', error)
       // Fallback to plain text
       element.textContent = htmlContent
-      element.className = 'code-display'
+      // Preserve styled-component className
+      const originalClasses = element.className.split(' ').filter(c => !c.startsWith('language-') && c !== 'code-display')
+      element.className = [...originalClasses, 'code-display'].join(' ')
     }
   }, [loadHighlightJS])
 

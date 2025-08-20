@@ -1,5 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useBuildSystem, useUIState, useSDKIntegration, useSyntaxHighlighting, useCodeBlockResizing } from '../../hooks'
+import {
+  BuildPanelWrapper,
+  BuildPanelContent,
+  BuildControls,
+  BuildButton,
+  BuildButtonText,
+  BuildSpinner,
+  BuildButtonMessage,
+  SDKWarning,
+  WarningIcon,
+  WarningContent,
+  BuildSuccess,
+  SuccessIcon,
+  SuccessContent,
+  BuildInfo,
+  BuildOutput,
+  BuildOutputHeader,
+  BuildOutputTitle,
+  BuildTimeAgo,
+  BuildOutputActions,
+  FileSize,
+  BuildOutputCode,
+  CopyButton,
+  CodeDisplay
+} from './BuildPanel.styled'
 
 export const BuildPanel: React.FC = () => {
   const { 
@@ -60,110 +85,115 @@ export const BuildPanel: React.FC = () => {
   }
 
   return (
-    <div ref={panelRef} className={`build-panel ${isBuildPanelOpen ? 'show' : ''}`}>
-      <div className="build-panel-content">
+    <BuildPanelWrapper 
+      ref={panelRef} 
+      $isOpen={isBuildPanelOpen}
+      role="region"
+      aria-label="Build panel"
+      aria-expanded={isBuildPanelOpen}
+    >
+      <BuildPanelContent>
         {/* Build Controls */}
-        <div className="build-controls">
+        <BuildControls>
           {/* Build Game Button */}
-          <button 
+          <BuildButton 
             id="build-game-btn"
-            className="build-btn"
             onClick={handleBuild}
             disabled={!canBuild}
+            aria-label={isBuilding ? 'Building game' : 'Build game'}
+            aria-busy={isBuilding}
             title={!canBuild ? 'Code unchanged since last build' : 'Build the current game code'}
           >
-            <span className="build-btn-text">{isBuilding ? 'Building...' : 'Build Game'}</span>
-            {isBuilding && <div className="build-spinner" style={{ display: 'block' }} />}
-          </button>
+            <BuildButtonText>{isBuilding ? 'Building...' : 'Build Game'}</BuildButtonText>
+            <BuildSpinner $visible={isBuilding} />
+          </BuildButton>
 
           {/* Build Button Message */}
           {!canBuild && !isBuilding && (
-            <div className="build-btn-message">
+            <BuildButtonMessage role="status" aria-live="polite">
               Code unchanged since last build
-            </div>
+            </BuildButtonMessage>
           )}
 
           {/* SDK Integration Warning */}
           {!sdkStatus.isComplete && (
-            <div className="sdk-warning incomplete" style={{ display: 'flex' }}>
-              <div className="warning-icon">⚠️</div>
-              <div className="warning-content">
+            <SDKWarning $isComplete={false} role="alert" aria-live="polite">
+              <WarningIcon aria-hidden="true">⚠️</WarningIcon>
+              <WarningContent $isComplete={false}>
                 <strong>SDK Integration Incomplete</strong>
                 <p>Missing SDK handlers: {sdkStatus.missingHandlers.join(', ')}</p>
-              </div>
-            </div>
+              </WarningContent>
+            </SDKWarning>
           )}
 
           {/* Build Success */}
           {buildState.status === 'success' && buildState.output && (
-            <div className="build-success" style={{ display: 'flex' }}>
-              <div className="success-icon">✅</div>
-              <div className="success-content">
+            <BuildSuccess role="status" aria-live="polite">
+              <SuccessIcon aria-hidden="true">✅</SuccessIcon>
+              <SuccessContent>
                 <strong>Build Successful</strong>
                 <p>Game code has been copied to your clipboard</p>
-              </div>
-            </div>
+              </SuccessContent>
+            </BuildSuccess>
           )}
 
           {/* Build Info - Only show when SDK integration is complete and has previous build */}
           {sdkStatus.isComplete && buildState.status !== 'success' && buildState.status !== 'building' && 
            buildState.lastBuildTime > 0 && buildState.fileSize > 0 && (
-            <div className="build-info">
+            <BuildInfo aria-label="Build information">
               Last build: {formatTimeAgo(buildState.lastBuildTime)} • {formatFileSize(buildState.fileSize)}
-            </div>
+            </BuildInfo>
           )}
-        </div>
+        </BuildControls>
 
         {/* Build Output - Generated Code */}
         {buildState.output && buildState.status === 'success' && (
-          <div id="build-output" className="build-output" style={{ display: 'block' }}>
-            <div className="build-output-header">
-              <div className="build-output-title">
+          <BuildOutput id="build-output" role="region" aria-label="Generated code output">
+            <BuildOutputHeader>
+              <BuildOutputTitle>
                 <h4>Generated Code</h4>
-                <span className="build-time-ago">Built {formatTimeAgo(buildState.lastBuildTime)}</span>
-              </div>
-              <div className="build-output-actions">
-                <span 
-                  className="file-size"
-                  style={{ 
-                    color: copied ? '#22c55e' : undefined 
-                  }}
+                <BuildTimeAgo>Built {formatTimeAgo(buildState.lastBuildTime)}</BuildTimeAgo>
+              </BuildOutputTitle>
+              <BuildOutputActions>
+                <FileSize 
+                  $copied={copied}
+                  role="status"
+                  aria-live="polite"
                 >
                   {copied ? 'Code Copied!' : formatFileSize(buildState.fileSize)}
-                </span>
-              </div>
-            </div>
-            <div className="build-output-code" ref={buildOutputCodeRef}>
-              <button 
-                className="copy-btn-float"
+                </FileSize>
+              </BuildOutputActions>
+            </BuildOutputHeader>
+            <BuildOutputCode ref={buildOutputCodeRef}>
+              <CopyButton 
+                $copied={copied}
                 onClick={handleCopyOutput}
+                aria-label={copied ? 'Code copied to clipboard' : 'Copy code to clipboard'}
                 title={copied ? 'Copied!' : 'Copy code'}
-                style={{
-                  background: copied ? '#22c55e' : undefined
-                }}
               >
                 {copied ? (
                   // Checkmark icon when copied
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                   </svg>
                 ) : (
                   // Copy icon when not copied
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
                   </svg>
                 )}
-              </button>
-              <pre 
+              </CopyButton>
+              <CodeDisplay 
                 ref={codeDisplayRef}
-                className="code-display language-html"
+                className="language-html"
+                aria-label="Generated HTML code"
               >
                 {buildState.output}
-              </pre>
-            </div>
-          </div>
+              </CodeDisplay>
+            </BuildOutputCode>
+          </BuildOutput>
         )}
-      </div>
-    </div>
+      </BuildPanelContent>
+    </BuildPanelWrapper>
   )
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { useDashboard } from '../contexts'
 import { DevSettings } from '../types'
+import { detectDeviceCapabilities } from '../utils'
 
 // Dynamic storage key based on game name from package.json
 const getStorageKey = async (): Promise<string> => {
@@ -30,19 +31,6 @@ interface DeviceCapabilities {
 export function useDevSettings() {
   const { state, dispatch } = useDashboard()
 
-  const detectDeviceCapabilities = useCallback((): DeviceCapabilities => {
-    // Detect Safari browser (specifically Safari, not Chrome or other WebKit browsers)
-    const isSafari = /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor)
-    
-    // Detect mobile touch devices
-    const isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || 
-                          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-    
-    // Underglow not supported on Safari or mobile devices
-    const supportsUnderglow = !isSafari && !isMobileDevice
-
-    return { isSafari, isMobileDevice, supportsUnderglow }
-  }, [])
 
   const getDefaultSettings = useCallback((): DevSettings => {
     const capabilities = detectDeviceCapabilities()
@@ -52,7 +40,7 @@ export function useDevSettings() {
       backgroundPattern: true,
       fullSize: false
     }
-  }, [detectDeviceCapabilities])
+  }, [])
 
   const loadSettings = useCallback((): DevSettings => {
     try {

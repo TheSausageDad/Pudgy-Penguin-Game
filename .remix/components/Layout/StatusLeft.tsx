@@ -1,52 +1,55 @@
 import React from 'react'
 import { useDashboard } from '../../contexts'
 import { useUIState } from '../../hooks'
+import { StatusIndicator } from '../Common'
+import { 
+  StatusLeftWrapper,
+  PublishableStatus,
+  StatusLightGrid
+} from './StatusBar.styled'
+import { StatusPanel } from './StatusLeft.styled'
 
-export const StatusLeft: React.FC = () => {
+const StatusLeftComponent: React.FC = () => {
   const { state } = useDashboard()
   const { toggleStatusPanel, isStatusPanelOpen } = useUIState()
 
-  // Get light status for each SDK event
-  const getLightClass = (flag: boolean) => {
-    return `status-light-mini ${flag ? 'green' : 'red'}`
-  }
-
   return (
-    <div className="status-left">
-      <div className="publishable-status" onClick={() => {
-        console.log('SDK status clicked! Current state:', isStatusPanelOpen)
-        toggleStatusPanel()
-        console.log('toggleStatusPanel called')
-      }}>
-        <div className="status-light-grid">
-          <div className={getLightClass(state.sdk.flags.ready)}></div>
-          <div className={getLightClass(state.sdk.flags.gameOver)}></div>
-          <div className={getLightClass(state.sdk.flags.playAgain)}></div>
-          <div className={getLightClass(state.sdk.flags.toggleMute)}></div>
-        </div>
+    <StatusLeftWrapper>
+      <PublishableStatus
+        as="button"
+        className="publishable-status"
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation()
+          toggleStatusPanel()
+        }}
+        aria-label="Toggle SDK status panel"
+        aria-expanded={isStatusPanelOpen}
+        aria-controls="sdk-status-panel"
+      >
+        <StatusLightGrid aria-hidden="true">
+          <StatusIndicator status={state.sdk.flags.ready} size="mini" />
+          <StatusIndicator status={state.sdk.flags.gameOver} size="mini" />
+          <StatusIndicator status={state.sdk.flags.playAgain} size="mini" />
+          <StatusIndicator status={state.sdk.flags.toggleMute} size="mini" />
+        </StatusLightGrid>
         <span>Remix SDK integration</span>
-      </div>
+      </PublishableStatus>
       
-      {isStatusPanelOpen && (
-        <div className="status-panel show">
-          <div className="status-item">
-            <div className={`event-light ${state.sdk.flags.ready ? 'green' : 'red'}`}></div>
-            <span>ready</span>
-          </div>
-          <div className="status-item">
-            <div className={`event-light ${state.sdk.flags.gameOver ? 'green' : 'red'}`}></div>
-            <span>game_over</span>
-          </div>
-          <div className="status-item">
-            <div className={`event-light ${state.sdk.flags.playAgain ? 'green' : 'red'}`}></div>
-            <span>play_again</span>
-          </div>
-          <div className="status-item">
-            <div className={`event-light ${state.sdk.flags.toggleMute ? 'green' : 'red'}`}></div>
-            <span>toggle_mute</span>
-          </div>
-        </div>
-      )}
-    </div>
+      <StatusPanel
+        id="sdk-status-panel"
+        className="status-panel"
+        $isOpen={isStatusPanelOpen}
+        data-open={isStatusPanelOpen.toString()}
+        role="region"
+        aria-label="SDK integration status details"
+      >
+        <StatusIndicator status={state.sdk.flags.ready} label="ready" />
+        <StatusIndicator status={state.sdk.flags.gameOver} label="game_over" />
+        <StatusIndicator status={state.sdk.flags.playAgain} label="play_again" />
+        <StatusIndicator status={state.sdk.flags.toggleMute} label="toggle_mute" />
+      </StatusPanel>
+    </StatusLeftWrapper>
   )
 }
+
+export const StatusLeft = React.memo(StatusLeftComponent)

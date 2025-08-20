@@ -3,6 +3,7 @@ import { useDashboard } from '../../contexts'
 import { usePerformanceMonitor, useUnderglow } from '../../hooks'
 import { TopNavBar } from './TopNavBar'
 import { GameOverlay } from './GameOverlay'
+import { GameContainerWrapper, GameFrame } from './GameContainer.styled'
 
 interface GameContainerProps {
   // Props can be added as needed
@@ -78,26 +79,17 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
   const handleIframeLoad = useCallback(() => {
     if (iframeRef.current) {
       startMonitoring()
-      console.log('🎮 GameContainer: iframe loaded, setting up SDK message listener')
     }
   }, [startMonitoring])
 
   // Set up global message listener for SDK events (outside of iframe load)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Debug: log all messages to see what we're receiving
-      console.log('🔍 Message received:', {
-        origin: event.origin,
-        source: event.source === iframeRef.current?.contentWindow ? 'game-iframe' : 'other',
-        type: event.data?.type,
-        data: event.data
-      })
       
       // Check if message is from our game iframe
       if (event.source === iframeRef.current?.contentWindow) {
         // Handle SDK events
         if (event.data?.type === 'remix_sdk_event') {
-          console.log('🎯 SDK Event received:', event.data.event)
           const { event: sdkEvent } = event.data
           
           // Add event to dashboard state
@@ -119,7 +111,6 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
             case 'game_over':
               flagUpdates.gameOver = true
               const gameOverScore = sdkEvent.data?.score || sdkEvent.data?.finalScore || 0
-              console.log('🎮 Game Over triggered with score:', gameOverScore)
               dispatch({
                 type: 'GAME_UPDATE',
                 payload: { 
@@ -127,7 +118,6 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
                   score: gameOverScore
                 }
               })
-              console.log('🎯 Game state updated: isGameOver = true, score =', gameOverScore)
               break
             case 'play_again':
               flagUpdates.playAgain = true
@@ -151,18 +141,15 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
         
         // Handle performance data
         else if (event.data?.type === 'remix_performance_data') {
-          console.log('📊 Performance data received')
           // This will be handled by the performance monitor
         }
       }
     }
 
     window.addEventListener('message', handleMessage)
-    console.log('🔧 SDK message listener registered globally')
     
     return () => {
       window.removeEventListener('message', handleMessage)
-      console.log('🧹 SDK message listener cleaned up')
     }
   }, [dispatch])
 
@@ -198,7 +185,6 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
     if (import.meta.env.DEV) {
       // Add global helper functions for manual testing
       window.testSDKEvent = (eventType: string, data?: any) => {
-        console.log(`🧪 Manual test: ${eventType}`, data)
         
         // Simulate a message from the game iframe
         if (iframeRef.current?.contentWindow) {
@@ -213,18 +199,11 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
       }
       
       window.resetSDKFlags = () => {
-        console.log('🔄 Resetting all SDK flags to red')
         dispatch({
           type: 'SDK_UPDATE_FLAGS',
           payload: { ready: false, gameOver: false, playAgain: false, toggleMute: false }
         })
       }
-      
-      console.log('🛠️ Development helpers available:')
-      console.log('  - window.testSDKEvent("ready") to manually test SDK events')
-      console.log('  - window.resetSDKFlags() to reset all flags to red')
-      console.log('  - Press "u" key to toggle underglow effect')
-      console.log('📡 Listening for actual SDK events from game iframe...')
       
       return () => {
         delete window.testSDKEvent
@@ -234,14 +213,13 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
   }, [dispatch])
 
   return (
-    <div className="game-container">
-      <div 
+    <GameContainerWrapper>
+      <GameFrame 
         ref={gameFrameRef}
-        className="game-frame" 
-        style={{
-          width: `${frameSize.width}px`,
-          height: `${frameSize.height}px`
-        }}
+        $width={frameSize.width}
+        $height={frameSize.height}
+        role="application"
+        aria-label="Game container"
       >
         <TopNavBar />
         
@@ -249,7 +227,8 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
           ref={iframeRef}
           id="game-iframe"
           src="/"
-          title="Game Frame"
+          title="Interactive game content"
+          aria-label="Game preview frame"
           onLoad={handleIframeLoad}
           sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin allow-top-navigation-by-user-activation"
           style={{
@@ -264,8 +243,8 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
         />
         
         <GameOverlay />
-      </div>
-    </div>
+      </GameFrame>
+    </GameContainerWrapper>
   )
 }
 

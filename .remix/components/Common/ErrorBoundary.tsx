@@ -1,4 +1,28 @@
 import React, { Component, ReactNode } from 'react'
+import {
+  ErrorBoundaryContainer,
+  ErrorBoundaryContent,
+  ErrorBoundaryIcon,
+  ErrorBoundaryTitle,
+  ErrorBoundaryMessage,
+  ErrorBoundaryDetails,
+  ErrorBoundaryError,
+  ErrorName,
+  ErrorMessage,
+  ErrorStack,
+  ErrorBoundaryActions,
+  ErrorBoundaryRetry,
+  ErrorBoundaryReload,
+  PerformanceError,
+  PerformanceErrorContent,
+  PerformanceErrorRetry,
+  BuildPanelError,
+  BuildPanelErrorContent,
+  BuildPanelErrorRetry,
+  SettingsPanelError,
+  SettingsPanelErrorContent,
+  SettingsPanelErrorRetry
+} from './ErrorBoundary.styled'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -53,52 +77,46 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       // Default error UI
       return (
-        <div className="error-boundary">
-          <div className="error-boundary-content">
-            <div className="error-boundary-icon">
+        <ErrorBoundaryContainer>
+          <ErrorBoundaryContent>
+            <ErrorBoundaryIcon>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
               </svg>
-            </div>
+            </ErrorBoundaryIcon>
             
-            <h3 className="error-boundary-title">
+            <ErrorBoundaryTitle>
               Something went wrong in the {this.props.componentName || 'dashboard'}
-            </h3>
+            </ErrorBoundaryTitle>
             
-            <p className="error-boundary-message">
+            <ErrorBoundaryMessage>
               An unexpected error occurred while rendering this component. 
               This might be a temporary issue.
-            </p>
+            </ErrorBoundaryMessage>
 
             {this.state.error && (
-              <details className="error-boundary-details">
+              <ErrorBoundaryDetails>
                 <summary>Error Details</summary>
-                <div className="error-boundary-error">
-                  <div className="error-name">{this.state.error.name}</div>
-                  <div className="error-message">{this.state.error.message}</div>
+                <ErrorBoundaryError>
+                  <ErrorName>{this.state.error.name}</ErrorName>
+                  <ErrorMessage>{this.state.error.message}</ErrorMessage>
                   {this.state.error.stack && (
-                    <pre className="error-stack">{this.state.error.stack}</pre>
+                    <ErrorStack>{this.state.error.stack}</ErrorStack>
                   )}
-                </div>
-              </details>
+                </ErrorBoundaryError>
+              </ErrorBoundaryDetails>
             )}
             
-            <div className="error-boundary-actions">
-              <button 
-                className="error-boundary-retry" 
-                onClick={this.handleRetry}
-              >
+            <ErrorBoundaryActions>
+              <ErrorBoundaryRetry onClick={this.handleRetry}>
                 Try Again
-              </button>
-              <button 
-                className="error-boundary-reload" 
-                onClick={this.handleReload}
-              >
+              </ErrorBoundaryRetry>
+              <ErrorBoundaryReload onClick={this.handleReload}>
                 Reload Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
+              </ErrorBoundaryReload>
+            </ErrorBoundaryActions>
+          </ErrorBoundaryContent>
+        </ErrorBoundaryContainer>
       )
     }
 
@@ -158,8 +176,8 @@ export const PerformanceErrorBoundary: React.FC<{ children: ReactNode }> = ({ ch
   <ErrorBoundaryWrapper 
     componentName="Performance Monitor"
     fallback={(error, retry) => (
-      <div className="performance-error">
-        <div className="performance-error-content">
+      <PerformanceError>
+        <PerformanceErrorContent>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
           </svg>
@@ -167,11 +185,11 @@ export const PerformanceErrorBoundary: React.FC<{ children: ReactNode }> = ({ ch
             <strong>Performance monitoring unavailable</strong>
             <div>An error occurred while monitoring performance data.</div>
           </div>
-          <button onClick={retry} className="performance-error-retry">
+          <PerformanceErrorRetry onClick={retry}>
             Retry
-          </button>
-        </div>
-      </div>
+          </PerformanceErrorRetry>
+        </PerformanceErrorContent>
+      </PerformanceError>
     )}
   >
     {children}
@@ -182,8 +200,8 @@ export const BuildPanelErrorBoundary: React.FC<{ children: ReactNode }> = ({ chi
   <ErrorBoundaryWrapper 
     componentName="Build Panel"
     fallback={(error, retry) => (
-      <div className="build-panel-error">
-        <div className="build-panel-error-content">
+      <BuildPanelError>
+        <BuildPanelErrorContent>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
           </svg>
@@ -191,11 +209,11 @@ export const BuildPanelErrorBoundary: React.FC<{ children: ReactNode }> = ({ chi
             <strong>Build panel unavailable</strong>
             <div>An error occurred while loading the build panel.</div>
           </div>
-          <button onClick={retry} className="build-panel-error-retry">
+          <BuildPanelErrorRetry onClick={retry}>
             Retry
-          </button>
-        </div>
-      </div>
+          </BuildPanelErrorRetry>
+        </BuildPanelErrorContent>
+      </BuildPanelError>
     )}
   >
     {children}
@@ -206,8 +224,8 @@ export const SettingsPanelErrorBoundary: React.FC<{ children: ReactNode }> = ({ 
   <ErrorBoundaryWrapper 
     componentName="Settings Panel"
     fallback={(error, retry) => (
-      <div className="settings-panel-error">
-        <div className="settings-panel-error-content">
+      <SettingsPanelError>
+        <SettingsPanelErrorContent>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
           </svg>
@@ -215,11 +233,11 @@ export const SettingsPanelErrorBoundary: React.FC<{ children: ReactNode }> = ({ 
             <strong>Settings unavailable</strong>
             <div>An error occurred while loading settings.</div>
           </div>
-          <button onClick={retry} className="settings-panel-error-retry">
+          <SettingsPanelErrorRetry onClick={retry}>
             Retry
-          </button>
-        </div>
-      </div>
+          </SettingsPanelErrorRetry>
+        </SettingsPanelErrorContent>
+      </SettingsPanelError>
     )}
   >
     {children}

@@ -55,13 +55,6 @@ export function useCodeBlockResizing(
 
     // Apply the calculated height
     buildOutputCode.style.maxHeight = `${maxHeight}px`
-    
-    console.log('Code block height calculated:', {
-      panelHeight: panelContentRect.height,
-      usedHeight,
-      availableHeight,
-      maxHeight
-    })
   }, [buildPanelRef, buildOutputCodeRef, isOutputVisible])
 
   const setupCodeBlockResizing = useCallback(() => {

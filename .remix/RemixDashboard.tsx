@@ -9,6 +9,8 @@ import {
   PerformanceErrorBoundary
 } from './components/Common'
 import { useUIState } from './hooks'
+import { ThemeProvider } from './styles/ThemeProvider'
+import { RemixDevContainer, MainContentWrapper, BuildPanelSpacer } from './components/Layout/Container.styled'
 
 interface RemixDashboardProps {
   // Future props will go here
@@ -33,48 +35,17 @@ function DashboardContent() {
     return () => window.removeEventListener('message', handleMessage)
   }, [dispatch])
   
-  // Load CSS on component mount
-  useEffect(() => {
-    const loadStyles = () => {
-      // Check if styles are already loaded
-      if (document.querySelector('link[href="/.remix/remix-dev-overlay.css"]')) {
-        return
-      }
-
-      try {
-        // Load CSS file dynamically
-        const link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.type = 'text/css'
-        link.href = '/.remix/remix-dev-overlay.css'
-        document.head.appendChild(link)
-        
-        // Add style overrides for tighter vertical spacing in performance panel
-        const styleOverrides = document.createElement('style')
-        styleOverrides.textContent = `
-          .perf-section {
-            margin-bottom: 8px !important;
-            padding-bottom: 6px !important;
-          }
-        `
-        document.head.appendChild(styleOverrides)
-      } catch (error) {
-        console.warn('Failed to load dashboard CSS:', error)
-      }
-    }
-
-    loadStyles()
-  }, [])
+  // CSS is now handled via styled-components, no external CSS loading needed
 
   return (
     <ErrorBoundaryWrapper componentName="Remix Dashboard">
-      <div className={`remix-dev-container ${isBuildPanelOpen ? 'build-panel-open' : ''}`}>
-        <div className="main-content-wrapper">
+      <RemixDevContainer $buildPanelOpen={isBuildPanelOpen}>
+        <MainContentWrapper>
           <GameContainerErrorBoundary>
             <GameContainer />
           </GameContainerErrorBoundary>
-          <div className="build-panel-spacer"></div>
-        </div>
+          <BuildPanelSpacer $isOpen={isBuildPanelOpen} />
+        </MainContentWrapper>
         
         <ErrorBoundaryWrapper componentName="Status Bar">
           <StatusBar />
@@ -87,15 +58,17 @@ function DashboardContent() {
         <PerformanceErrorBoundary>
           <PerformancePanel />
         </PerformanceErrorBoundary>
-      </div>
+      </RemixDevContainer>
     </ErrorBoundaryWrapper>
   )
 }
 
 export const RemixDashboard: React.FC<RemixDashboardProps> = () => {
   return (
-    <DashboardProvider>
-      <DashboardContent />
-    </DashboardProvider>
+    <ThemeProvider>
+      <DashboardProvider>
+        <DashboardContent />
+      </DashboardProvider>
+    </ThemeProvider>
   )
 }

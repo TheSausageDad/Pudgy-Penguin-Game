@@ -89,8 +89,3 @@ export interface SDKEvent {
   timestamp: number
 }
 
-export interface DevEnvironmentInfo {
-  packageManager: string
-  gameId: string
-  lastUpdated: number
-}

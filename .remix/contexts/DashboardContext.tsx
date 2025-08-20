@@ -125,16 +125,13 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       }
     
     case 'UI_TOGGLE_PANEL':
-      console.log('UI_TOGGLE_PANEL reducer - payload:', action.payload, 'current state:', state.ui)
-      const newState = {
+      return {
         ...state,
         ui: {
           ...state.ui,
           [action.payload.panel]: action.payload.visible
         }
       }
-      console.log('UI_TOGGLE_PANEL reducer - new state:', newState.ui)
-      return newState
     
     case 'UI_SET_MINI_MODE':
       return {

@@ -112,7 +112,6 @@ export function useBuildSystem() {
       // Copy code to clipboard automatically (like working version)
       try {
         await copyToClipboard(buildCode)
-        console.log('Build code copied to clipboard')
       } catch (error) {
         console.warn('Failed to copy build code to clipboard:', error)
       }
@@ -157,7 +156,6 @@ export function useBuildSystem() {
               ipUrlObj.port = url.port || '3000';
               ipUrlObj.pathname = '/dist/';
               finalUrl = ipUrlObj.toString();
-              console.log('Build QR code using network IP:', finalUrl);
             } else {
               console.warn('Could not resolve network IP for build QR code');
               finalUrl = ''; // Don't show QR for localhost

@@ -3,6 +3,8 @@ export {
   ErrorBoundaryWrapper,
   GameContainerErrorBoundary,
   PerformanceErrorBoundary,
-  BuildPanelErrorBoundary,
-  SettingsPanelErrorBoundary
+  BuildPanelErrorBoundary
 } from './ErrorBoundary'
+
+export { SparklineChart } from './SparklineChart'
+export { StatusIndicator } from './StatusIndicator'
