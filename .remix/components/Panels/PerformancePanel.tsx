@@ -1,28 +1,39 @@
-import React, { useRef, useCallback, useMemo } from 'react'
-import { useUIState, useOutsideClick } from '../../hooks'
-import { useDashboard } from '../../contexts'
-import { PerformanceData } from '../../types'
+import React, { useMemo } from 'react'
+import { PerformanceData, PerformanceStats } from '../../types'
 import { formatMemory } from '../../utils'
 import { SparklineChart } from '../Common'
 import { cn, tw } from '../../utils/tw'
 
-export const PerformancePanel: React.FC = () => {
-  const { state } = useDashboard()
-  const { showPerformancePanel, togglePerformancePanel } = useUIState()
-  const panelRef = useRef<HTMLDivElement>(null)
+interface PerformancePanelProps {
+  show: boolean
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+  data: PerformanceData[]
+  stats: PerformanceStats
+  tier: string
+  isMonitoring: boolean
+}
 
-  // Close panel when clicking outside or pressing escape
-  useOutsideClick(panelRef, togglePerformancePanel, showPerformancePanel)
-
-  if (!showPerformancePanel) {
+export const PerformancePanel: React.FC<PerformancePanelProps> = ({ 
+  show,
+  onMouseEnter,
+  onMouseLeave,
+  data,
+  stats,
+  tier,
+  isMonitoring
+}) => {
+  if (!show || data.length === 0) {
     return null
   }
 
-  const { performance } = state
+  const performance = { data, stats, tier, isMonitoring }
+
   const latestData = performance.data[performance.data.length - 1]
   
   // Memoize expensive data transformations for sparklines
-  const fpsData = useMemo(() => performance.data.map(d => d.fps), [performance.data])
+  // Cap FPS at 60 for chart display (shows as line at top for values > 60)
+  const fpsData = useMemo(() => performance.data.map(d => Math.min(d.fps, 60)), [performance.data])
   const frameTimeData = useMemo(() => performance.data.map(d => d.frameTime), [performance.data])
   const memoryData = useMemo(() => performance.data.map(d => d.memory?.used || 0), [performance.data])
   
@@ -30,198 +41,160 @@ export const PerformancePanel: React.FC = () => {
   const jankFrameCount = useMemo(() => performance.data.filter(d => d.isJank).length, [performance.data])
 
   return (
-    <div ref={panelRef} className={tw`
-      absolute bottom-full left-1/2
-      ${showPerformancePanel ? 'translate-x-[-50%] translate-y-0 opacity-100 pointer-events-auto' : 'translate-x-[-50%] translate-y-2.5 opacity-0 pointer-events-none'}
-      mb-2 bg-zinc-800 border border-white/10 rounded-lg
-      p-4 min-w-[220px] max-w-[260px]
-      transition-all duration-200 shadow-[0_8px_24px_rgba(0,0,0,0.4)]
-      select-none z-[600] backdrop-blur-lg
-    `}>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="m-0 text-white text-base font-semibold">Performance Monitor</h3>
-        <div className="flex-1 flex justify-center">
-          <span className={cn(
-            'px-2 py-1 rounded text-xs font-semibold uppercase tracking-wide',
-            performance.tier === 'plugin'
-              ? 'bg-green-500/10 text-green-500 border border-green-500/20'
-              : 'bg-yellow-400/10 text-yellow-400 border border-yellow-400/20'
-          )}>
-            {performance.tier === 'plugin' ? 'Plugin Data' : 'Iframe Monitoring'}
-          </span>
-        </div>
-        <button 
-          onClick={togglePerformancePanel}
-          title="Close performance panel"
-          className={tw`
-            bg-transparent border-none text-gray-400
-            cursor-pointer p-1 rounded transition-all duration-200
-            flex items-center justify-center
-            hover:bg-white/10 hover:text-white
-          `}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-          </svg>
-        </button>
-      </div>
-
+    <div 
+      className={tw`
+        absolute bottom-full left-1/2 transform -translate-x-1/2
+        mb-2 bg-gradient-to-b from-zinc-800 to-zinc-900 border border-white/10 rounded-xl
+        p-5 min-w-[300px] max-w-[340px]
+        shadow-[0_12px_32px_rgba(0,0,0,0.5)]
+        select-none z-[500] backdrop-blur-xl
+        animate-fade-in
+      `}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {/* FPS Statistics */}
       <div className={tw`
-        mb-0.5 pb-3
-        [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/5
+        mb-4 pb-4
+        [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/[0.08]
         last:mb-0 last:pb-0
       `}>
-        <div className="flex justify-between items-center mb-2.5">
-          <h4 className={tw`
-            m-0 text-xs font-semibold text-gray-400
-            uppercase tracking-wide
-          `}>Frame Rate (FPS)</h4>
-          <div className="flex-shrink-0 border border-white/10 rounded bg-black/30">
-            <SparklineChart 
-              data={fpsData} 
-              width={60} 
-              height={20}
-              color="#4CAF50"
-            />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="flex flex-col">
+            <div className="text-[10px] text-gray-500 font-semibold mb-1 uppercase tracking-wider">current</div>
+            <div className="text-xl font-black text-white font-mono leading-none">{String(performance.stats.current).replace(' fps', '')}</div>
+            <div className="text-[10px] text-gray-500 font-medium">fps</div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col items-center text-center">
-            <div className="text-xs text-gray-400 font-medium mb-0.5">Current</div>
-            <div className="text-sm font-bold text-green-500 font-mono">{performance.stats.current}</div>
+          <div className="flex flex-col">
+            <div className="text-[10px] text-gray-500 font-semibold mb-1 uppercase tracking-wider">average</div>
+            <div className="text-xl font-black text-white font-mono leading-none">{String(performance.stats.average).replace(' fps', '')}</div>
+            <div className="text-[10px] text-gray-500 font-medium">fps</div>
           </div>
-          <div className="flex flex-col items-center text-center">
-            <div className="text-xs text-gray-400 font-medium mb-0.5">Average</div>
-            <div className="text-sm font-bold text-green-500 font-mono">{performance.stats.average}</div>
-          </div>
-          <div className="flex flex-col items-center text-center">
-            <div className="text-xs text-gray-400 font-medium mb-0.5">Min</div>
-            <div className="text-sm font-bold text-green-500 font-mono">{performance.stats.min}</div>
-          </div>
-          <div className="flex flex-col items-center text-center">
-            <div className="text-xs text-gray-400 font-medium mb-0.5">Max</div>
-            <div className="text-sm font-bold text-green-500 font-mono">{performance.stats.max}</div>
+          <div className="flex flex-col">
+            <div className="text-[10px] text-gray-500 font-semibold mb-1 uppercase tracking-wider">range</div>
+            <div className="text-sm font-bold text-gray-300 font-mono leading-tight">{String(performance.stats.min).replace(' fps', '')}-{String(performance.stats.max).replace(' fps', '')}</div>
+            <div className="text-[10px] text-gray-500 font-medium">fps</div>
           </div>
         </div>
       </div>
 
       {/* Frame Time Analysis */}
       <div className={tw`
-        mb-0.5 pb-3
-        [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/5
+        mb-4 pb-4
+        [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/[0.08]
         last:mb-0 last:pb-0
       `}>
-        <div className="flex justify-between items-center mb-2.5">
+        <div className="flex justify-between items-center mb-3">
           <h4 className={tw`
-            m-0 text-xs font-semibold text-gray-400
-            uppercase tracking-wide
-          `}>Frame Timing (ms)</h4>
-          <div className="flex-shrink-0 border border-white/10 rounded bg-black/30">
+            m-0 text-[11px] font-bold text-gray-500
+            uppercase tracking-wider
+          `}>FRAME TIMING (MS)</h4>
+          <div className="flex-shrink-0 border border-white/10 rounded-md bg-black/40 overflow-hidden">
             <SparklineChart 
               data={frameTimeData} 
-              width={60} 
-              height={20}
-              color="#2196F3"
+              width={70} 
+              height={24}
+              color="#3b82f6"
+              minValue={0}
+              maxValue={33.33}
             />
           </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <div className={tw`
-            flex justify-between items-center text-xs
-            font-mono text-gray-300 min-h-4 leading-[1.2]
+            flex justify-between items-center
+            bg-black/20 rounded-lg px-3 py-2
+            border border-white/5 hover:border-white/10 transition-colors
           `}>
-            <span className="text-gray-400 flex-1 text-left font-medium">Frame Time</span>
-            <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-              {latestData?.frameTime?.toFixed(2) || '0.00'} ms
+            <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider">frame time</span>
+            <span className="font-bold text-sm text-white font-mono">
+              {latestData?.frameTime?.toFixed(1) || '0.0'} <span className="text-[10px] text-gray-500">ms</span>
             </span>
           </div>
-          {latestData?.updateTime && (
-            <div className={tw`
-              flex justify-between items-center text-xs
-              font-mono text-gray-300 min-h-4 leading-[1.2]
-            `}>
-              <span className="text-gray-400 flex-1 text-left font-medium">Update</span>
-              <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-                {latestData.updateTime.toFixed(2)} ms
-              </span>
-            </div>
-          )}
-          {latestData?.renderTime && (
-            <div className={tw`
-              flex justify-between items-center text-xs
-              font-mono text-gray-300 min-h-4 leading-[1.2]
-            `}>
-              <span className="text-gray-400 flex-1 text-left font-medium">Render</span>
-              <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-                {latestData.renderTime.toFixed(2)} ms
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Memory Usage */}
-      {latestData?.memory && (
+      {/* Memory Usage - Only show if memory data is actually available (not 0) */}
+      {latestData?.memory && latestData.memory.total > 0 && (
         <div className={tw`
-          mb-0.5 pb-3
-          [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/5
+          mb-4 pb-4
+          [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/[0.08]
           last:mb-0 last:pb-0
         `}>
-          <div className="flex justify-between items-center mb-2.5">
-            <h4 className={tw`
-              m-0 text-xs font-semibold text-gray-400
-              uppercase tracking-wide
-            `}>Memory Usage</h4>
-            <div className="flex-shrink-0 border border-white/10 rounded bg-black/30">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <h4 className={tw`
+                m-0 text-[11px] font-bold text-gray-500
+                uppercase tracking-wider
+              `}>MEMORY</h4>
+              {(() => {
+                const usage = (latestData.memory.used / latestData.memory.total) * 100
+                if (usage < 70) {
+                  return <><div className="w-2 h-2 bg-green-400 rounded-full" /><span className="text-[10px] text-green-400">Low</span></>
+                } else if (usage < 85) {
+                  return <><div className="w-2 h-2 bg-yellow-400 rounded-full" /><span className="text-[10px] text-yellow-400">Medium</span></>
+                } else {
+                  return <><div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" /><span className="text-[10px] text-red-400">High</span></>
+                }
+              })()}
+            </div>
+            <div className="flex-shrink-0 border border-white/10 rounded-md bg-black/40 overflow-hidden">
               <SparklineChart 
                 data={memoryData} 
-                width={60} 
-                height={20}
-                color="#FF9800"
+                width={70} 
+                height={24}
+                color="#f59e0b"
               />
             </div>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <div className={tw`
-              flex justify-between items-center text-xs
-              font-mono text-gray-300 min-h-4 leading-[1.2]
+              flex justify-between items-center
+              bg-black/20 rounded-lg px-3 py-2
+              border border-white/5 hover:border-white/10 transition-colors
             `}>
-              <span className="text-gray-400 flex-1 text-left font-medium">Used</span>
-              <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-                {formatMemory(latestData.memory.used)}
-              </span>
+              <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider">JS Heap</span>
+              <div className="flex items-center gap-1">
+                {/* Memory trend indicator with fixed width */}
+                <div className="w-12 text-right mr-2">
+                  {memoryData.length > 10 && (() => {
+                    const recentMemory = memoryData.slice(-10)
+                    const avgRecent = recentMemory.slice(-5).reduce((a, b) => a + b, 0) / 5
+                    const avgPrevious = recentMemory.slice(0, 5).reduce((a, b) => a + b, 0) / 5
+                    const trend = avgRecent - avgPrevious
+                    const trendPercent = avgPrevious > 0 ? (trend / avgPrevious) * 100 : 0
+                    
+                    if (Math.abs(trendPercent) < 2) {
+                      return <span className="text-[10px] text-gray-500">stable</span>
+                    } else if (trendPercent > 0) {
+                      return (
+                        <span className={cn(
+                          "text-[10px] font-semibold",
+                          trendPercent > 10 ? "text-red-400" : trendPercent > 5 ? "text-yellow-400" : "text-gray-400"
+                        )}>
+                          ↑{trendPercent.toFixed(0)}%
+                        </span>
+                      )
+                    } else {
+                      return <span className="text-[10px] text-green-400 font-semibold">↓{Math.abs(trendPercent).toFixed(0)}%</span>
+                    }
+                  })()}
+                </div>
+                <span className="font-bold text-sm text-white font-mono">
+                  {formatMemory(latestData.memory.used)}
+                </span>
+              </div>
             </div>
             <div className={tw`
-              flex justify-between items-center text-xs
-              font-mono text-gray-300 min-h-4 leading-[1.2]
+              flex justify-between items-center
+              bg-black/20 rounded-lg px-3 py-2
+              border border-white/5 hover:border-white/10 transition-colors
             `}>
-              <span className="text-gray-400 flex-1 text-left font-medium">Total</span>
-              <span className="font-bold text-green-500 text-right min-w-10 mr-1">
+              <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider">Allocated</span>
+              <span className="font-bold text-sm text-white font-mono">
                 {formatMemory(latestData.memory.total)}
               </span>
             </div>
-            <div className={tw`
-              flex justify-between items-center text-xs
-              font-mono text-gray-300 min-h-4 leading-[1.2]
-            `}>
-              <span className="text-gray-400 flex-1 text-left font-medium">Usage</span>
-              <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-                {((latestData.memory.used / latestData.memory.total) * 100).toFixed(1)}%
-              </span>
-            </div>
-            {latestData.memory.textureMemory && (
-              <div className={tw`
-                flex justify-between items-center text-xs
-                font-mono text-gray-300 min-h-4 leading-[1.2]
-              `}>
-                <span className="text-gray-400 flex-1 text-left font-medium">Textures</span>
-                <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-                  {formatMemory(latestData.memory.textureMemory)}
-                </span>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -280,76 +253,42 @@ export const PerformancePanel: React.FC = () => {
         </div>
       )}
 
-      {/* Jank Detection */}
+      {/* Performance Quality */}
       <div className={tw`
-        mb-0.5 pb-3
-        [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/5
-        last:mb-0 last:pb-0
+        mb-4 pb-4 pt-2
+        [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/[0.08]
+        last:mb-0 last:pb-0 
       `}>
-        <div className="flex justify-between items-center mb-2.5">
-          <h4 className={tw`
-            m-0 text-xs font-semibold text-gray-400
-            uppercase tracking-wide
-          `}>Performance Quality</h4>
-        </div>
-        <div className="flex flex-col gap-1">
+
+        <div className="grid grid-cols-2 gap-2">
           <div className={tw`
-            flex justify-between items-center text-xs
-            font-mono text-gray-300 min-h-4 leading-[1.2]
+            flex flex-col items-center justify-between
+            bg-black/20 rounded-lg px-3 py-3
+            border border-white/5 hover:border-white/10 transition-colors
+            min-h-[64px]
           `}>
-            <span className="text-gray-400 flex-1 text-left font-medium">Current Frame</span>
+            <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Current Frame</span>
             <span className={cn(
-              'font-bold text-right min-w-10 mr-1',
-              latestData?.isJank ? 'text-red-500' : 'text-green-500'
+              'font-bold text-base font-mono mt-2 mb-auto',
+              latestData?.isJank ? 'text-red-400' : 'text-green-400'
             )}>
-              {latestData?.isJank ? 'Jank Detected' : 'Smooth'}
+              {latestData?.isJank ? 'Jank' : 'Smooth'}
             </span>
           </div>
           <div className={tw`
-            flex justify-between items-center text-xs
-            font-mono text-gray-300 min-h-4 leading-[1.2]
+            flex flex-col items-center justify-center
+            bg-black/20 rounded-lg px-3 py-3
+            border border-white/5 hover:border-white/10 transition-colors
+            min-h-[64px]
           `}>
-            <span className="text-gray-400 flex-1 text-left font-medium">Jank Frames (last 60s)</span>
-            <span className="font-bold text-green-500 text-right min-w-10 mr-1">
+            <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Jank Events</span>
+            <span className={cn(
+              'font-bold text-base font-mono mt-1',
+              jankFrameCount > 10 ? 'text-red-400' : jankFrameCount > 5 ? 'text-yellow-400' : 'text-green-400'
+            )}>
               {jankFrameCount}
             </span>
-          </div>
-          <div className={tw`
-            flex justify-between items-center text-xs
-            font-mono text-gray-300 min-h-4 leading-[1.2]
-          `}>
-            <span className="text-gray-400 flex-1 text-left font-medium">Data Points</span>
-            <span className="font-bold text-green-500 text-right min-w-10 mr-1">
-              {performance.data.length}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Data Source Info */}
-      <div className={tw`
-        mt-4 pt-3 border-t border-white/5
-        flex flex-col gap-2
-      `}>
-        <div className="flex gap-1 text-xs font-mono text-gray-400">
-          <div className="text-gray-600">
-            Data Source: 
-          </div>
-          <div className="text-gray-400 font-medium">
-            {performance.tier === 'plugin' 
-              ? 'Phaser Performance Plugin' 
-              : 'RAF-based Iframe Monitoring'
-            }
-          </div>
-        </div>
-        <div className="flex justify-center">
-          <div className={cn(
-            'px-2 py-1 rounded text-xs font-semibold uppercase tracking-wide',
-            performance.isMonitoring
-              ? 'bg-green-500/10 text-green-500 border border-green-500/20'
-              : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-          )}>
-            {performance.isMonitoring ? 'Monitoring Active' : 'Monitoring Paused'}
+            <span className="text-[9px] text-gray-600 mt-0.5">last 60s</span>
           </div>
         </div>
       </div>

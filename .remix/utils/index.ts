@@ -8,8 +8,14 @@ export function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-// Alias for memory formatting (same as file size formatting)
-export const formatMemory = formatFileSize
+// Memory formatting (input is already in MB from performance monitoring)
+export function formatMemory(mb: number): string {
+  // Values come in as MB already from the performance monitor
+  if (mb < 1) {
+    return mb.toFixed(2) + ' MB'
+  }
+  return mb.toFixed(1) + ' MB'
+}
 
 export function formatTimeAgo(timestamp: number): string {
   if (!timestamp) return 'Never'

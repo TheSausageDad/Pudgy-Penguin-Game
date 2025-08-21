@@ -69,8 +69,10 @@ export function initializeDevelopment(): void {
     }
   });
 
-  // Load performance monitoring plugin
-  loadRemixPerformancePlugin();
+  // Load performance monitoring plugin after a short delay to ensure game is ready
+  setTimeout(() => {
+    loadRemixPerformancePlugin();
+  }, 100);
 }
 
 // Load and inject the performance monitoring plugin
@@ -94,6 +96,24 @@ function loadRemixPerformancePlugin(): void {
         const script = document.createElement('script');
         script.textContent = pluginCode;
         document.head.appendChild(script);
+
+        // The plugin code sets window.RemixPerformancePluginCode as a string
+        // We need to evaluate it to actually run the plugin
+        if ((window as any).RemixPerformancePluginCode) {
+          const pluginScript = document.createElement('script');
+          pluginScript.textContent = (window as any).RemixPerformancePluginCode;
+          document.head.appendChild(pluginScript);
+          
+          // Clean up
+          setTimeout(() => {
+            if (pluginScript.parentNode) {
+              pluginScript.parentNode.removeChild(pluginScript);
+            }
+          }, 100);
+          
+          // Log success for debugging
+          console.log('[Remix Dev] Performance plugin loaded successfully');
+        }
 
         // Clean up the script element
         setTimeout(() => {

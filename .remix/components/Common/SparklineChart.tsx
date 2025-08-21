@@ -6,6 +6,8 @@ interface SparklineChartProps {
   height: number
   color: string
   className?: string
+  minValue?: number
+  maxValue?: number
 }
 
 const SparklineChartComponent: React.FC<SparklineChartProps> = ({ 
@@ -13,7 +15,9 @@ const SparklineChartComponent: React.FC<SparklineChartProps> = ({
   width, 
   height, 
   color, 
-  className = "performance-sparkline" 
+  className = "performance-sparkline",
+  minValue,
+  maxValue
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -29,9 +33,9 @@ const SparklineChartComponent: React.FC<SparklineChartProps> = ({
 
     if (data.length < 2) return
 
-    // Calculate min/max for scaling
-    const min = Math.min(...data)
-    const max = Math.max(...data)
+    // Use provided min/max or calculate from data
+    const min = minValue !== undefined ? minValue : Math.min(...data)
+    const max = maxValue !== undefined ? maxValue : Math.max(...data)
     const range = max - min || 1
 
     // Draw line
@@ -61,7 +65,7 @@ const SparklineChartComponent: React.FC<SparklineChartProps> = ({
     ctx.fill()
     ctx.globalAlpha = 1
 
-  }, [data, width, height, color])
+  }, [data, width, height, color, minValue, maxValue])
 
   useEffect(() => {
     drawSparkline()

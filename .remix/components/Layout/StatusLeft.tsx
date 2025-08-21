@@ -29,8 +29,7 @@ const StatusLeftComponent: React.FC = () => {
         aria-controls="sdk-status-panel"
       >
         <div className={tw`
-          grid grid-cols-2 gap-[2px] p-[2px]
-          bg-bg-tertiary rounded-sm
+          grid grid-cols-2 gap-[3px] p-[1px]
           w-4 h-4
         `} aria-hidden="true">
           <StatusIndicator status={state.sdk.flags.ready} size="mini" />
@@ -38,7 +37,7 @@ const StatusLeftComponent: React.FC = () => {
           <StatusIndicator status={state.sdk.flags.playAgain} size="mini" />
           <StatusIndicator status={state.sdk.flags.toggleMute} size="mini" />
         </div>
-        <span className="hidden md:inline">Remix SDK integration</span>
+        <span className="hidden md:inline text-sm font-medium">Remix SDK integration</span>
       </button>
       
       <div

@@ -65,7 +65,7 @@ export const BuildPanel: React.FC = () => {
       ref={panelRef} 
       className={tw`
         fixed top-0 right-0 w-96 h-[calc(100%-70px)]
-        bg-zinc-900 border-l border-zinc-700
+        bg-bg-secondary border-l border-border-default
         ${isBuildPanelOpen ? 'translate-x-0' : 'translate-x-full'}
         transition-transform duration-300 ease-in-out
         flex flex-col overflow-hidden z-[100]
@@ -97,9 +97,9 @@ export const BuildPanel: React.FC = () => {
               transition-all duration-200 relative min-h-[52px]
               hover:from-green-600 hover:to-green-700 hover:-translate-y-0.5
               hover:shadow-[0_4px_12px_rgba(34,197,94,0.3)]
-              disabled:bg-gray-500 disabled:text-gray-400
+              disabled:from-neutral-700 disabled:to-neutral-800 disabled:text-neutral-500
               disabled:cursor-not-allowed disabled:transform-none
-              disabled:shadow-none
+              disabled:shadow-none disabled:hover:from-neutral-700 disabled:hover:to-neutral-800
             `}
           >
             <span>{isBuilding ? 'Building...' : 'Build Game'}</span>
@@ -113,8 +113,8 @@ export const BuildPanel: React.FC = () => {
           {/* Build Button Message */}
           {!canBuild && !isBuilding && (
             <div role="status" aria-live="polite" className={tw`
-              text-center text-xs text-gray-400
-              py-2 px-3 bg-gray-500/10 border border-gray-500/20
+              text-center text-xs text-text-secondary
+              py-2 px-3 bg-bg-tertiary border border-border-light
               rounded-md -mt-2
             `}>
               Code unchanged since last build
@@ -182,8 +182,8 @@ export const BuildPanel: React.FC = () => {
               </div>
             </div>
             <div ref={buildOutputCodeRef} className={tw`
-              border border-zinc-700 rounded-md overflow-hidden
-              flex-1 flex flex-col relative min-h-0 bg-zinc-950
+              border border-border-default rounded-md overflow-hidden
+              flex-1 flex flex-col relative min-h-0 bg-bg-primary
             `}>
               <button 
                 onClick={handleCopyOutput}

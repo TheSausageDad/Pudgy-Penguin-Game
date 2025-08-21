@@ -20,6 +20,9 @@ class RemixPerformancePlugin extends Phaser.Plugins.BasePlugin {
     // Performance tracking
     this.fpsHistory = [];
     this.frameTimeHistory = [];
+    this.lastFrameTime = 0;
+    this.wrappedScenes = new Set();
+    this.drawCallCount = 0;
   }
   
   init() {
@@ -38,37 +41,105 @@ class RemixPerformancePlugin extends Phaser.Plugins.BasePlugin {
     this.game.events.on('step', this.onStep, this);
     this.game.events.on('postrender', this.onPostRender, this);
     
+    // Hook into renderer to count draw calls
+    this.hookRenderer();
+    
     // Start reporting loop
     this.startReporting();
   }
   
+  hookRenderer() {
+    if (this.game.renderer && this.game.renderer.type === Phaser.WEBGL) {
+      const renderer = this.game.renderer;
+      
+      // Try to hook into pipeline flushes which are actual draw calls
+      if (renderer.pipelines) {
+        // Get the main pipeline (usually MultiPipeline for 2D rendering)
+        const pipelines = renderer.pipelines;
+        if (pipelines.list) {
+          Object.values(pipelines.list).forEach(pipeline => {
+            if (pipeline && pipeline.flush) {
+              const originalFlush = pipeline.flush.bind(pipeline);
+              pipeline.flush = function(...args) {
+                this.drawCallCount++;
+                return originalFlush.apply(this, args);
+              }.bind(this);
+            }
+          });
+        }
+      }
+      
+      // Fallback: Track blend mode changes
+      if (renderer.setBlendMode) {
+        const originalSetBlendMode = renderer.setBlendMode.bind(renderer);
+        renderer.setBlendMode = (blendMode) => {
+          // Only count if we haven't tracked pipeline flushes
+          if (!renderer.pipelines || !renderer.pipelines.list) {
+            this.drawCallCount++;
+          }
+          return originalSetBlendMode(blendMode);
+        };
+      }
+    }
+  }
+  
   setupPerformanceTracking() {
     // Override scene update to track update time
-    const originalUpdate = this.game.scene.scenes[0]?.sys?.sceneUpdate;
-    if (originalUpdate) {
-      const self = this;
-      this.game.scene.scenes.forEach(scene => {
-        if (scene.sys.sceneUpdate) {
-          const original = scene.sys.sceneUpdate.bind(scene.sys);
-          scene.sys.sceneUpdate = function(time, delta) {
-            const start = performance.now();
-            const result = original(time, delta);
-            self.lastUpdateTime = performance.now() - start;
-            return result;
-          };
-        }
+    const self = this;
+    
+    // Keep track of which scenes we've already wrapped
+    this.wrappedScenes = new Set();
+    
+    // Function to wrap a scene's update method
+    const wrapSceneUpdate = (scene) => {
+      if (!scene || !scene.update || typeof scene.update !== 'function') {
+        return;
+      }
+      
+      // Check if we've already wrapped this scene
+      if (this.wrappedScenes.has(scene)) {
+        return;
+      }
+      
+      // Mark this scene as wrapped
+      this.wrappedScenes.add(scene);
+      
+      // Store the original update method
+      const originalUpdate = scene.update.bind(scene);
+      
+      // Replace with our wrapped version
+      scene.update = function(time, delta) {
+        const start = performance.now();
+        // Call the original update method with the scene as context
+        const result = originalUpdate(time, delta);
+        self.lastUpdateTime = performance.now() - start;
+        return result;
+      };
+    };
+    
+    // Initial setup for existing scenes
+    setTimeout(() => {
+      this.game.scene.scenes.forEach(wrapSceneUpdate);
+    }, 100);
+    
+    // Also monitor for new scenes being added
+    if (this.game.scene.events) {
+      this.game.scene.events.on('start', (scene) => {
+        // Small delay to ensure scene is fully initialized
+        setTimeout(() => wrapSceneUpdate(scene), 10);
       });
     }
   }
   
   onPreStep() {
-    this.frameStartTime = performance.now();
-  }
-  
-  onStep() {
-    // Track frame timing
-    if (this.frameStartTime) {
-      const frameTime = performance.now() - this.frameStartTime;
+    const now = performance.now();
+    
+    // Reset draw call counter for this frame
+    this.drawCallCount = 0;
+    
+    // Calculate frame time from last frame to this frame
+    if (this.lastFrameTime) {
+      const frameTime = now - this.lastFrameTime;
       this.frameTimeHistory.push(frameTime);
       
       // Keep only recent frame times
@@ -77,6 +148,11 @@ class RemixPerformancePlugin extends Phaser.Plugins.BasePlugin {
       }
     }
     
+    this.lastFrameTime = now;
+    this.frameStartTime = now;
+  }
+  
+  onStep() {
     this.frameCount++;
   }
   
@@ -153,7 +229,7 @@ class RemixPerformancePlugin extends Phaser.Plugins.BasePlugin {
     const memory = { used: 0, total: 0 };
     
     // Get JS heap memory (Chrome only)
-    if (performance.memory) {
+    if (performance.memory && performance.memory.usedJSHeapSize) {
       memory.used = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024); // MB
       memory.total = Math.round(performance.memory.totalJSHeapSize / 1024 / 1024); // MB
     }
@@ -191,19 +267,28 @@ class RemixPerformancePlugin extends Phaser.Plugins.BasePlugin {
     };
     
     try {
-      // Get draw calls from WebGL renderer
-      if (this.game.renderer && this.game.renderer.type === Phaser.WEBGL) {
-        rendering.drawCalls = this.game.renderer.drawCalls || 0;
-      }
-      
-      // Count game objects across all active scenes
+      // Count game objects first (needed for draw call estimation)
       this.game.scene.scenes.forEach(scene => {
         if (scene.sys.isActive()) {
           // Count display list objects
           if (scene.children && scene.children.list) {
             rendering.gameObjects += scene.children.list.length;
           }
-          
+        }
+      });
+      
+      // Get draw calls from our counter or estimate
+      if (this.drawCallCount > 0) {
+        rendering.drawCalls = this.drawCallCount;
+      } else if (rendering.gameObjects > 0) {
+        // Estimate if we don't have actual draw calls
+        // Circles and primitives typically can't batch well
+        rendering.drawCalls = Math.max(1, Math.ceil(rendering.gameObjects / 5));
+      }
+      
+      // Continue counting physics bodies for remaining scenes
+      this.game.scene.scenes.forEach(scene => {
+        if (scene.sys.isActive()) {
           // Count physics bodies
           if (scene.physics && scene.physics.world) {
             if (scene.physics.world.bodies) {
@@ -243,6 +328,16 @@ class RemixPerformancePlugin extends Phaser.Plugins.BasePlugin {
       this.game.events.off('prestep', this.onPreStep, this);
       this.game.events.off('step', this.onStep, this);
       this.game.events.off('postrender', this.onPostRender, this);
+    }
+    
+    // Clean up scene event listener
+    if (this.game && this.game.scene && this.game.scene.events) {
+      this.game.scene.events.off('start');
+    }
+    
+    // Clear wrapped scenes tracking
+    if (this.wrappedScenes) {
+      this.wrappedScenes.clear();
     }
   }
   

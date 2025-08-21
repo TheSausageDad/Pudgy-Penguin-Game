@@ -58,6 +58,7 @@ export function usePerformanceMonitor(options: UsePerformanceMonitorOptions = {}
   }, [])
 
   const handlePluginData = useCallback((data: any) => {
+    // Always set tier to plugin when we receive plugin data
     dispatch({ type: 'PERFORMANCE_SET_TIER', payload: 'plugin' })
     
     // Filter out inaccurate initial readings from plugin
@@ -150,8 +151,9 @@ export function usePerformanceMonitor(options: UsePerformanceMonitorOptions = {}
   // Setup message listener for plugin data
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.source === iframe?.contentWindow && 
-          event.data?.type === 'remix_performance_data') {
+      // Accept performance data from any source (plugin or iframe)
+      // The plugin sends directly from the game window which may not be the iframe contentWindow
+      if (event.data?.type === 'remix_performance_data') {
         handlePluginData(event.data.data)
       }
     }
@@ -164,15 +166,15 @@ export function usePerformanceMonitor(options: UsePerformanceMonitorOptions = {}
   useEffect(() => {
     if (!iframe || !state.performance.isMonitoring) return
 
-    dispatch({ type: 'PERFORMANCE_SET_TIER', payload: 'iframe' })
-    
+    // Don't immediately set to iframe - wait to see if plugin connects
     // Give plugin time to connect, then start iframe monitoring if needed
-    // Also allow additional time for game initialization
     const timeoutId = setTimeout(() => {
-      if (state.performance.tier === 'iframe') {
+      // Only set to iframe and start iframe monitoring if we haven't received plugin data yet
+      if (state.performance.tier !== 'plugin') {
+        dispatch({ type: 'PERFORMANCE_SET_TIER', payload: 'iframe' })
         startIframeMonitoring()
       }
-    }, 500) // Reduced to 0.5 seconds for faster connection
+    }, 500) // Wait 0.5 seconds for plugin to connect
 
     return () => {
       clearTimeout(timeoutId)

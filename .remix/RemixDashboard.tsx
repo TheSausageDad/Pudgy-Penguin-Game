@@ -12,6 +12,20 @@ import { useUIState } from './hooks'
 import { tw } from './utils/tw'
 import './main.css'
 
+// Animated spacer component that smoothly transitions with the build panel
+const AnimatedSpacer: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
+  return (
+    <div 
+      className={tw`
+        shrink-0 h-full
+        transition-all duration-300 ease-in-out
+        ${isOpen ? 'w-[320px]' : 'w-0'}
+      `}
+      aria-hidden="true"
+    />
+  )
+}
+
 interface RemixDashboardProps {
   // Future props will go here
 }
@@ -50,9 +64,7 @@ function DashboardContent() {
           <GameContainerErrorBoundary>
             <GameContainer />
           </GameContainerErrorBoundary>
-          {isBuildPanelOpen && (
-            <div className="w-[320px] shrink-0" />
-          )}
+          <AnimatedSpacer isOpen={isBuildPanelOpen} />
         </div>
         
         <ErrorBoundaryWrapper componentName="Status Bar">

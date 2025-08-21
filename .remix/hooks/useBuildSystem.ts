@@ -49,9 +49,11 @@ export function useBuildSystem() {
 
       // Check if the saved build matches the current code timestamp
       if (buildData.codeTimestamp === lastUpdateTime && buildData.code) {
+        // Ensure we have a valid fileSize
+        const fileSize = buildData.fileSize > 0 ? buildData.fileSize : new Blob([buildData.code]).size
         updateBuildStatus({
           output: buildData.code,
-          fileSize: buildData.fileSize || buildData.code.length, // Use saved fileSize or fallback
+          fileSize: fileSize,
           lastBuildTime: buildData.savedAt,
           status: 'success'
         })
@@ -182,11 +184,8 @@ export function useBuildSystem() {
     try {
       // In development, skip build info API since it's not available
       if (import.meta.env.DEV) {
-        // Set some default development values
-        updateBuildStatus({
-          lastBuildTime: 0,
-          fileSize: 0
-        })
+        // Don't overwrite existing build info in development
+        // The actual build process will set the correct values
         return
       }
       

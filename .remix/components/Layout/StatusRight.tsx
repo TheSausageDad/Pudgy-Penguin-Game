@@ -15,11 +15,14 @@ export const StatusRight: React.FC = () => {
         <MobileQrButton />
       )}
 
-      {/* Settings Button */}
-      <SettingsDropdown />
+      {/* Settings Button - hide on mobile */}
+      {!capabilities.isMobileDevice && (
+        <SettingsDropdown />
+      )}
 
-      {/* Build Toggle Button */}
-      <button 
+      {/* Build Toggle Button - hide on mobile */}
+      {!capabilities.isMobileDevice && (
+        <button 
         className={cn(
           tw`
             flex items-center gap-[6px] px-3 py-[6px]
@@ -55,6 +58,7 @@ export const StatusRight: React.FC = () => {
         </svg>
         <span>Build</span>
       </button>
+      )}
     </>
   )
 }
