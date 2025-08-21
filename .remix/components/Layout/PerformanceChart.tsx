@@ -1,21 +1,8 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { useDashboard } from '../../contexts'
 import { PerformanceData, PerformanceStats } from '../../types'
-import { 
-  PerformanceChartContainer, 
-  PerformanceChart as PerformanceChartCanvas,
-  PerformancePanel,
-  PerformanceStats as PerformanceStatsWrapper,
-  PerfSection,
-  PerfHeader,
-  PerfContent,
-  PerfChart,
-  PerfData,
-  PerfRow,
-  PerfValue,
-  PerfUnit,
-  PerfRange
-} from '../Performance/PerformanceChart.styled'
+import { cn, tw } from '../../utils/tw'
+import '../../styles/app.css'
 
 interface OptimisticDataPoint extends PerformanceData {
   isReal?: boolean
@@ -402,11 +389,16 @@ export const PerformanceChart: React.FC = () => {
   }
 
   return (
-    <PerformanceChartContainer>
-      <PerformanceChartCanvas
+    <div className="relative inline-block">
+      <canvas
         ref={canvasRef}
         width={200}
         height={50}
+        className={tw`
+          cursor-pointer rounded-sm transition-all duration-fast
+          hover:opacity-80
+          focus-visible:outline-2 focus-visible:outline-accent-green focus-visible:outline-offset-2
+        `}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       />
@@ -420,7 +412,7 @@ export const PerformanceChart: React.FC = () => {
           onMouseLeave={handleMouseLeave}
         />
       )}
-    </PerformanceChartContainer>
+    </div>
   )
 }
 
@@ -523,140 +515,197 @@ const DetailedPerformancePanelComponent: React.FC<DetailedPerformancePanelProps>
   }, [sparklineData, drawSparkline])
 
   return (
-    <PerformancePanel
-      $show={true}
+    <div
+      className={tw`
+        absolute bottom-full left-1/2 transform -translate-x-1/2
+        mb-2 bg-bg-secondary border border-border-default
+        rounded-lg p-4 min-w-[320px]
+        shadow-xl z-[500] animate-fade-in
+      `}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <PerformanceStatsWrapper>
+      <div className={tw`
+        grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-4 w-full
+      `}>
         
         {/* FPS Section */}
-        <PerfSection>
-          <PerfHeader>Frame Rate</PerfHeader>
-          <PerfContent>
-            <PerfChart ref={fpsSparklineRef} width={60} height={20} />
-            <PerfData>
-              <PerfRow>
-                <span>Current:</span>
-                <PerfValue>{calculatedStats.current}</PerfValue>
-                <PerfUnit>fps</PerfUnit>
-              </PerfRow>
-              <PerfRow>
-                <span>Average:</span>
-                <PerfValue>{calculatedStats.average}</PerfValue>
-                <PerfUnit>fps</PerfUnit>
-              </PerfRow>
-              <PerfRow>
-                <span>Range:</span>
-                <PerfRange>
+        <div className="flex flex-col gap-2">
+          <div className={tw`
+            text-xs font-semibold text-text-primary
+            uppercase tracking-wide mb-1
+          `}>Frame Rate</div>
+          <div className="flex items-center gap-2">
+            <canvas 
+              ref={fpsSparklineRef} 
+              width={60} 
+              height={20} 
+              className="flex-shrink-0 rounded-sm bg-bg-tertiary"
+            />
+            <div className="flex flex-col gap-[2px] flex-1 min-w-0">
+              <div className="flex items-baseline gap-1 leading-none">
+                <span className="text-xs text-text-secondary mr-auto">current</span>
+                <span className="text-sm font-medium text-text-primary font-mono">{calculatedStats.current}</span>
+                <span className="text-xs text-text-secondary font-normal">fps</span>
+              </div>
+              <div className="flex items-baseline gap-1 leading-none">
+                <span className="text-xs text-text-secondary mr-auto">average</span>
+                <span className="text-sm font-medium text-text-primary font-mono">{calculatedStats.average}</span>
+                <span className="text-xs text-text-secondary font-normal">fps</span>
+              </div>
+              <div className="flex items-baseline gap-1 leading-none">
+                <span className="text-xs text-text-secondary mr-auto">range</span>
+                <span className="text-xs text-text-secondary font-normal font-mono">
                   <span>{calculatedStats.min}</span>-<span>{calculatedStats.max}</span>
-                </PerfRange>
-                <PerfUnit>fps</PerfUnit>
-              </PerfRow>
-            </PerfData>
-          </PerfContent>
-        </PerfSection>
+                </span>
+                <span className="text-xs text-text-secondary font-normal">fps</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Timing Section */}
-        <PerfSection>
-          <PerfHeader>Timing</PerfHeader>
-          <PerfContent>
-            <PerfChart ref={timingSparklineRef} width={60} height={20} />
-            <PerfData>
-              <PerfRow>
-                <span>Frame Time:</span>
-                <PerfValue>{latestData ? latestData.frameTime.toFixed(1) : '--'}</PerfValue>
-                <PerfUnit>ms</PerfUnit>
-              </PerfRow>
+        <div className="flex flex-col gap-2">
+          <div className={tw`
+            text-xs font-semibold text-text-primary
+            uppercase tracking-wide mb-1
+          `}>Timing</div>
+          <div className="flex items-center gap-2">
+            <canvas 
+              ref={timingSparklineRef} 
+              width={60} 
+              height={20} 
+              className="flex-shrink-0 rounded-sm bg-bg-tertiary"
+            />
+            <div className="flex flex-col gap-[2px] flex-1 min-w-0">
+              <div className="flex items-baseline gap-1 leading-none">
+                <span className="text-xs text-text-secondary mr-auto">frame time</span>
+                <span className="text-sm font-medium text-text-primary font-mono">
+                  {latestData ? latestData.frameTime.toFixed(1) : '--'}
+                </span>
+                <span className="text-xs text-text-secondary font-normal">ms</span>
+              </div>
               {latestData?.updateTime && (
-                <PerfRow>
-                  <span>Update:</span>
-                  <PerfValue>{latestData.updateTime.toFixed(1)}</PerfValue>
-                  <PerfUnit>ms</PerfUnit>
-                </PerfRow>
+                <div className="flex items-baseline gap-1 leading-none">
+                  <span className="text-xs text-text-secondary mr-auto">update</span>
+                  <span className="text-sm font-medium text-text-primary font-mono">
+                    {latestData.updateTime.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-text-secondary font-normal">ms</span>
+                </div>
               )}
               {latestData?.renderTime && (
-                <PerfRow>
-                  <span>Render:</span>
-                  <PerfValue>{latestData.renderTime.toFixed(1)}</PerfValue>
-                  <PerfUnit>ms</PerfUnit>
-                </PerfRow>
+                <div className="flex items-baseline gap-1 leading-none">
+                  <span className="text-xs text-text-secondary mr-auto">render</span>
+                  <span className="text-sm font-medium text-text-primary font-mono">
+                    {latestData.renderTime.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-text-secondary font-normal">ms</span>
+                </div>
               )}
-            </PerfData>
-          </PerfContent>
-        </PerfSection>
+            </div>
+          </div>
+        </div>
 
         {/* Memory Section - only show when available */}
         {latestData?.memory && (
-          <PerfSection>
-            <PerfHeader>Memory</PerfHeader>
-            <PerfContent>
-              <PerfChart ref={memorySparklineRef} width={60} height={20} />
-              <PerfData>
-                <PerfRow>
-                  <span>JS Heap:</span>
-                  <PerfValue>{latestData.memory.used}</PerfValue>
-                  <PerfUnit>MB</PerfUnit>
-                </PerfRow>
+          <div className="flex flex-col gap-2">
+            <div className={tw`
+              text-xs font-semibold text-text-primary
+              uppercase tracking-wide mb-1
+            `}>Memory</div>
+            <div className="flex items-center gap-2">
+              <canvas 
+                ref={memorySparklineRef} 
+                width={60} 
+                height={20} 
+                className="flex-shrink-0 rounded-sm bg-bg-tertiary"
+              />
+              <div className="flex flex-col gap-[2px] flex-1 min-w-0">
+                <div className="flex items-baseline gap-1 leading-none">
+                  <span className="text-xs text-text-secondary mr-auto">js heap</span>
+                  <span className="text-sm font-medium text-text-primary font-mono">
+                    {latestData.memory.used}
+                  </span>
+                  <span className="text-xs text-text-secondary font-normal">MB</span>
+                </div>
                 {latestData.memory.textureMemory && (
-                  <PerfRow>
-                    <span>Textures:</span>
-                    <PerfValue>{(latestData.memory.textureMemory / 1024 / 1024).toFixed(1)}</PerfValue>
-                    <PerfUnit>MB</PerfUnit>
-                  </PerfRow>
+                  <div className="flex items-baseline gap-1 leading-none">
+                    <span className="text-xs text-text-secondary mr-auto">textures</span>
+                    <span className="text-sm font-medium text-text-primary font-mono">
+                      {(latestData.memory.textureMemory / 1024 / 1024).toFixed(1)}
+                    </span>
+                    <span className="text-xs text-text-secondary font-normal">MB</span>
+                  </div>
                 )}
-              </PerfData>
-            </PerfContent>
-          </PerfSection>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Rendering Section - only show when available */}
         {latestData?.rendering && (
-          <PerfSection>
-            <PerfHeader>Rendering</PerfHeader>
-            <PerfContent>
-              <PerfData>
-                <PerfRow>
-                  <span>Draw Calls:</span>
-                  <PerfValue>{latestData.rendering.drawCalls}</PerfValue>
-                </PerfRow>
-                <PerfRow>
-                  <span>Game Objects:</span>
-                  <PerfValue>{latestData.rendering.gameObjects}</PerfValue>
-                </PerfRow>
+          <div className="flex flex-col gap-2">
+            <div className={tw`
+              text-xs font-semibold text-text-primary
+              uppercase tracking-wide mb-1
+            `}>Rendering</div>
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-[2px] flex-1 min-w-0">
+                <div className="flex items-baseline gap-1 leading-none">
+                  <span className="text-xs text-text-secondary mr-auto">draw calls</span>
+                  <span className="text-sm font-medium text-text-primary font-mono">
+                    {latestData.rendering.drawCalls}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1 leading-none">
+                  <span className="text-xs text-text-secondary mr-auto">game objects</span>
+                  <span className="text-sm font-medium text-text-primary font-mono">
+                    {latestData.rendering.gameObjects}
+                  </span>
+                </div>
                 {latestData.rendering.physicsBodies > 0 && (
-                  <PerfRow>
-                    <span>Physics Bodies:</span>
-                    <PerfValue>{latestData.rendering.physicsBodies}</PerfValue>
-                  </PerfRow>
+                  <div className="flex items-baseline gap-1 leading-none">
+                    <span className="text-xs text-text-secondary mr-auto">physics bodies</span>
+                    <span className="text-sm font-medium text-text-primary font-mono">
+                      {latestData.rendering.physicsBodies}
+                    </span>
+                  </div>
                 )}
                 {latestData.rendering.activeTweens > 0 && (
-                  <PerfRow>
-                    <span>Tweens:</span>
-                    <PerfValue>{latestData.rendering.activeTweens}</PerfValue>
-                  </PerfRow>
+                  <div className="flex items-baseline gap-1 leading-none">
+                    <span className="text-xs text-text-secondary mr-auto">tweens</span>
+                    <span className="text-sm font-medium text-text-primary font-mono">
+                      {latestData.rendering.activeTweens}
+                    </span>
+                  </div>
                 )}
-              </PerfData>
-            </PerfContent>
-          </PerfSection>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Health Section */}
-        <PerfSection>
-          <PerfHeader>Health</PerfHeader>
-          <PerfContent>
-            <PerfData>
-              <PerfRow>
-                <span>Jank Events:</span>
-                <PerfValue>{windowData.filter(d => d.isJank).length}</PerfValue>
-                <PerfUnit>last 60s</PerfUnit>
-              </PerfRow>
-            </PerfData>
-          </PerfContent>
-        </PerfSection>
+        <div className="flex flex-col gap-2">
+          <div className={tw`
+            text-xs font-semibold text-text-primary
+            uppercase tracking-wide mb-1
+          `}>Health</div>
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-[2px] flex-1 min-w-0">
+              <div className="flex items-baseline gap-1 leading-none">
+                <span className="text-xs text-text-secondary mr-auto">jank events</span>
+                <span className="text-sm font-medium text-text-primary font-mono">
+                  {windowData.filter(d => d.isJank).length}
+                </span>
+                <span className="text-xs text-text-secondary font-normal">last 60s</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      </PerformanceStatsWrapper>
-    </PerformancePanel>
+      </div>
+    </div>
   )
 }
 

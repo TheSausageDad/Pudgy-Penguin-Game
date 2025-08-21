@@ -9,8 +9,8 @@ import {
   PerformanceErrorBoundary
 } from './components/Common'
 import { useUIState } from './hooks'
-import { ThemeProvider } from './styles/ThemeProvider'
-import { RemixDevContainer, MainContentWrapper, BuildPanelSpacer } from './components/Layout/Container.styled'
+import { tw } from './utils/tw'
+import './main.css'
 
 interface RemixDashboardProps {
   // Future props will go here
@@ -39,13 +39,21 @@ function DashboardContent() {
 
   return (
     <ErrorBoundaryWrapper componentName="Remix Dashboard">
-      <RemixDevContainer $buildPanelOpen={isBuildPanelOpen}>
-        <MainContentWrapper>
+      <div className={tw`
+        fixed inset-0
+        bg-bg-primary
+        font-sans
+        flex flex-col
+        z-[1000000]
+      `}>
+        <div className="noise-bg game-container-pattern flex flex-1 items-center justify-center relative">
           <GameContainerErrorBoundary>
             <GameContainer />
           </GameContainerErrorBoundary>
-          <BuildPanelSpacer $isOpen={isBuildPanelOpen} />
-        </MainContentWrapper>
+          {isBuildPanelOpen && (
+            <div className="w-[320px] shrink-0" />
+          )}
+        </div>
         
         <ErrorBoundaryWrapper componentName="Status Bar">
           <StatusBar />
@@ -58,17 +66,15 @@ function DashboardContent() {
         <PerformanceErrorBoundary>
           <PerformancePanel />
         </PerformanceErrorBoundary>
-      </RemixDevContainer>
+      </div>
     </ErrorBoundaryWrapper>
   )
 }
 
 export const RemixDashboard: React.FC<RemixDashboardProps> = () => {
   return (
-    <ThemeProvider>
-      <DashboardProvider>
-        <DashboardContent />
-      </DashboardProvider>
-    </ThemeProvider>
+    <DashboardProvider>
+      <DashboardContent />
+    </DashboardProvider>
   )
 }

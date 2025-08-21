@@ -2,22 +2,24 @@ import React from 'react'
 import { useDashboard } from '../../contexts'
 import { useUIState } from '../../hooks'
 import { StatusIndicator } from '../Common'
-import { 
-  StatusLeftWrapper,
-  PublishableStatus,
-  StatusLightGrid
-} from './StatusBar.styled'
-import { StatusPanel } from './StatusLeft.styled'
+import { cn, tw } from '../../utils/tw'
+import '../../styles/app.css'
 
 const StatusLeftComponent: React.FC = () => {
   const { state } = useDashboard()
   const { toggleStatusPanel, isStatusPanelOpen } = useUIState()
 
   return (
-    <StatusLeftWrapper>
-      <PublishableStatus
-        as="button"
-        className="publishable-status"
+    <div className="relative flex items-center">
+      <button
+        className={tw`
+          flex items-center gap-2 px-3 py-[6px]
+          border border-border-default rounded-lg
+          transition-all duration-fast
+          select-none h-8 box-border
+          cursor-pointer
+          hover:bg-[rgba(255,255,255,0.05)]
+        `}
         onClick={(e: React.MouseEvent) => {
           e.stopPropagation()
           toggleStatusPanel()
@@ -26,19 +28,35 @@ const StatusLeftComponent: React.FC = () => {
         aria-expanded={isStatusPanelOpen}
         aria-controls="sdk-status-panel"
       >
-        <StatusLightGrid aria-hidden="true">
+        <div className={tw`
+          grid grid-cols-2 gap-[2px] p-[2px]
+          bg-bg-tertiary rounded-sm
+          w-4 h-4
+        `} aria-hidden="true">
           <StatusIndicator status={state.sdk.flags.ready} size="mini" />
           <StatusIndicator status={state.sdk.flags.gameOver} size="mini" />
           <StatusIndicator status={state.sdk.flags.playAgain} size="mini" />
           <StatusIndicator status={state.sdk.flags.toggleMute} size="mini" />
-        </StatusLightGrid>
-        <span>Remix SDK integration</span>
-      </PublishableStatus>
+        </div>
+        <span className="hidden md:inline">Remix SDK integration</span>
+      </button>
       
-      <StatusPanel
+      <div
         id="sdk-status-panel"
-        className="status-panel"
-        $isOpen={isStatusPanelOpen}
+        className={cn(
+          tw`
+            absolute bottom-full left-0 mb-2
+            bg-[#1f1f1f] border border-border-default
+            rounded-lg p-3 min-w-[180px]
+            shadow-xl z-[400]
+            opacity-0 translate-y-[10px] pointer-events-none
+            transition-all duration-fast
+            select-none
+          `,
+          isStatusPanelOpen && tw`
+            opacity-100 translate-y-0 pointer-events-auto
+          `
+        )}
         data-open={isStatusPanelOpen.toString()}
         role="region"
         aria-label="SDK integration status details"
@@ -47,8 +65,8 @@ const StatusLeftComponent: React.FC = () => {
         <StatusIndicator status={state.sdk.flags.gameOver} label="game_over" />
         <StatusIndicator status={state.sdk.flags.playAgain} label="play_again" />
         <StatusIndicator status={state.sdk.flags.toggleMute} label="toggle_mute" />
-      </StatusPanel>
-    </StatusLeftWrapper>
+      </div>
+    </div>
   )
 }
 

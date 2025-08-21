@@ -1,4 +1,6 @@
 import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
 import path from "path"
 import { buildApiPlugin } from "./.remix/plugins/vite-plugin-build-api"
 
@@ -9,6 +11,8 @@ export default defineConfig({
     middlewareMode: false,
   },
   plugins: [
+    react(),
+    tailwindcss(),
     buildApiPlugin(),
     {
       name: 'setup-detection-middleware-bypass',

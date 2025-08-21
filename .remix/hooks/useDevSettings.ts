@@ -105,7 +105,7 @@ export function useDevSettings() {
         // Clean up transition class after animation
         setTimeout(() => {
           body.classList.remove('background-pattern-transitioning')
-          body.style.removeProperty('--background-pattern-opacity')
+          body.style.setProperty('--background-pattern-opacity', '0.08')
         }, duration)
       }
     } else {

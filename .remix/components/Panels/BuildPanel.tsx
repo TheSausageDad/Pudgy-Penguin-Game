@@ -1,30 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useBuildSystem, useUIState, useSDKIntegration, useSyntaxHighlighting, useCodeBlockResizing } from '../../hooks'
-import {
-  BuildPanelWrapper,
-  BuildPanelContent,
-  BuildControls,
-  BuildButton,
-  BuildButtonText,
-  BuildSpinner,
-  BuildButtonMessage,
-  SDKWarning,
-  WarningIcon,
-  WarningContent,
-  BuildSuccess,
-  SuccessIcon,
-  SuccessContent,
-  BuildInfo,
-  BuildOutput,
-  BuildOutputHeader,
-  BuildOutputTitle,
-  BuildTimeAgo,
-  BuildOutputActions,
-  FileSize,
-  BuildOutputCode,
-  CopyButton,
-  CodeDisplay
-} from './BuildPanel.styled'
+import { cn, tw } from '../../utils/tw'
 
 export const BuildPanel: React.FC = () => {
   const { 
@@ -85,91 +61,142 @@ export const BuildPanel: React.FC = () => {
   }
 
   return (
-    <BuildPanelWrapper 
+    <div 
       ref={panelRef} 
-      $isOpen={isBuildPanelOpen}
+      className={tw`
+        fixed top-0 right-0 w-96 h-[calc(100%-70px)]
+        bg-zinc-900 border-l border-zinc-700
+        ${isBuildPanelOpen ? 'translate-x-0' : 'translate-x-full'}
+        transition-transform duration-300 ease-in-out
+        flex flex-col overflow-hidden z-[100]
+        md:w-96 max-md:w-full
+      `}
       role="region"
       aria-label="Build panel"
       aria-expanded={isBuildPanelOpen}
     >
-      <BuildPanelContent>
+      <div className={tw`
+        flex-1 p-6 overflow-hidden
+        flex flex-col gap-6 min-h-0
+      `}>
         {/* Build Controls */}
-        <BuildControls>
+        <div className="flex flex-col gap-4 w-full flex-shrink-0">
           {/* Build Game Button */}
-          <BuildButton 
+          <button 
             id="build-game-btn"
             onClick={handleBuild}
             disabled={!canBuild}
             aria-label={isBuilding ? 'Building game' : 'Build game'}
             aria-busy={isBuilding}
             title={!canBuild ? 'Code unchanged since last build' : 'Build the current game code'}
+            className={tw`
+              flex items-center justify-center gap-2
+              px-6 py-4 bg-gradient-to-br from-green-500 to-green-600
+              text-white border-none rounded-lg
+              text-base font-semibold cursor-pointer
+              transition-all duration-200 relative min-h-[52px]
+              hover:from-green-600 hover:to-green-700 hover:-translate-y-0.5
+              hover:shadow-[0_4px_12px_rgba(34,197,94,0.3)]
+              disabled:bg-gray-500 disabled:text-gray-400
+              disabled:cursor-not-allowed disabled:transform-none
+              disabled:shadow-none
+            `}
           >
-            <BuildButtonText>{isBuilding ? 'Building...' : 'Build Game'}</BuildButtonText>
-            <BuildSpinner $visible={isBuilding} />
-          </BuildButton>
+            <span>{isBuilding ? 'Building...' : 'Build Game'}</span>
+            <div className={cn(
+              'w-4 h-4 border-2 border-white/30 border-t-white rounded-full',
+              'animate-spin',
+              isBuilding ? 'block' : 'hidden'
+            )} />
+          </button>
 
           {/* Build Button Message */}
           {!canBuild && !isBuilding && (
-            <BuildButtonMessage role="status" aria-live="polite">
+            <div role="status" aria-live="polite" className={tw`
+              text-center text-xs text-gray-400
+              py-2 px-3 bg-gray-500/10 border border-gray-500/20
+              rounded-md -mt-2
+            `}>
               Code unchanged since last build
-            </BuildButtonMessage>
+            </div>
           )}
 
           {/* SDK Integration Warning */}
           {!sdkStatus.isComplete && (
-            <SDKWarning $isComplete={false} role="alert" aria-live="polite">
-              <WarningIcon aria-hidden="true">⚠️</WarningIcon>
-              <WarningContent $isComplete={false}>
-                <strong>SDK Integration Incomplete</strong>
-                <p>Missing SDK handlers: {sdkStatus.missingHandlers.join(', ')}</p>
-              </WarningContent>
-            </SDKWarning>
+            <div role="alert" aria-live="polite" className={tw`
+              flex gap-4 p-4 rounded-lg mb-2
+              bg-yellow-400/10 border border-yellow-400/20
+            `}>
+              <div aria-hidden="true" className="text-base flex-shrink-0">⚠️</div>
+              <div>
+                <strong className="text-yellow-400 block text-sm mb-1.5">SDK Integration Incomplete</strong>
+                <p className="text-gray-300 text-sm m-0 leading-[1.4]">Missing SDK handlers: {sdkStatus.missingHandlers.join(', ')}</p>
+              </div>
+            </div>
           )}
 
           {/* Build Success */}
           {buildState.status === 'success' && buildState.output && (
-            <BuildSuccess role="status" aria-live="polite">
-              <SuccessIcon aria-hidden="true">✅</SuccessIcon>
-              <SuccessContent>
-                <strong>Build Successful</strong>
-                <p>Game code has been copied to your clipboard</p>
-              </SuccessContent>
-            </BuildSuccess>
+            <div role="status" aria-live="polite" className={tw`
+              flex gap-4 p-4 rounded-lg mb-2
+              bg-green-500/10 border border-green-500/20
+            `}>
+              <div aria-hidden="true" className="text-base flex-shrink-0">✅</div>
+              <div>
+                <strong className="text-green-500 block text-sm mb-1.5">Build Successful</strong>
+                <p className="text-gray-300 text-sm m-0 leading-[1.4]">Game code has been copied to your clipboard</p>
+              </div>
+            </div>
           )}
 
           {/* Build Info - Only show when SDK integration is complete and has previous build */}
           {sdkStatus.isComplete && buildState.status !== 'success' && buildState.status !== 'building' && 
            buildState.lastBuildTime > 0 && buildState.fileSize > 0 && (
-            <BuildInfo aria-label="Build information">
+            <div aria-label="Build information" className="text-sm text-gray-400 text-center">
               Last build: {formatTimeAgo(buildState.lastBuildTime)} • {formatFileSize(buildState.fileSize)}
-            </BuildInfo>
+            </div>
           )}
-        </BuildControls>
+        </div>
 
         {/* Build Output - Generated Code */}
         {buildState.output && buildState.status === 'success' && (
-          <BuildOutput id="build-output" role="region" aria-label="Generated code output">
-            <BuildOutputHeader>
-              <BuildOutputTitle>
-                <h4>Generated Code</h4>
-                <BuildTimeAgo>Built {formatTimeAgo(buildState.lastBuildTime)}</BuildTimeAgo>
-              </BuildOutputTitle>
-              <BuildOutputActions>
-                <FileSize 
-                  $copied={copied}
+          <div id="build-output" role="region" aria-label="Generated code output" className={tw`
+            flex flex-col gap-0.5 flex-1 min-h-0
+          `}>
+            <div className="flex justify-between items-center mb-1.5">
+              <div className="flex flex-col gap-0.5">
+                <h4 className="m-0 text-white text-sm font-semibold">Generated Code</h4>
+                <span className="text-xs text-gray-400">Built {formatTimeAgo(buildState.lastBuildTime)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span 
                   role="status"
                   aria-live="polite"
+                  className={cn(
+                    'text-xs font-medium',
+                    copied ? 'text-green-500' : 'text-gray-400'
+                  )}
                 >
                   {copied ? 'Code Copied!' : formatFileSize(buildState.fileSize)}
-                </FileSize>
-              </BuildOutputActions>
-            </BuildOutputHeader>
-            <BuildOutputCode ref={buildOutputCodeRef}>
-              <CopyButton 
-                $copied={copied}
+                </span>
+              </div>
+            </div>
+            <div ref={buildOutputCodeRef} className={tw`
+              border border-zinc-700 rounded-md overflow-hidden
+              flex-1 flex flex-col relative min-h-0 bg-zinc-950
+            `}>
+              <button 
                 onClick={handleCopyOutput}
                 aria-label={copied ? 'Code copied to clipboard' : 'Copy code to clipboard'}
                 title={copied ? 'Copied!' : 'Copy code'}
+                className={tw`
+                  absolute top-3 right-3 flex items-center justify-center
+                  w-8 h-8 ${copied ? 'bg-green-500' : 'bg-black/80'}
+                  text-gray-300 border border-white/20 rounded
+                  cursor-pointer transition-all duration-200
+                  backdrop-blur-sm z-10
+                  hover:bg-black/80 hover:text-white
+                `}
               >
                 {copied ? (
                   // Checkmark icon when copied
@@ -182,18 +209,23 @@ export const BuildPanel: React.FC = () => {
                     <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
                   </svg>
                 )}
-              </CopyButton>
-              <CodeDisplay 
+              </button>
+              <pre 
                 ref={codeDisplayRef}
-                className="language-html"
+                className={tw`
+                  font-mono text-xs leading-[1.5] p-4 m-0
+                  text-gray-300 bg-transparent whitespace-pre-wrap
+                  break-all overflow-y-auto overflow-x-auto
+                  h-full box-border language-html
+                `}
                 aria-label="Generated HTML code"
               >
                 {buildState.output}
-              </CodeDisplay>
-            </BuildOutputCode>
-          </BuildOutput>
+              </pre>
+            </div>
+          </div>
         )}
-      </BuildPanelContent>
-    </BuildPanelWrapper>
+      </div>
+    </div>
   )
 }

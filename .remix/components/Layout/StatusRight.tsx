@@ -1,17 +1,8 @@
 import React, { useRef, useEffect } from 'react'
 import { useUIState, useDevSettings } from '../../hooks'
 import { detectDeviceCapabilities } from '../../utils'
-import { 
-  BuildToggleButton, 
-  SettingsButton, 
-  SettingsContainer, 
-  SettingsPanel, 
-  QrPanel, 
-  StatusItem,
-  SettingLabel,
-  SettingCheckbox,
-  SettingText
-} from './StatusRight.styled'
+import { cn, tw } from '../../utils/tw'
+import '../../styles/app.css'
 
 export const StatusRight: React.FC = () => {
   const { toggleBuildPanel, isBuildPanelOpen } = useUIState()
@@ -28,8 +19,21 @@ export const StatusRight: React.FC = () => {
       <SettingsDropdown />
 
       {/* Build Toggle Button */}
-      <BuildToggleButton 
-        $isActive={isBuildPanelOpen}
+      <button 
+        className={cn(
+          tw`
+            flex items-center gap-[6px] px-3 py-[6px]
+            bg-transparent border border-border-default
+            rounded-md text-text-secondary text-xs font-medium
+            cursor-pointer transition-all duration-fast
+            select-none h-8 box-border
+            hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.2)] hover:text-text-primary
+          `,
+          isBuildPanelOpen && tw`
+            bg-[rgba(34,197,94,0.1)] border-[rgba(34,197,94,0.2)] text-status-green
+            hover:bg-[rgba(34,197,94,0.15)] hover:border-[rgba(34,197,94,0.3)]
+          `
+        )}
         onClick={() => {
           toggleBuildPanel()
         }}
@@ -45,11 +49,12 @@ export const StatusRight: React.FC = () => {
           viewBox="0 0 24 24" 
           fill="currentColor"
           aria-hidden="true"
+          className="w-4 h-4 flex-shrink-0"
         >
           <path d="M14.6 16.6l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4zm-5.2 0L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"/>
         </svg>
         <span>Build</span>
-      </BuildToggleButton>
+      </button>
     </>
   )
 }
@@ -141,8 +146,22 @@ const MobileQrButton: React.FC = () => {
   // Note: Click outside and escape handling is now managed by useUIState hook globally
 
   return (
-    <SettingsContainer ref={containerRef}>
-      <SettingsButton 
+    <div 
+      className={tw`
+        flex items-center gap-2 cursor-pointer
+        p-0 m-0 rounded-lg transition-all duration-fast
+        select-none relative h-8 box-border
+      `}
+      ref={containerRef}
+    >
+      <button 
+        className={tw`
+          bg-transparent border border-border-default
+          text-text-secondary cursor-pointer
+          p-[6px] rounded-md transition-all duration-fast
+          flex items-center justify-center w-8 h-8
+          hover:bg-[rgba(255,255,255,0.05)] hover:text-text-primary
+        `}
         onClick={(e) => {
           e.stopPropagation()
           toggleQrPanel()
@@ -162,10 +181,32 @@ const MobileQrButton: React.FC = () => {
         >
           <path d="M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21C5,22.11 5.89,23 7,23H17C18.11,23 19,22.11 19,21V3C19,1.89 18.11,1 17,1Z"/>
         </svg>
-      </SettingsButton>
+      </button>
       
-      <QrPanel $isOpen={isQrPanelOpen} id="qr-panel" role="region" aria-label="QR code panel">
-        <StatusItem>
+      <div 
+        className={cn(
+          tw`
+            absolute bottom-full right-0 mb-2
+            bg-[#1f1f1f] border border-border-default
+            rounded-lg p-3 min-w-[220px]
+            opacity-0 translate-y-[10px] pointer-events-none
+            transition-all duration-fast
+            shadow-xl select-none z-[500]
+          `,
+          isQrPanelOpen && tw`
+            opacity-100 translate-y-0 pointer-events-auto
+          `
+        )}
+        id="qr-panel" 
+        role="region" 
+        aria-label="QR code panel"
+      >
+        <div className={tw`
+          flex items-center gap-2 py-1 text-sm
+          font-mono
+          [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border-default
+          [&:not(:last-child)]:mb-1 [&:not(:last-child)]:pb-2
+        `}>
           <div style={{ textAlign: 'center', width: '100%' }}>
             <div style={{ marginBottom: '12px', fontSize: '14px', fontWeight: 600, color: '#fff' }}>
               Scan to test on mobile
@@ -193,9 +234,9 @@ const MobileQrButton: React.FC = () => {
               </div>
             )}
           </div>
-        </StatusItem>
-      </QrPanel>
-    </SettingsContainer>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -212,8 +253,22 @@ const SettingsDropdown: React.FC = () => {
   }
 
   return (
-    <SettingsContainer ref={containerRef}>
-      <SettingsButton 
+    <div 
+      className={tw`
+        flex items-center gap-2 cursor-pointer
+        p-0 m-0 rounded-lg transition-all duration-fast
+        select-none relative h-8 box-border
+      `}
+      ref={containerRef}
+    >
+      <button 
+        className={tw`
+          bg-transparent border border-border-default
+          text-text-secondary cursor-pointer
+          p-[6px] rounded-md transition-all duration-fast
+          flex items-center justify-center w-8 h-8
+          hover:bg-[rgba(255,255,255,0.05)] hover:text-text-primary
+        `}
         onClick={(e) => {
           e.stopPropagation()
           toggleSettingsPanel()
@@ -226,47 +281,139 @@ const SettingsDropdown: React.FC = () => {
         <svg width="20" height="20" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
           <path d="M259.1 73.5C262.1 58.7 275.2 48 290.4 48L350.2 48C365.4 48 378.5 58.7 381.5 73.5L396 143.5C410.1 149.5 423.3 157.2 435.3 166.3L503.1 143.8C517.5 139 533.3 145 540.9 158.2L570.8 210C578.4 223.2 575.7 239.8 564.3 249.9L511 297.3C511.9 304.7 512.3 312.3 512.3 320C512.3 327.7 511.8 335.3 511 342.7L564.4 390.2C575.8 400.3 578.4 417 570.9 430.1L541 481.9C533.4 495 517.6 501.1 503.2 496.3L435.4 473.8C423.3 482.9 410.1 490.5 396.1 496.6L381.7 566.5C378.6 581.4 365.5 592 350.4 592L290.6 592C275.4 592 262.3 581.3 259.3 566.5L244.9 496.6C230.8 490.6 217.7 482.9 205.6 473.8L137.5 496.3C123.1 501.1 107.3 495.1 99.7 481.9L69.8 430.1C62.2 416.9 64.9 400.3 76.3 390.2L129.7 342.7C128.8 335.3 128.4 327.7 128.4 320C128.4 312.3 128.9 304.7 129.7 297.3L76.3 249.8C64.9 239.7 62.3 223 69.8 209.9L99.7 158.1C107.3 144.9 123.1 138.9 137.5 143.7L205.3 166.2C217.4 157.1 230.6 149.5 244.6 143.4L259.1 73.5zM320.3 400C364.5 399.8 400.2 363.9 400 319.7C399.8 275.5 363.9 239.8 319.7 240C275.5 240.2 239.8 276.1 240 320.3C240.2 364.5 276.1 400.2 320.3 400z"/>
         </svg>
-      </SettingsButton>
+      </button>
       
-      <SettingsPanel $isOpen={isSettingsPanelOpen} id="settings-panel" role="region" aria-label="Developer settings panel">
+      <div 
+        className={cn(
+          tw`
+            absolute bottom-full right-0 mb-2
+            bg-[#1f1f1f] border border-border-default
+            rounded-lg p-3 min-w-[200px]
+            opacity-0 translate-y-[10px] pointer-events-none
+            transition-all duration-fast
+            shadow-xl select-none z-[500]
+          `,
+          isSettingsPanelOpen && tw`
+            opacity-100 translate-y-0 pointer-events-auto
+          `
+        )}
+        id="settings-panel" 
+        role="region" 
+        aria-label="Developer settings panel"
+      >
         {/* Canvas Glow - only show on supported devices */}
         {capabilities.supportsUnderglow && (
-          <StatusItem>
-            <SettingLabel>
-              <SettingCheckbox 
+          <div className={tw`
+            flex items-center gap-2 py-1 text-sm
+            font-mono
+            [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border-default
+            [&:not(:last-child)]:mb-1 [&:not(:last-child)]:pb-2
+          `}>
+            <label className={tw`
+              flex items-center gap-3 cursor-pointer
+              p-1 w-full
+            `}>
+              <input 
+                type="checkbox"
+                className={tw`
+                  appearance-none w-9 h-5 bg-[#333] border-2 border-[#555]
+                  rounded-xl cursor-pointer relative m-0
+                  transition-all duration-fast flex-shrink-0
+                  checked:bg-status-green checked:border-status-green
+                  disabled:opacity-50 disabled:cursor-not-allowed disabled:border-[#333]
+                  after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                  after:w-3 after:h-3 after:bg-white after:rounded-full
+                  after:transition-all after:duration-fast
+                  after:shadow-[0_2px_4px_rgba(0,0,0,0.2)]
+                  checked:after:translate-x-4 checked:after:bg-black
+                  disabled:after:opacity-50
+                `}
                 checked={settings.canvasGlow}
                 onChange={() => handleSettingChange('canvasGlow')}
                 aria-label="Toggle canvas glow effect"
               />
-              <SettingText className="setting-text">Canvas Glow</SettingText>
-            </SettingLabel>
-          </StatusItem>
+              <span className={tw`
+                text-text-primary text-[13px] font-medium flex-1 text-left
+                [input:disabled+&]:opacity-50 [input:disabled+&]:text-[#888]
+              `}>Canvas Glow</span>
+            </label>
+          </div>
         )}
         
         {/* Background Pattern */}
-        <StatusItem>
-          <SettingLabel>
-            <SettingCheckbox 
+        <div className={tw`
+          flex items-center gap-2 py-1 text-sm
+          font-mono
+          [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border-default
+          [&:not(:last-child)]:mb-1 [&:not(:last-child)]:pb-2
+        `}>
+          <label className={tw`
+            flex items-center gap-3 cursor-pointer
+            p-1 w-full
+          `}>
+            <input 
+              type="checkbox"
+              className={tw`
+                appearance-none w-9 h-5 bg-[#333] border-2 border-[#555]
+                rounded-xl cursor-pointer relative m-0
+                transition-all duration-fast flex-shrink-0
+                checked:bg-status-green checked:border-status-green
+                disabled:opacity-50 disabled:cursor-not-allowed disabled:border-[#333]
+                after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                after:w-3 after:h-3 after:bg-white after:rounded-full
+                after:transition-all after:duration-fast
+                after:shadow-[0_2px_4px_rgba(0,0,0,0.2)]
+                checked:after:translate-x-4 checked:after:bg-black
+                disabled:after:opacity-50
+              `}
               checked={settings.backgroundPattern}
               onChange={() => handleSettingChange('backgroundPattern')}
               aria-label="Toggle background pattern"
             />
-            <SettingText className="setting-text">Background Pattern</SettingText>
-          </SettingLabel>
-        </StatusItem>
+            <span className={tw`
+              text-text-primary text-[13px] font-medium flex-1 text-left
+              [input:disabled+&]:opacity-50 [input:disabled+&]:text-[#888]
+            `}>Background Pattern</span>
+          </label>
+        </div>
         
         {/* Canvas Scaling */}
-        <StatusItem>
-          <SettingLabel>
-            <SettingCheckbox 
+        <div className={tw`
+          flex items-center gap-2 py-1 text-sm
+          font-mono
+          [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border-default
+          [&:not(:last-child)]:mb-1 [&:not(:last-child)]:pb-2
+        `}>
+          <label className={tw`
+            flex items-center gap-3 cursor-pointer
+            p-1 w-full
+          `}>
+            <input 
+              type="checkbox"
+              className={tw`
+                appearance-none w-9 h-5 bg-[#333] border-2 border-[#555]
+                rounded-xl cursor-pointer relative m-0
+                transition-all duration-fast flex-shrink-0
+                checked:bg-status-green checked:border-status-green
+                disabled:opacity-50 disabled:cursor-not-allowed disabled:border-[#333]
+                after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                after:w-3 after:h-3 after:bg-white after:rounded-full
+                after:transition-all after:duration-fast
+                after:shadow-[0_2px_4px_rgba(0,0,0,0.2)]
+                checked:after:translate-x-4 checked:after:bg-black
+                disabled:after:opacity-50
+              `}
               checked={settings.fullSize}
               onChange={() => handleSettingChange('fullSize')}
               aria-label="Toggle canvas scaling"
             />
-            <SettingText className="setting-text">Canvas Scaling</SettingText>
-          </SettingLabel>
-        </StatusItem>
-      </SettingsPanel>
-    </SettingsContainer>
+            <span className={tw`
+              text-text-primary text-[13px] font-medium flex-1 text-left
+              [input:disabled+&]:opacity-50 [input:disabled+&]:text-[#888]
+            `}>Canvas Scaling</span>
+          </label>
+        </div>
+      </div>
+    </div>
   )
 }
