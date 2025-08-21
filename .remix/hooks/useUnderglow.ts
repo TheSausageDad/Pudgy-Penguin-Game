@@ -17,6 +17,7 @@ const UNDERGLOW_CONFIG = {
   verticalDownscale: 2,     // Compress height by this factor (higher = faster)
   compressionQuality: 1,    // JPEG quality 1-100 (lower = faster)
   sampleSize: 10,           // Sample size for black frame detection
+  blackFrameThreshold: 0.001, // Threshold for detecting black frames (0.001 = 0.1%)
   
   // Edge sampling (how much of each edge to sample from source)
   topEdgeSample: 80,        // Pixels from top of source (increased for smoother gradient)
@@ -43,6 +44,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
   const resizeObserver = useRef<ResizeObserver | null>(null)
   const postMessageSender = useRef<(() => void) | null>(null)
   const enabled = useRef<boolean>(true)
+  const pendingCapture = useRef<boolean>(false)
+  const messageListener = useRef<((event: MessageEvent) => void) | null>(null)
   
   // Performance monitoring for adaptive quality
   const frameTimeHistory = useRef<number[]>([])
@@ -90,9 +93,9 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
       }
     }
     
-    // Accept frame if more than 0.1% of pixels are non-black (very lenient)
+    // Accept frame if more than threshold of pixels are non-black (very lenient)
     const nonBlackPercentage = nonBlackPixels / totalPixels
-    return nonBlackPercentage < 0.001
+    return nonBlackPercentage < UNDERGLOW_CONFIG.blackFrameThreshold
   }, [])
 
   // 1:1 port of createGlowContainer from original
@@ -252,14 +255,113 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     }
   }, [gameFrameRef])
 
-  // 1:1 port of setupPostMessageApproach from original
-  const setupPostMessageApproach = useCallback((iframe: HTMLIFrameElement) => {
+  // Enhanced setupPostMessageApproach to listen for Phaser postrender events
+  const setupPostMessageApproach = useCallback((iframe: HTMLIFrameElement, autoStart: boolean = true) => {
+    // Set up message listener for Phaser postrender events if not already set
+    if (!messageListener.current) {
+      messageListener.current = (event: MessageEvent) => {
+        // Only process messages from the game iframe
+        if (event.source !== iframe.contentWindow) return
+        
+        // Listen for Phaser render complete signal
+        if (event.data && event.data.type === 'phaser_render_complete') {
+          // Canvas is ready, capture after a micro-task to ensure browser compositing is complete
+          Promise.resolve().then(() => {
+            if (pendingCapture.current && postMessageSender.current && enabled.current) {
+              pendingCapture.current = false
+              postMessageSender.current()
+            }
+          })
+        }
+      }
+      
+      window.addEventListener('message', messageListener.current)
+    }
+    
+    // Inject code into the iframe to hook Phaser's postrender event
+    const injectPhaserHook = () => {
+      try {
+        const iframeWindow = iframe.contentWindow
+        if (!iframeWindow) return
+        
+        // Inject a script to hook into Phaser's render cycle
+        const script = iframeWindow.document.createElement('script')
+        script.textContent = `
+          (function() {
+            // Wait for Phaser game to be available
+            const hookPhaser = () => {
+              const game = window.game || window.phaserGame || (window.Phaser && window.Phaser.game);
+              
+              if (game && game.events) {
+                // Expose game instance globally for debugging
+                window.__phaserGame = game;
+                
+                // Hook into the postrender event
+                game.events.on('postrender', () => {
+                  // Get the canvas and its context
+                  const canvas = game.canvas;
+                  if (!canvas) return;
+                  
+                  const ctx = canvas.getContext('webgl') || canvas.getContext('webgl2') || canvas.getContext('2d');
+                  
+                  if (ctx && ctx.flush) {
+                    // Force WebGL to flush all pending operations
+                    ctx.flush();
+                  }
+                  
+                  // Double requestAnimationFrame to ensure browser compositing is complete
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      // Signal parent that render is complete and canvas is ready
+                      window.parent.postMessage({ type: 'phaser_render_complete' }, '*');
+                    });
+                  });
+                });
+                
+                // Successfully hooked into Phaser postrender event
+              } else {
+                // Retry in a moment
+                setTimeout(hookPhaser, 100);
+              }
+            };
+            
+            hookPhaser();
+          })();
+        `
+        iframeWindow.document.head.appendChild(script)
+      } catch (e) {
+        // Cross-origin, can't inject directly
+        // Cross-origin, can't inject directly - will use fallback method
+      }
+    }
+    
+    // Try to inject the hook
+    if (iframe.contentDocument || iframe.contentWindow) {
+      injectPhaserHook()
+    } else {
+      // Wait for iframe to load
+      iframe.addEventListener('load', injectPhaserHook, { once: true })
+    }
+    
     // Try to access iframe canvas directly
     const getIframeCanvas = () => {
       try {
         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
         if (iframeDoc) {
-          return iframeDoc.querySelector('canvas') as HTMLCanvasElement
+          const canvas = iframeDoc.querySelector('canvas') as HTMLCanvasElement
+          
+          // Check if canvas has WebGL context and ensure preserveDrawingBuffer
+          if (canvas) {
+            const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || 
+                      canvas.getContext('webgl2', { preserveDrawingBuffer: true })
+            
+            if (gl && gl.flush) {
+              // Flush WebGL to ensure all operations are complete
+              gl.flush()
+            }
+          }
+          
+          return canvas
         }
       } catch (e) {
         // Cross-origin - can't access directly
@@ -271,31 +373,74 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     const initTempCanvases = () => {
       if (!tempCanvasTop.current) {
         tempCanvasTop.current = document.createElement('canvas')
-        tempCtxTop.current = tempCanvasTop.current.getContext('2d', { willReadFrequently: false })
+        // Use willReadFrequently: true for better performance when reading from WebGL
+        tempCtxTop.current = tempCanvasTop.current.getContext('2d', { willReadFrequently: true, alpha: true })
         
         tempCanvasBottom.current = document.createElement('canvas')
-        tempCtxBottom.current = tempCanvasBottom.current.getContext('2d', { willReadFrequently: false })
+        tempCtxBottom.current = tempCanvasBottom.current.getContext('2d', { willReadFrequently: true, alpha: true })
         
         tempCanvasLeft.current = document.createElement('canvas')
-        tempCtxLeft.current = tempCanvasLeft.current.getContext('2d', { willReadFrequently: false })
+        tempCtxLeft.current = tempCanvasLeft.current.getContext('2d', { willReadFrequently: true, alpha: true })
         
         tempCanvasRight.current = document.createElement('canvas')
-        tempCtxRight.current = tempCanvasRight.current.getContext('2d', { willReadFrequently: false })
+        tempCtxRight.current = tempCanvasRight.current.getContext('2d', { willReadFrequently: true, alpha: true })
       }
     }
 
     // Optimized edge-only capture function with adaptive quality
     const captureCanvasData = () => {
-      if (!enabled.current) return
+      if (!enabled.current || pendingCapture.current) return
+      
+      // Set flag to prevent multiple captures
+      pendingCapture.current = true
 
       const canvas = getIframeCanvas()
       if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        pendingCapture.current = false
         return
       }
 
-      const startTime = performance.now()
-
+      let startTime: number = performance.now()
       try {
+          // Enhanced canvas readiness check for WebGL contexts
+          // First try to get the appropriate context
+          let ctx = canvas.getContext('2d', { willReadFrequently: false })
+          const isWebGL = !ctx
+          
+          if (isWebGL) {
+            // For WebGL, we need to ensure the buffer is preserved
+            const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || 
+                      canvas.getContext('webgl2', { preserveDrawingBuffer: true })
+            
+            if (gl && gl.flush) {
+              // Force flush to ensure rendering is complete
+              gl.flush()
+            }
+            
+            // Create a 2D context for sampling
+            const tempCanvas = document.createElement('canvas')
+            tempCanvas.width = Math.min(10, canvas.width)
+            tempCanvas.height = Math.min(10, canvas.height)
+            const tempCtx = tempCanvas.getContext('2d')
+            
+            if (tempCtx) {
+              tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height)
+              const sampleData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
+              
+              if (isImageDataMostlyBlack(sampleData)) {
+                // Skip this frame if canvas is black
+                return
+              }
+            }
+          } else if (ctx) {
+            // For 2D contexts, sample directly
+            const sampleData = ctx.getImageData(0, 0, Math.min(10, canvas.width), Math.min(10, canvas.height))
+            if (isImageDataMostlyBlack(sampleData)) {
+              // Skip this frame if canvas is black
+              return
+            }
+          }
+
           initTempCanvases()
           
           // Adaptive edge sampling based on performance
@@ -303,6 +448,22 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
           const downscale = currentQuality.current === 1 ? UNDERGLOW_CONFIG.horizontalDownscale : UNDERGLOW_CONFIG.horizontalDownscale * 1.5
           
           // Removed frame differencing - it was causing choppiness
+          
+          // Ensure WebGL content is ready before capturing
+          const captureWithWebGLSync = () => {
+            // Check if we're dealing with a WebGL context
+            const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || 
+                      canvas.getContext('webgl2', { preserveDrawingBuffer: true })
+            
+            if (gl && gl.flush) {
+              // Force WebGL to complete all operations
+              gl.flush()
+              gl.finish && gl.finish() // Some implementations support finish() for complete sync
+            }
+          }
+          
+          // Sync WebGL before capturing
+          captureWithWebGLSync()
           
           // Top edge - capture only what we need
           if (tempCanvasTop.current && tempCtxTop.current && glowCtxTop.current && glowCanvasTop.current) {
@@ -387,9 +548,12 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
             )
           }
           
-        } catch (error) {
-          // Failed to capture canvas
-        }
+      } catch (error) {
+        // Failed to capture canvas - likely a timing issue
+        // Failed to capture canvas - will retry next frame
+      } finally {
+        // Always clear the pending flag
+        pendingCapture.current = false
         
         // Track frame time for adaptive quality
         const frameTime = performance.now() - startTime
@@ -403,7 +567,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
         const now = Date.now()
         if (now - lastStatusLog.current > 5000) {
           const avgFrameTime = frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length
-          console.log(`Underglow Status: Avg frame time: ${avgFrameTime.toFixed(2)}ms | Quality: ${(currentQuality.current * 100).toFixed(0)}%`)
+          // Performance tracking: Avg frame time and quality adjustment
           lastStatusLog.current = now
         }
         
@@ -421,6 +585,17 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
         }
     }
     
+    // Set up message listener for Phaser postrender events
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'phaser-postrender' && enabled.current) {
+        captureCanvasData()
+      }
+    }
+    
+    messageListener.current = handleMessage
+    window.addEventListener('message', handleMessage)
+    }
+    
     // Store the capture function
     postMessageSender.current = captureCanvasData
   }, [isImageDataMostlyBlack])
@@ -433,7 +608,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     createGlowCanvas()
     
     // Set up postMessage communication
-    setupPostMessageApproach(iframe)
+    setupPostMessageApproach(iframe, true)
     
     // Auto-start if enabled
     if (enabled.current) {
@@ -456,9 +631,36 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     resizeObserver.current.observe(gameFrameRef.current)
   }, [gameFrameRef, updateGlowCanvasSizes])
 
-  // 1:1 port of start from original
+  // Optimized update loop using requestAnimationFrame for smoother updates
+  const startPostMessageUpdates = useCallback(() => {
+    if (!enabled.current || !postMessageSender.current || isSafari.current || isMobileDevice.current) return
+
+    const updateLoop = () => {
+      if (!enabled.current) return
+      
+      const now = performance.now()
+      
+      // Only update at specified FPS intervals and if not already pending
+      if (now - lastUpdateTime.current >= updateInterval.current && !pendingCapture.current) {
+        // Set pending flag and request new canvas data
+        pendingCapture.current = true
+        if (postMessageSender.current) {
+          postMessageSender.current()
+        }
+        lastUpdateTime.current = now
+      }
+      
+      // Use requestAnimationFrame for smoother updates aligned with browser paint
+      animationId.current = requestAnimationFrame(updateLoop) as any
+    }
+    
+    updateLoop()
+  }, [])
+
+  // 1:1 port of start from original with Safari/mobile checks
   const start = useCallback(() => {
-    if (!glowCanvasTop.current) return
+    // Don't start on Safari or mobile devices
+    if (isSafari.current || isMobileDevice.current || !glowCanvasTop.current) return
     
     // Show all edge canvases
     if (glowCanvasTop.current) glowCanvasTop.current.style.display = 'block'
@@ -469,7 +671,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     if (postMessageSender.current) {
       startPostMessageUpdates()
     }
-  }, [])
+  }, [startPostMessageUpdates])
 
   // Updated stop to handle requestAnimationFrame
   const stop = useCallback(() => {
@@ -483,29 +685,6 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     if (glowCanvasBottom.current) glowCanvasBottom.current.style.display = 'none'
     if (glowCanvasLeft.current) glowCanvasLeft.current.style.display = 'none'
     if (glowCanvasRight.current) glowCanvasRight.current.style.display = 'none'
-  }, [])
-
-  // Optimized update loop using requestAnimationFrame for smoother updates
-  const startPostMessageUpdates = useCallback(() => {
-    if (!enabled.current || !postMessageSender.current || isSafari.current || isMobileDevice.current) return
-
-    const updateLoop = () => {
-      if (!enabled.current) return
-      
-      const now = performance.now()
-      
-      // Only update at specified FPS intervals
-      if (now - lastUpdateTime.current >= updateInterval.current) {
-        // Request new canvas data
-        postMessageSender.current()
-        lastUpdateTime.current = now
-      }
-      
-      // Use requestAnimationFrame for smoother updates aligned with browser paint
-      animationId.current = requestAnimationFrame(updateLoop) as any
-    }
-    
-    updateLoop()
   }, [])
 
   // 1:1 port of waitForDevOverlay from original
@@ -524,8 +703,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
         } else {
           createGlowCanvas()
         }
-        // Auto-start if enabled
-        if (enabled.current) {
+        // Auto-start if enabled and not on Safari/mobile
+        if (enabled.current && !isSafari.current && !isMobileDevice.current) {
           start()
         }
         
@@ -568,6 +747,12 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
       cancelAnimationFrame(animationId.current as number)
       animationId.current = null
     }
+    
+    // Clean up message listener
+    if (messageListener.current) {
+      window.removeEventListener('message', messageListener.current)
+      messageListener.current = null
+    }
 
     // Remove DOM elements before resetting refs
     if (glowCanvasTop.current) {
@@ -605,6 +790,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     glowCtxLeft.current = null
     glowCtxRight.current = null
     postMessageSender.current = null
+    pendingCapture.current = false
+    messageListener.current = null
   }, [gameFrameRef])
 
   // Initialize underglow (1:1 port of initialize from original)
