@@ -19,10 +19,10 @@ const UNDERGLOW_CONFIG = {
   sampleSize: 10,           // Sample size for black frame detection
   
   // Edge sampling (how much of each edge to sample from source)
-  topEdgeSample: 22,        // Pixels from top of source
-  bottomEdgeSample: 22,     // Pixels from bottom of source  
-  leftEdgeSample: 22,       // Pixels from left of source
-  rightEdgeSample: 22,      // Pixels from right of source
+  topEdgeSample: 80,        // Pixels from top of source (increased for smoother gradient)
+  bottomEdgeSample: 80,     // Pixels from bottom of source  
+  leftEdgeSample: 80,       // Pixels from left of source
+  rightEdgeSample: 80,      // Pixels from right of source
 }
 
 export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
@@ -44,6 +44,21 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
   const postMessageSender = useRef<(() => void) | null>(null)
   const enabled = useRef<boolean>(true)
   
+  // Performance monitoring for adaptive quality
+  const frameTimeHistory = useRef<number[]>([])
+  const currentQuality = useRef<number>(1) // 1 = full quality, 0.5 = reduced
+  
+  // Optimization: Reusable canvases for edge sampling
+  const tempCanvasTop = useRef<HTMLCanvasElement | null>(null)
+  const tempCanvasBottom = useRef<HTMLCanvasElement | null>(null)
+  const tempCanvasLeft = useRef<HTMLCanvasElement | null>(null)
+  const tempCanvasRight = useRef<HTMLCanvasElement | null>(null)
+  const tempCtxTop = useRef<CanvasRenderingContext2D | null>(null)
+  const tempCtxBottom = useRef<CanvasRenderingContext2D | null>(null)
+  const tempCtxLeft = useRef<CanvasRenderingContext2D | null>(null)
+  const tempCtxRight = useRef<CanvasRenderingContext2D | null>(null)
+  
+  
   // Configuration from config
   const updateInterval = useRef(1000 / UNDERGLOW_CONFIG.updatesPerSecond)
   const blurRadius = useRef(UNDERGLOW_CONFIG.blurAmount)
@@ -51,7 +66,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
   const edgeThickness = useRef(UNDERGLOW_CONFIG.glowDistance)
   
   // Device detection (matching original)
-  const isSafari = useRef(/Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor))
+  const isSafari = useRef(/Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent))
   const isMobileDevice = useRef('ontouchstart' in window || navigator.maxTouchPoints > 0 || 
                                /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent))
 
@@ -135,6 +150,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     canvas.style.zIndex = '0'
     canvas.style.filter = `blur(${blurRadius.current}px) brightness(1) saturate(1.25) contrast(0.9)`
     canvas.style.opacity = glowOpacity.current.toString()
+    canvas.style.willChange = 'transform, opacity' // GPU optimization
+    canvas.style.transform = 'translateZ(0)' // Force GPU layer
     
     switch (edge) {
       case 'top':
@@ -248,57 +265,148 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
       return null
     }
 
-    // Direct canvas capture function with improved reliability
+    // Initialize temp canvases if needed
+    const initTempCanvases = () => {
+      if (!tempCanvasTop.current) {
+        tempCanvasTop.current = document.createElement('canvas')
+        tempCtxTop.current = tempCanvasTop.current.getContext('2d', { willReadFrequently: false })
+        
+        tempCanvasBottom.current = document.createElement('canvas')
+        tempCtxBottom.current = tempCanvasBottom.current.getContext('2d', { willReadFrequently: false })
+        
+        tempCanvasLeft.current = document.createElement('canvas')
+        tempCtxLeft.current = tempCanvasLeft.current.getContext('2d', { willReadFrequently: false })
+        
+        tempCanvasRight.current = document.createElement('canvas')
+        tempCtxRight.current = tempCanvasRight.current.getContext('2d', { willReadFrequently: false })
+      }
+    }
+
+    // Optimized edge-only capture function with adaptive quality
     const captureCanvasData = () => {
       if (!enabled.current) return
 
       const canvas = getIframeCanvas()
-      if (!canvas) {
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
         return
       }
 
-      // Capture immediately for speed
+      const startTime = performance.now()
+
       try {
-          // Validate canvas has content
-          if (canvas.width === 0 || canvas.height === 0) {
-            return
-          }
-
-          // Ultra-tiny images with asymmetric scaling
-          const smallWidth = Math.max(9, Math.floor(canvas.width / UNDERGLOW_CONFIG.horizontalDownscale))
-          const smallHeight = Math.max(16, Math.floor(canvas.height / UNDERGLOW_CONFIG.verticalDownscale))
+          initTempCanvases()
           
-          const tempCanvas = document.createElement('canvas')
-          const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
-          if (!tempCtx) return
-
-          tempCanvas.width = smallWidth
-          tempCanvas.height = smallHeight
+          // Adaptive edge sampling based on performance
+          const edgeSample = Math.round(UNDERGLOW_CONFIG.topEdgeSample * currentQuality.current)
+          const downscale = currentQuality.current === 1 ? UNDERGLOW_CONFIG.horizontalDownscale : UNDERGLOW_CONFIG.horizontalDownscale * 1.5
           
-          // Fastest possible settings
-          tempCtx.imageSmoothingEnabled = false // No smoothing for speed
+          // Removed frame differencing - it was causing choppiness
           
-          // Draw the canvas (now with preserved drawing buffer)
-          tempCtx.drawImage(
-            canvas,
-            0, 0, canvas.width, canvas.height,
-            0, 0, smallWidth, smallHeight
-          )
-          
-          // Quick black frame check with larger sample (only reject completely black frames)
-          const sampleSize = Math.min(smallWidth, smallHeight)
-          const imageData = tempCtx.getImageData(0, 0, sampleSize, sampleSize)
-          const isBlack = isImageDataMostlyBlack(imageData)
-          if (isBlack) {
-            return
+          // Top edge - capture only what we need
+          if (tempCanvasTop.current && tempCtxTop.current && glowCtxTop.current && glowCanvasTop.current) {
+            tempCanvasTop.current.width = Math.ceil(canvas.width / downscale)
+            tempCanvasTop.current.height = edgeSample
+            tempCtxTop.current.imageSmoothingEnabled = true // Enable smoothing for better gradient
+            tempCtxTop.current.drawImage(
+              canvas,
+              0, 0, canvas.width, edgeSample,
+              0, 0, tempCanvasTop.current.width, tempCanvasTop.current.height
+            )
+            
+            // Draw directly to glow canvas
+            glowCtxTop.current.clearRect(0, 0, glowCanvasTop.current.width, glowCanvasTop.current.height)
+            glowCtxTop.current.imageSmoothingEnabled = true
+            glowCtxTop.current.drawImage(
+              tempCanvasTop.current,
+              0, 0, tempCanvasTop.current.width, tempCanvasTop.current.height,
+              0, 0, glowCanvasTop.current.width, glowCanvasTop.current.height
+            )
           }
           
-          // Convert to JPEG for better performance
-          const jpegDataUrl = tempCanvas.toDataURL('image/jpeg', UNDERGLOW_CONFIG.compressionQuality / 100)
-          updateGlowFromJpeg(jpegDataUrl, smallWidth, smallHeight)
+          // Bottom edge
+          if (tempCanvasBottom.current && tempCtxBottom.current && glowCtxBottom.current && glowCanvasBottom.current) {
+            const bottomStart = Math.max(0, canvas.height - edgeSample)
+            tempCanvasBottom.current.width = Math.ceil(canvas.width / UNDERGLOW_CONFIG.horizontalDownscale)
+            tempCanvasBottom.current.height = edgeSample
+            tempCtxBottom.current.imageSmoothingEnabled = true // Enable smoothing for better gradient
+            tempCtxBottom.current.drawImage(
+              canvas,
+              0, bottomStart, canvas.width, edgeSample,
+              0, 0, tempCanvasBottom.current.width, tempCanvasBottom.current.height
+            )
+            
+            glowCtxBottom.current.clearRect(0, 0, glowCanvasBottom.current.width, glowCanvasBottom.current.height)
+            glowCtxBottom.current.imageSmoothingEnabled = true
+            glowCtxBottom.current.drawImage(
+              tempCanvasBottom.current,
+              0, 0, tempCanvasBottom.current.width, tempCanvasBottom.current.height,
+              0, 0, glowCanvasBottom.current.width, glowCanvasBottom.current.height
+            )
+          }
+          
+          // Left edge
+          if (tempCanvasLeft.current && tempCtxLeft.current && glowCtxLeft.current && glowCanvasLeft.current) {
+            tempCanvasLeft.current.width = edgeSample
+            tempCanvasLeft.current.height = Math.ceil(canvas.height / UNDERGLOW_CONFIG.verticalDownscale)
+            tempCtxLeft.current.imageSmoothingEnabled = true // Enable smoothing for better gradient
+            tempCtxLeft.current.drawImage(
+              canvas,
+              0, 0, edgeSample, canvas.height,
+              0, 0, tempCanvasLeft.current.width, tempCanvasLeft.current.height
+            )
+            
+            glowCtxLeft.current.clearRect(0, 0, glowCanvasLeft.current.width, glowCanvasLeft.current.height)
+            glowCtxLeft.current.imageSmoothingEnabled = true
+            glowCtxLeft.current.drawImage(
+              tempCanvasLeft.current,
+              0, 0, tempCanvasLeft.current.width, tempCanvasLeft.current.height,
+              0, 0, glowCanvasLeft.current.width, glowCanvasLeft.current.height
+            )
+          }
+          
+          // Right edge
+          if (tempCanvasRight.current && tempCtxRight.current && glowCtxRight.current && glowCanvasRight.current) {
+            const rightStart = Math.max(0, canvas.width - edgeSample)
+            tempCanvasRight.current.width = edgeSample
+            tempCanvasRight.current.height = Math.ceil(canvas.height / UNDERGLOW_CONFIG.verticalDownscale)
+            tempCtxRight.current.imageSmoothingEnabled = true // Enable smoothing for better gradient
+            tempCtxRight.current.drawImage(
+              canvas,
+              rightStart, 0, edgeSample, canvas.height,
+              0, 0, tempCanvasRight.current.width, tempCanvasRight.current.height
+            )
+            
+            glowCtxRight.current.clearRect(0, 0, glowCanvasRight.current.width, glowCanvasRight.current.height)
+            glowCtxRight.current.imageSmoothingEnabled = true
+            glowCtxRight.current.drawImage(
+              tempCanvasRight.current,
+              0, 0, tempCanvasRight.current.width, tempCanvasRight.current.height,
+              0, 0, glowCanvasRight.current.width, glowCanvasRight.current.height
+            )
+          }
           
         } catch (error) {
           // Failed to capture canvas
+        }
+        
+        // Track frame time for adaptive quality
+        const frameTime = performance.now() - startTime
+        frameTimeHistory.current.push(frameTime)
+        if (frameTimeHistory.current.length > 30) {
+          frameTimeHistory.current.shift()
+        }
+        
+        // Adjust quality if consistently slow or fast
+        if (frameTimeHistory.current.length >= 10) {
+          const avgFrameTime = frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length
+          
+          if (avgFrameTime > 8 && currentQuality.current > 0.5) {
+            // Reduce quality if frame time is too high
+            currentQuality.current = 0.75
+          } else if (avgFrameTime < 3 && currentQuality.current < 1) {
+            // Increase quality if we have headroom
+            currentQuality.current = 1
+          }
         }
     }
     
@@ -306,76 +414,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     postMessageSender.current = captureCanvasData
   }, [isImageDataMostlyBlack])
 
-  // 1:1 port of updateGlowFromJpeg from original
-  const updateGlowFromJpeg = useCallback((jpegDataUrl: string, width: number, height: number) => {
-    if (!glowCtxTop.current || !glowCanvasTop.current) return
-
-    try {
-      // Create image from JPEG data
-      const img = new Image()
-      img.onload = () => {
-        updateAllEdges(img, width, height)
-      }
-      
-      img.onerror = () => {
-        // Failed to load JPEG image
-      }
-      
-      img.src = jpegDataUrl
-      
-    } catch (error) {
-      // JPEG update failed
-    }
-  }, [])
-
-  // 1:1 port of updateAllEdges from original
-  const updateAllEdges = useCallback((img: HTMLImageElement, sourceWidth: number, sourceHeight: number) => {
-    // Update top edge - sample from top strip of source
-    if (glowCtxTop.current && glowCanvasTop.current) {
-      glowCtxTop.current.clearRect(0, 0, glowCanvasTop.current.width, glowCanvasTop.current.height)
-      glowCtxTop.current.imageSmoothingEnabled = true
-      glowCtxTop.current.drawImage(
-        img,
-        0, 0, sourceWidth, Math.min(UNDERGLOW_CONFIG.topEdgeSample, sourceHeight), // Top sample of source
-        0, 0, glowCanvasTop.current.width, glowCanvasTop.current.height
-      )
-    }
-
-    // Update bottom edge - sample from bottom strip of source
-    if (glowCtxBottom.current && glowCanvasBottom.current) {
-      glowCtxBottom.current.clearRect(0, 0, glowCanvasBottom.current.width, glowCanvasBottom.current.height)
-      glowCtxBottom.current.imageSmoothingEnabled = true
-      const bottomStart = Math.max(0, sourceHeight - UNDERGLOW_CONFIG.bottomEdgeSample)
-      glowCtxBottom.current.drawImage(
-        img,
-        0, bottomStart, sourceWidth, sourceHeight - bottomStart, // Bottom sample of source
-        0, 0, glowCanvasBottom.current.width, glowCanvasBottom.current.height
-      )
-    }
-
-    // Update left edge - sample from left strip of source
-    if (glowCtxLeft.current && glowCanvasLeft.current) {
-      glowCtxLeft.current.clearRect(0, 0, glowCanvasLeft.current.width, glowCanvasLeft.current.height)
-      glowCtxLeft.current.imageSmoothingEnabled = true
-      glowCtxLeft.current.drawImage(
-        img,
-        0, 0, Math.min(UNDERGLOW_CONFIG.leftEdgeSample, sourceWidth), sourceHeight, // Left sample of source
-        0, 0, glowCanvasLeft.current.width, glowCanvasLeft.current.height
-      )
-    }
-
-    // Update right edge - sample from right strip of source
-    if (glowCtxRight.current && glowCanvasRight.current) {
-      glowCtxRight.current.clearRect(0, 0, glowCanvasRight.current.width, glowCanvasRight.current.height)
-      glowCtxRight.current.imageSmoothingEnabled = true
-      const rightStart = Math.max(0, sourceWidth - UNDERGLOW_CONFIG.rightEdgeSample)
-      glowCtxRight.current.drawImage(
-        img,
-        rightStart, 0, sourceWidth - rightStart, sourceHeight, // Right sample of source
-        0, 0, glowCanvasRight.current.width, glowCanvasRight.current.height
-      )
-    }
-  }, [])
+  // Removed updateGlowFromJpeg and updateAllEdges - now drawing directly in capture function
 
   // 1:1 port of setupCrossFrameCanvas from original
   const setupCrossFrameCanvas = useCallback((iframe: HTMLIFrameElement) => {
@@ -421,10 +460,10 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     }
   }, [])
 
-  // 1:1 port of stop from original
+  // Updated stop to handle requestAnimationFrame
   const stop = useCallback(() => {
     if (animationId.current) {
-      clearTimeout(animationId.current)
+      cancelAnimationFrame(animationId.current as number)
       animationId.current = null
     }
     
@@ -435,24 +474,27 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     if (glowCanvasRight.current) glowCanvasRight.current.style.display = 'none'
   }, [])
 
-  // 1:1 port of startPostMessageUpdates from original
+  // Optimized update loop using requestAnimationFrame for smoother updates
   const startPostMessageUpdates = useCallback(() => {
     if (!enabled.current || !postMessageSender.current || isSafari.current || isMobileDevice.current) return
 
-    const now = performance.now()
-    
-    // Only update at specified FPS intervals
-    if (now - lastUpdateTime.current < updateInterval.current) {
-      animationId.current = window.setTimeout(() => startPostMessageUpdates(), 50)
-      return
+    const updateLoop = () => {
+      if (!enabled.current) return
+      
+      const now = performance.now()
+      
+      // Only update at specified FPS intervals
+      if (now - lastUpdateTime.current >= updateInterval.current) {
+        // Request new canvas data
+        postMessageSender.current()
+        lastUpdateTime.current = now
+      }
+      
+      // Use requestAnimationFrame for smoother updates aligned with browser paint
+      animationId.current = requestAnimationFrame(updateLoop) as any
     }
-
-    // Request new canvas data for the inactive canvas
-    postMessageSender.current()
-    lastUpdateTime.current = now
     
-    // Schedule next update
-    animationId.current = window.setTimeout(() => startPostMessageUpdates(), updateInterval.current)
+    updateLoop()
   }, [])
 
   // 1:1 port of waitForDevOverlay from original
@@ -557,7 +599,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
   // Initialize underglow (1:1 port of initialize from original)
   useEffect(() => {
     // Detect Safari browser (specifically Safari, not Chrome or other WebKit browsers)
-    isSafari.current = /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor)
+    isSafari.current = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
     
     // Detect mobile touch devices
     isMobileDevice.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || 
