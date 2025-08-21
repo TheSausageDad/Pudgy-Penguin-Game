@@ -19,6 +19,24 @@ export default defineConfig({
     {
       name: 'setup-detection-middleware',
       configureServer(server) {
+        // Serve .remix/assets as static files
+        server.middlewares.use((req, res, next) => {
+          if (req.url?.startsWith('/.remix/assets/')) {
+            const filePath = path.join(process.cwd(), req.url);
+            if (fs.existsSync(filePath)) {
+              const ext = path.extname(filePath).toLowerCase();
+              const contentType = ext === '.png' ? 'image/png' : 
+                                ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+                                ext === '.svg' ? 'image/svg+xml' : 
+                                'application/octet-stream';
+              res.setHeader('Content-Type', contentType);
+              fs.createReadStream(filePath).pipe(res);
+              return;
+            }
+          }
+          next();
+        });
+
         server.middlewares.use('/.remix/.setup_required', (_req, res, _next) => {
           // Check if .remix/.setup_required file actually exists
           const setupRequiredPath = path.join(process.cwd(), '.remix', '.setup_required');

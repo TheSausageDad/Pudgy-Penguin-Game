@@ -47,6 +47,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
   // Performance monitoring for adaptive quality
   const frameTimeHistory = useRef<number[]>([])
   const currentQuality = useRef<number>(1) // 1 = full quality, 0.5 = reduced
+  const frameCount = useRef<number>(0)
+  const lastStatusLog = useRef<number>(0)
   
   // Optimization: Reusable canvases for edge sampling
   const tempCanvasTop = useRef<HTMLCanvasElement | null>(null)
@@ -396,6 +398,15 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
           frameTimeHistory.current.shift()
         }
         
+        // Log status every 5 seconds
+        frameCount.current++
+        const now = Date.now()
+        if (now - lastStatusLog.current > 5000) {
+          const avgFrameTime = frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length
+          console.log(`Underglow Status: Avg frame time: ${avgFrameTime.toFixed(2)}ms | Quality: ${(currentQuality.current * 100).toFixed(0)}%`)
+          lastStatusLog.current = now
+        }
+        
         // Adjust quality if consistently slow or fast
         if (frameTimeHistory.current.length >= 10) {
           const avgFrameTime = frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length
@@ -554,7 +565,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     }
     
     if (animationId.current) {
-      clearTimeout(animationId.current)
+      cancelAnimationFrame(animationId.current as number)
       animationId.current = null
     }
 
@@ -615,6 +626,29 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
 
     return cleanup
   }, [waitForDevOverlay, cleanup])
+  
+  // Visibility API - pause when tab is hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden - pause underglow to save resources
+        if (enabled.current && animationId.current) {
+          stop()
+        }
+      } else {
+        // Tab is visible again - resume if it was enabled
+        if (enabled.current && settings.canvasGlow && capabilities.supportsUnderglow) {
+          start()
+        }
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [settings.canvasGlow, capabilities.supportsUnderglow, start, stop])
 
   // Start/stop based on settings
   useEffect(() => {

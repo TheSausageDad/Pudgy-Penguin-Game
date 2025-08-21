@@ -31,7 +31,8 @@ const initialState: DashboardState = {
     canvasGlow: true,
     backgroundPattern: true,
     fullSize: false,
-    showPerformancePanel: false
+    showPerformancePanel: false,
+    showCabinetFrame: false
   },
   
   ui: {

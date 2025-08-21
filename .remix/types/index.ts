@@ -38,6 +38,7 @@ export interface DevSettings {
   canvasGlow: boolean
   backgroundPattern: boolean
   fullSize: boolean
+  showCabinetFrame: boolean
 }
 
 export interface RemixDevFlags {
