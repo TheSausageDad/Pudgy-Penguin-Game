@@ -8,14 +8,20 @@ interface DevEnvironmentInfo {
 // Function to check if running inside the Remix iframe environment
 export function isRemixEnvironment(): boolean {
   try {
-    // Check SDK object exists AND we are in an iframe
-    return "FarcadeSDK" in window && window.top !== window.self
+    // Check for local development indicators
+    const hostname = window.location.hostname
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0'
+    
+    // If we're on localhost, we're in local dev
+    if (isLocalhost) {
+      return false
+    }
+    
+    // Otherwise assume we're in Remix environment (production, staging, or Remix iframe)
+    return true
   } catch (e) {
-    // Catch potential cross-origin errors if not in an iframe
-    // This check might fail if run locally in a sandboxed iframe
-    // but should be reliable in the actual Remix environment.
-    // Error checking iframe status (this might be expected locally)
-    return false
+    // If we can't determine, assume we're in Remix environment for safety
+    return true
   }
 }
 
