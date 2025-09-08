@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { DashboardProvider, useDashboard } from './contexts'
 import { GameContainer, StatusBar } from './components/Layout'
-import { BuildPanel, PerformancePanel } from './components/Panels'
+import { BuildPanel, PerformancePanel, GameStatePanel } from './components/Panels'
 import { 
   ErrorBoundaryWrapper,
   GameContainerErrorBoundary,
@@ -12,14 +12,14 @@ import { useUIState } from './hooks'
 import { tw } from './utils/tw'
 import './main.css'
 
-// Animated spacer component that smoothly transitions with the build panel
+// Animated spacer component that smoothly transitions with either panel
 const AnimatedSpacer: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
   return (
     <div 
       className={tw`
         shrink-0 h-full
         transition-all duration-300 ease-in-out
-        ${isOpen ? 'w-[320px]' : 'w-0'}
+        ${isOpen ? 'w-[384px]' : 'w-0'}
       `}
       aria-hidden="true"
     />
@@ -31,7 +31,7 @@ interface RemixDashboardProps {
 }
 
 function DashboardContent() {
-  const { isBuildPanelOpen } = useUIState()
+  const { isBuildPanelOpen, isGameStatePanelOpen } = useUIState()
   const { dispatch } = useDashboard()
   
   // Set up SDK event listener
@@ -64,7 +64,7 @@ function DashboardContent() {
           <GameContainerErrorBoundary>
             <GameContainer />
           </GameContainerErrorBoundary>
-          <AnimatedSpacer isOpen={isBuildPanelOpen} />
+          <AnimatedSpacer isOpen={isBuildPanelOpen || isGameStatePanelOpen} />
         </div>
         
         <ErrorBoundaryWrapper componentName="Status Bar">
@@ -78,6 +78,10 @@ function DashboardContent() {
         <PerformanceErrorBoundary>
           <PerformancePanel />
         </PerformanceErrorBoundary>
+        
+        <ErrorBoundaryWrapper componentName="Game State Panel">
+          <GameStatePanel isOpen={isGameStatePanelOpen} />
+        </ErrorBoundaryWrapper>
       </div>
     </ErrorBoundaryWrapper>
   )

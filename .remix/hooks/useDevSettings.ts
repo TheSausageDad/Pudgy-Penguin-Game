@@ -38,8 +38,7 @@ export function useDevSettings() {
     return {
       canvasGlow: capabilities.supportsUnderglow,
       backgroundPattern: true,
-      fullSize: false,
-      showCabinetFrame: false
+      fullSize: false
     }
   }, [])
 
@@ -190,8 +189,7 @@ export function useDevSettings() {
     isSupported: {
       canvasGlow: capabilities.supportsUnderglow,
       backgroundPattern: true,
-      fullSize: true,
-      showCabinetFrame: true
+      fullSize: true
     }
   }
 }

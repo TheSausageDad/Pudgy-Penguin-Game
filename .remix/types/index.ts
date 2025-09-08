@@ -38,7 +38,6 @@ export interface DevSettings {
   canvasGlow: boolean
   backgroundPattern: boolean
   fullSize: boolean
-  showCabinetFrame: boolean
 }
 
 export interface RemixDevFlags {
@@ -69,6 +68,7 @@ export interface DashboardState {
     showSettingsPanel: boolean
     showPerformancePanel: boolean
     showQrPanel: boolean
+    showGameStatePanel: boolean
   }
   
   sdk: {

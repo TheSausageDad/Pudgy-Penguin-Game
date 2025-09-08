@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { useDashboard } from '../contexts'
 
-type PanelType = 'buildPanel' | 'statusPanel' | 'settingsPanel' | 'performancePanel' | 'qrPanel'
+type PanelType = 'buildPanel' | 'statusPanel' | 'settingsPanel' | 'performancePanel' | 'qrPanel' | 'gameStatePanel'
 
 export function useUIState() {
   const { state, dispatch } = useDashboard()
@@ -13,14 +13,14 @@ export function useUIState() {
       'statusPanel': 'showStatusPanel', 
       'settingsPanel': 'showSettingsPanel',
       'performancePanel': 'showPerformancePanel',
-      'qrPanel': 'showQrPanel'
+      'qrPanel': 'showQrPanel',
+      'gameStatePanel': 'showGameStatePanel'
     }
     
     const panelProperty = panelMap[panel]
     const newVisible = visible !== undefined ? visible : !state.ui[panelProperty]
     
     // Close other panels when opening a new one (mutual exclusivity)
-    // Build panel and performance panel are independent
     if (newVisible) {
       if (panel === 'statusPanel' || panel === 'settingsPanel' || panel === 'qrPanel') {
         // Status, Settings, and QR panels are mutually exclusive
@@ -33,8 +33,19 @@ export function useUIState() {
             })
           }
         })
+      } else if (panel === 'buildPanel' || panel === 'gameStatePanel') {
+        // Build and GameState panels are mutually exclusive
+        const sidebarPanels: PanelType[] = ['buildPanel', 'gameStatePanel']
+        sidebarPanels.forEach(p => {
+          if (p !== panel) {
+            dispatch({
+              type: 'UI_TOGGLE_PANEL',
+              payload: { panel: panelMap[p], visible: false }
+            })
+          }
+        })
       }
-      // Build panel and performance panel don't close others
+      // Performance panel doesn't close others
     }
     
     dispatch({
@@ -52,10 +63,11 @@ export function useUIState() {
       'statusPanel': 'showStatusPanel', 
       'settingsPanel': 'showSettingsPanel',
       'performancePanel': 'showPerformancePanel',
-      'qrPanel': 'showQrPanel'
+      'qrPanel': 'showQrPanel',
+      'gameStatePanel': 'showGameStatePanel'
     }
     
-    const panels: PanelType[] = ['buildPanel', 'statusPanel', 'settingsPanel', 'performancePanel', 'qrPanel']
+    const panels: PanelType[] = ['buildPanel', 'statusPanel', 'settingsPanel', 'performancePanel', 'qrPanel', 'gameStatePanel']
     panels.forEach(panel => {
       dispatch({
         type: 'UI_TOGGLE_PANEL',
@@ -97,7 +109,7 @@ export function useUIState() {
       })
       
       if (!isInsidePanel) {
-        // Close mutually exclusive panels (not build panel which is controlled only by its button)
+        // Close mutually exclusive panels (sidebar panels are controlled only by their buttons)
         const panelsToClose: (keyof typeof state.ui)[] = ['showStatusPanel', 'showSettingsPanel', 'showPerformancePanel', 'showQrPanel']
         panelsToClose.forEach(panel => {
           dispatch({
@@ -124,7 +136,7 @@ export function useUIState() {
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        // Close mutually exclusive panels (not build panel)
+        // Close mutually exclusive panels (sidebar panels are controlled only by their buttons)
         const panelsToClose: (keyof typeof state.ui)[] = ['showStatusPanel', 'showSettingsPanel', 'showPerformancePanel', 'showQrPanel']
         panelsToClose.forEach(panel => {
           dispatch({
@@ -151,6 +163,7 @@ export function useUIState() {
     toggleSettingsPanel: (visible?: boolean) => togglePanel('settingsPanel', visible),
     togglePerformancePanel: (visible?: boolean) => togglePanel('performancePanel', visible),
     toggleQrPanel: (visible?: boolean) => togglePanel('qrPanel', visible),
+    toggleGameStatePanel: (visible?: boolean) => togglePanel('gameStatePanel', visible),
     
     // State shortcuts
     isBuildPanelOpen: state.ui.showBuildPanel,
@@ -158,6 +171,7 @@ export function useUIState() {
     isSettingsPanelOpen: state.ui.showSettingsPanel,
     isPerformancePanelOpen: state.ui.showPerformancePanel,
     isQrPanelOpen: state.ui.showQrPanel,
+    isGameStatePanelOpen: state.ui.showGameStatePanel,
     isMiniMode: state.ui.isMiniMode
   }
 }

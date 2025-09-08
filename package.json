@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "GAME_NAME game for Remix platform",
   "type": "module",
+  "multiplayer": false,
   "scripts": {
     "remix-setup": "node scripts/setup.js",
     "dev": "node scripts/dev-server.js",

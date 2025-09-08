@@ -1,5 +1,12 @@
 import GameSettings from "../config/GameSettings"
 
+// Declare the FarcadeSDK type on window
+declare global {
+  interface Window {
+    FarcadeSDK: any
+  }
+}
+
 interface Ball {
   sprite: Phaser.GameObjects.Arc
   velocityX: number
@@ -12,6 +19,13 @@ export class DemoScene extends Phaser.Scene {
   private clickCount: number = 0
   private clickText?: Phaser.GameObjects.Text
   private gameOver: boolean = false
+  
+  // Multiplayer support
+  private isMultiplayer: boolean = false
+  private players: Array<{id: string, name: string, imageUrl?: string}> = []
+  private meId: string = '1'
+  private otherPlayerClicks: number = 0
+  private allClickCounts: {[key: string]: number} = {}
 
   constructor() {
     super({ key: "DemoScene" })
@@ -20,6 +34,8 @@ export class DemoScene extends Phaser.Scene {
   preload(): void {}
 
   create(): void {
+    // Initialize SDK and determine mode
+    this.initializeSDK()
 
     // Add instructional text
     const title = this.add.text(GameSettings.canvas.width / 2, GameSettings.canvas.height / 2 - 100, 'Remix SDK Demo', {
@@ -65,13 +81,6 @@ export class DemoScene extends Phaser.Scene {
         this.handleClick()
       }
     })
-
-    // Listen for SDK play_again event
-    if ('FarcadeSDK' in window && (window as any).FarcadeSDK) {
-      (window as any).FarcadeSDK.on('play_again', () => {
-        this.restartGame()
-      })
-    }
   }
 
   private createBalls(count: number): void {
@@ -171,33 +180,291 @@ export class DemoScene extends Phaser.Scene {
     }
   }
 
+  private async initializeSDK(): Promise<void> {
+    if (!window.FarcadeSDK) {
+      return
+    }
+
+    // Determine multiplayer mode based on build configuration
+    // In development, we can check package.json dynamically
+    // In production, GAME_MULTIPLAYER_MODE will be replaced with true/false by Vite
+    try {
+      // @ts-ignore - This will be replaced at build time
+      this.isMultiplayer = GAME_MULTIPLAYER_MODE
+      console.log('DemoScene multiplayer mode (from build):', this.isMultiplayer)
+    } catch {
+      // Fallback: If not built with our Vite config (e.g., on Remix.gg),
+      // try to detect based on available SDK methods
+      if (window.FarcadeSDK.multiplayer && window.FarcadeSDK.multiplayer.actions) {
+        this.isMultiplayer = true
+        console.log('DemoScene multiplayer mode (detected multiplayer SDK):', this.isMultiplayer)
+      } else {
+        this.isMultiplayer = false
+        console.log('DemoScene multiplayer mode (single-player fallback):', this.isMultiplayer)
+      }
+    }
+
+    // Set up SDK event listeners - just like chess.js does, no defensive checks
+    window.FarcadeSDK.on('play_again', () => {
+      console.log(`[Player ${this.meId}] Play again triggered`)
+      this.restartGame()
+      // Send reset state to other player after restart
+      if (this.isMultiplayer) {
+        // Small delay to ensure state is reset before sending
+        setTimeout(() => {
+          this.sendGameState()
+        }, 10)
+      }
+    })
+
+    window.FarcadeSDK.on('toggle_mute', (data: { isMuted: boolean }) => {
+      // Handle mute toggle if needed
+      console.log('Toggle mute:', data.isMuted)
+    })
+
+    if (this.isMultiplayer) {
+      // Multiplayer setup - Set up listeners BEFORE calling ready
+      window.FarcadeSDK.on('game_info', ({ players, meId }: any) => {
+        console.log('Received game_info:', { players, meId })
+        this.players = players
+        this.meId = meId
+        console.log(`[Player ${this.meId}] Initialized with players:`, this.players)
+      })
+
+      window.FarcadeSDK.on('game_state_updated', (gameState: any) => {
+        console.log(`[Player ${this.meId}] Received game_state_updated:`, gameState)
+        
+        // Handle it exactly like chess.js does
+        if (!gameState) {
+          this.setupNewGame()
+        } else {
+          this.handleGameStateUpdate(gameState)
+        }
+      })
+
+      // Call multiplayer ready - no defensive checks, just like chess.js
+      console.log('Calling multiplayer.actions.ready()')
+      window.FarcadeSDK.multiplayer.actions.ready()
+      
+      // Send initial state after ready, like chess.js does in setupNewGame
+      setTimeout(() => {
+        this.sendGameState()
+      }, 100)
+    } else {
+      // Single player - call ready
+      console.log('Calling singlePlayer.actions.ready()')
+      window.FarcadeSDK.singlePlayer.actions.ready()
+    }
+  }
+
+  private sendGameState(): void {
+    if (!this.isMultiplayer || !window.FarcadeSDK) return
+    
+    // Wait until we have player info before sending state
+    if (!this.players || this.players.length === 0) {
+      console.log(`[Player ${this.meId}] Cannot send state - no player info yet`)
+      return
+    }
+
+    const otherPlayerId = this.players.find(p => p.id !== this.meId)?.id
+
+    // Include both players' click counts - structure like chess.js
+    const stateData = {
+      players: this.players,
+      clickCounts: {
+        [this.meId]: this.clickCount,
+        [otherPlayerId || '2']: this.otherPlayerClicks
+      },
+      gameOver: this.gameOver
+    }
+    
+    console.log(`[Player ${this.meId}] Sending state:`, stateData)
+    
+    // Call updateGameState directly, no defensive checks - like chess.js
+    window.FarcadeSDK.multiplayer.actions.updateGameState({
+      data: stateData,
+      alertUserIds: otherPlayerId ? [otherPlayerId] : []
+    })
+  }
+
+  private setupNewGame(): void {
+    console.log(`[Player ${this.meId}] Setting up new game`)
+    this.restartGame()
+    // Send initial state
+    if (this.isMultiplayer) {
+      this.sendGameState()
+    }
+  }
+
+  private handleGameStateUpdate(gameState: any): void {
+    // Handle the game state exactly like chess.js does
+    if (!gameState) {
+      this.setupNewGame()
+      return
+    }
+
+    // Chess.js expects { id: string, data: { players, moves } }
+    // We have { id: string, data: { players, clickCounts, gameOver } }
+    const { id, data } = gameState
+    
+    if (!data) {
+      console.log(`[Player ${this.meId}] No data in game state`)
+      this.setupNewGame()
+      return
+    }
+
+    console.log(`[Player ${this.meId}] Received state update:`, data)
+    
+    // Update game state from data
+    if (data.players) {
+      this.players = data.players
+    }
+    
+    this.handleStateUpdate(data)
+  }
+
+  private handleStateUpdate(data: any): void {
+    if (!data) {
+      this.restartGame()
+      return
+    }
+
+    // Update all click counts
+    if (data.clickCounts) {
+      this.allClickCounts = { ...data.clickCounts }
+      
+      // Update other player's count specifically
+      if (this.players && this.players.length > 0) {
+        const otherPlayerId = this.players.find(p => p.id !== this.meId)?.id
+        if (otherPlayerId && data.clickCounts[otherPlayerId] !== undefined) {
+          this.otherPlayerClicks = data.clickCounts[otherPlayerId]
+          console.log(`[Player ${this.meId}] Other player clicks:`, this.otherPlayerClicks)
+        }
+      }
+      
+      // Also update our own count if it's different (in case of sync issues)
+      if (data.clickCounts[this.meId] !== undefined && data.clickCounts[this.meId] !== this.clickCount) {
+        // Only update if the other player has a higher count (they clicked more recently)
+        if (data.clickCounts[this.meId] > this.clickCount) {
+          this.clickCount = data.clickCounts[this.meId]
+          if (this.clickText) {
+            this.clickText.setText(`Score: ${this.clickCount}/3`)
+          }
+        }
+      }
+    }
+
+    // Check game state changes
+    if (data.gameOver === true && !this.gameOver) {
+      console.log(`[Player ${this.meId}] Other player triggered game over`)
+      // Store the scores before marking game over
+      if (data.clickCounts) {
+        // Update our knowledge of all click counts
+        const otherPlayerId = this.players?.find(p => p.id !== this.meId)?.id
+        if (otherPlayerId && data.clickCounts[otherPlayerId] !== undefined) {
+          this.otherPlayerClicks = data.clickCounts[otherPlayerId]
+        }
+        // Also ensure our own count is up to date
+        if (data.clickCounts[this.meId] !== undefined) {
+          this.clickCount = data.clickCounts[this.meId]
+        }
+      }
+      
+      // Mark game over locally
+      this.gameOver = true
+      
+      // Trigger game over in SDK for this player too (with the same scores)
+      // This ensures both players see the game over screen
+      if (window.FarcadeSDK) {
+        if (this.isMultiplayer && this.players && this.players.length === 2) {
+          // Build the complete click counts from the received data
+          const scores = this.players.map(player => ({
+            playerId: player.id,
+            score: data.clickCounts?.[player.id] || 0
+          }))
+          
+          console.log(`[Player ${this.meId}] Also triggering game over with scores:`, scores)
+          window.FarcadeSDK.multiplayer.actions.gameOver({ scores })
+        } else {
+          // Fallback for single player mode
+          window.FarcadeSDK.singlePlayer.actions.gameOver({ score: this.clickCount })
+        }
+      }
+    }
+  }
+
   private handleClick(): void {
     this.clickCount++
     if (this.clickText) {
       this.clickText.setText(`Score: ${this.clickCount}/3`)
     }
     
-    // Trigger game over at 3 clicks
+    // Check if this click triggers game over
     if (this.clickCount >= 3) {
-      this.triggerGameOver()
+      // Set game over state BEFORE sending state update
+      this.gameOver = true
+      
+      // Send final state with gameOver = true
+      if (this.isMultiplayer) {
+        this.sendGameState()
+      }
+      
+      // Small delay to ensure state is sent before triggering SDK game over
+      setTimeout(() => {
+        this.triggerGameOver()
+      }, 50)
+    } else {
+      // Normal click - just send updated count
+      if (this.isMultiplayer) {
+        this.sendGameState()
+      }
     }
   }
 
   private triggerGameOver(): void {
-    this.gameOver = true
+    // gameOver is already set in handleClick
     
-    // Use SDK to trigger game over
-    if ('FarcadeSDK' in window && (window as any).FarcadeSDK) {
-      try {
-        (window as any).FarcadeSDK.singlePlayer.actions.gameOver({ score: this.clickCount })
-      } catch (error) {
-        // SDK error - silently handle
+    // Use SDK to trigger game over - simplified like chess.js
+    if (!window.FarcadeSDK) return
+    
+    if (this.isMultiplayer) {
+      // Build scores array for multiplayer - exactly like chess.js does
+      const scores: Array<{ playerId: string; score: number }> = []
+      
+      // Ensure we have both players
+      if (this.players && this.players.length >= 2) {
+        scores.push({
+          playerId: this.players[0].id,
+          score: this.players[0].id === this.meId ? this.clickCount : this.otherPlayerClicks
+        })
+        scores.push({
+          playerId: this.players[1].id, 
+          score: this.players[1].id === this.meId ? this.clickCount : this.otherPlayerClicks
+        })
+      } else {
+        // Fallback with default IDs
+        scores.push({
+          playerId: this.meId || '1',
+          score: this.clickCount
+        })
+        scores.push({
+          playerId: this.meId === '1' ? '2' : '1',
+          score: this.otherPlayerClicks
+        })
       }
+      
+      console.log(`[Player ${this.meId}] Triggering multiplayer game over with scores:`, scores)
+      window.FarcadeSDK.multiplayer.actions.gameOver({ scores })
+    } else {
+      // Single player
+      console.log(`Single player game over with score: ${this.clickCount}`)
+      window.FarcadeSDK.singlePlayer.actions.gameOver({ score: this.clickCount })
     }
   }
 
   private restartGame(): void {
     this.clickCount = 0
+    this.otherPlayerClicks = 0
     this.gameOver = false
     
     if (this.clickText) {

@@ -26,8 +26,13 @@ const UNDERGLOW_CONFIG = {
   rightEdgeSample: 80,      // Pixels from right of source
 }
 
-export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
+interface UnderglowOptions {
+  disabled?: boolean
+}
+
+export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>, options: UnderglowOptions = {}) {
   const { settings, capabilities } = useDevSettings()
+  const isDisabled = options.disabled || false
   
   // Refs to match the exact structure of ParentUnderglow class
   const glowContainer = useRef<HTMLElement | null>(null)
@@ -96,11 +101,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     // Accept frame if more than threshold of pixels are non-black (very lenient)
     const nonBlackPercentage = nonBlackPixels / totalPixels
     return nonBlackPercentage < UNDERGLOW_CONFIG.blackFrameThreshold
-  }, [])
+  }, [isDisabled])
 
   // 1:1 port of createGlowContainer from original
   const createGlowContainer = useCallback(() => {
-    if (!gameFrameRef.current || glowContainer.current) return
+    if (isDisabled || !gameFrameRef.current || glowContainer.current) return
 
     const parent = gameFrameRef.current.parentElement
     if (!parent) return
@@ -124,11 +129,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     // Reset game frame positioning since it's now in a controlled container
     gameFrameRef.current.style.position = 'relative'
     gameFrameRef.current.style.zIndex = '2'
-  }, [gameFrameRef])
+  }, [gameFrameRef, isDisabled])
 
   // 1:1 port of createEdgeCanvas from original
   const createEdgeCanvas = useCallback((edge: 'top' | 'bottom' | 'left' | 'right', rect: DOMRect): HTMLCanvasElement | null => {
-    if (!gameFrameRef.current || !glowContainer.current) return null
+    if (isDisabled || !gameFrameRef.current || !glowContainer.current) return null
 
     // Remove any existing underglow canvas for this edge (HMR safety)
     const existingCanvas = document.getElementById(`underglow-${edge}`)
@@ -189,11 +194,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     glowContainer.current.appendChild(canvas)
     
     return canvas
-  }, [gameFrameRef])
+  }, [gameFrameRef, isDisabled])
 
   // 1:1 port of createGlowCanvas from original
   const createGlowCanvas = useCallback(() => {
-    if (!gameFrameRef.current || glowCanvasTop.current) return // Prevent duplicate creation
+    if (isDisabled || !gameFrameRef.current || glowCanvasTop.current) return // Prevent duplicate creation
 
     // Create a container for game frame and glow
     createGlowContainer()
@@ -212,11 +217,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     glowCtxBottom.current = glowCanvasBottom.current?.getContext('2d', { alpha: true, willReadFrequently: true }) || null
     glowCtxLeft.current = glowCanvasLeft.current?.getContext('2d', { alpha: true, willReadFrequently: true }) || null
     glowCtxRight.current = glowCanvasRight.current?.getContext('2d', { alpha: true, willReadFrequently: true }) || null
-  }, [gameFrameRef, createGlowContainer, createEdgeCanvas])
+  }, [gameFrameRef, isDisabled, createGlowContainer, createEdgeCanvas])
 
   // 1:1 port of updateGlowCanvasSizes from original
   const updateGlowCanvasSizes = useCallback(() => {
-    if (!gameFrameRef.current || !glowContainer.current) return
+    if (isDisabled || !gameFrameRef.current || !glowContainer.current) return
 
     const rect = gameFrameRef.current.getBoundingClientRect()
     
@@ -253,10 +258,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
       glowCanvasRight.current.style.height = `${rect.height}px`
       glowCanvasRight.current.style.left = `${rect.width}px`
     }
-  }, [gameFrameRef])
+  }, [gameFrameRef, isDisabled])
 
   // Enhanced setupPostMessageApproach to listen for Phaser postrender events
   const setupPostMessageApproach = useCallback((iframe: HTMLIFrameElement, autoStart: boolean = true) => {
+    if (isDisabled) return
     // Set up message listener for Phaser postrender events if not already set
     if (!messageListener.current) {
       messageListener.current = (event: MessageEvent) => {
@@ -604,6 +610,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
 
   // 1:1 port of setupCrossFrameCanvas from original
   const setupCrossFrameCanvas = useCallback((iframe: HTMLIFrameElement) => {
+    if (isDisabled) return
     // Create glow canvas immediately (don't wait for iframe canvas)
     createGlowCanvas()
     
@@ -614,11 +621,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     if (enabled.current) {
       start()
     }
-  }, [createGlowCanvas, setupPostMessageApproach])
+  }, [createGlowCanvas, setupPostMessageApproach, isDisabled])
 
   // 1:1 port of setupResizeObserver from original
   const setupResizeObserver = useCallback(() => {
-    if (!gameFrameRef.current || resizeObserver.current) return
+    if (isDisabled || !gameFrameRef.current || resizeObserver.current) return
 
     resizeObserver.current = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -629,7 +636,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     })
 
     resizeObserver.current.observe(gameFrameRef.current)
-  }, [gameFrameRef, updateGlowCanvasSizes])
+  }, [gameFrameRef, isDisabled, updateGlowCanvasSizes])
 
   // Optimized update loop using requestAnimationFrame for smoother updates
   const startPostMessageUpdates = useCallback(() => {
@@ -655,12 +662,12 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     }
     
     updateLoop()
-  }, [])
+  }, [isDisabled])
 
   // 1:1 port of start from original with Safari/mobile checks
   const start = useCallback(() => {
-    // Don't start on Safari or mobile devices
-    if (isSafari.current || isMobileDevice.current || !glowCanvasTop.current) return
+    // Don't start on Safari or mobile devices or when disabled
+    if (isDisabled || isSafari.current || isMobileDevice.current || !glowCanvasTop.current) return
     
     // Show all edge canvases
     if (glowCanvasTop.current) glowCanvasTop.current.style.display = 'block'
@@ -675,6 +682,7 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
 
   // Updated stop to handle requestAnimationFrame
   const stop = useCallback(() => {
+    if (isDisabled) return
     if (animationId.current) {
       cancelAnimationFrame(animationId.current as number)
       animationId.current = null
@@ -685,10 +693,12 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     if (glowCanvasBottom.current) glowCanvasBottom.current.style.display = 'none'
     if (glowCanvasLeft.current) glowCanvasLeft.current.style.display = 'none'
     if (glowCanvasRight.current) glowCanvasRight.current.style.display = 'none'
-  }, [])
+  }, [isDisabled])
 
   // 1:1 port of waitForDevOverlay from original
   const waitForDevOverlay = useCallback(() => {
+    if (isDisabled) return
+    
     let attempts = 0
     const maxAttempts = 50
     
@@ -718,12 +728,12 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     }
     
     checkForStructure()
-  }, [gameFrameRef, setupCrossFrameCanvas, createGlowCanvas, start, setupResizeObserver])
+  }, [gameFrameRef, isDisabled, setupCrossFrameCanvas, createGlowCanvas, start, setupResizeObserver])
 
   // 1:1 port of toggle from original
   const toggle = useCallback(() => {
-    // Don't allow toggling in Safari or on mobile devices
-    if (isSafari.current || isMobileDevice.current) {
+    // Don't allow toggling in Safari or on mobile devices or when disabled
+    if (isDisabled || isSafari.current || isMobileDevice.current) {
       return
     }
     
@@ -734,10 +744,11 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     } else {
       stop()
     }
-  }, [start, stop])
+  }, [start, stop, isDisabled])
 
   // Cleanup method (1:1 port of destroy from original)
   const cleanup = useCallback(() => {
+    // Always safe to call - checks before doing DOM manipulation
     if (resizeObserver.current) {
       resizeObserver.current.disconnect()
       resizeObserver.current = null
@@ -769,7 +780,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     }
     
     // Remove underglow container if it exists and restore original structure
-    if (glowContainer.current && gameFrameRef.current) {
+    // Only do DOM manipulation if glowContainer was actually created and contains gameFrameRef
+    if (glowContainer.current && gameFrameRef.current && glowContainer.current.contains(gameFrameRef.current)) {
       const parent = glowContainer.current.parentElement
       if (parent) {
         // Move game frame back to original parent
@@ -796,6 +808,8 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
 
   // Initialize underglow (1:1 port of initialize from original)
   useEffect(() => {
+    if (isDisabled) return
+    
     // Detect Safari browser (specifically Safari, not Chrome or other WebKit browsers)
     isSafari.current = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
     
@@ -811,8 +825,9 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
     // Wait for dev overlay to create the structure
     waitForDevOverlay()
 
+    // Return cleanup - it's safe to call anytime
     return cleanup
-  }, [waitForDevOverlay, cleanup])
+  }, [waitForDevOverlay, cleanup, isDisabled])
   
   // Visibility API - pause when tab is hidden
   useEffect(() => {
@@ -839,17 +854,37 @@ export function useUnderglow(gameFrameRef: React.RefObject<HTMLElement>) {
 
   // Start/stop based on settings
   useEffect(() => {
-    if (settings.canvasGlow && capabilities.supportsUnderglow && enabled.current) {
+    if (!isDisabled && settings.canvasGlow && capabilities.supportsUnderglow && enabled.current) {
       start()
     } else {
       stop()
     }
-  }, [settings.canvasGlow, capabilities.supportsUnderglow, start, stop])
+  }, [settings.canvasGlow, capabilities.supportsUnderglow, start, stop, isDisabled])
+  
+  // Clean up when disabled changes to true
+  useEffect(() => {
+    if (isDisabled) {
+      stop()
+      cleanup()
+      
+      // Extra cleanup - remove any stray underglow elements
+      const underglowElements = document.querySelectorAll('[id^="underglow-"]')
+      underglowElements.forEach(el => {
+        el.remove()
+      })
+      
+      // Remove glow container if it exists
+      const glowContainers = document.querySelectorAll('.underglow-container')
+      glowContainers.forEach(el => {
+        el.remove()
+      })
+    }
+  }, [isDisabled, stop, cleanup])
 
   return {
-    isEnabled: settings.canvasGlow && capabilities.supportsUnderglow && enabled.current,
-    isSupported: capabilities.supportsUnderglow && !isSafari.current && !isMobileDevice.current,
-    toggle,
+    isEnabled: !isDisabled && settings.canvasGlow && capabilities.supportsUnderglow && enabled.current,
+    isSupported: !isDisabled && capabilities.supportsUnderglow && !isSafari.current && !isMobileDevice.current,
+    toggle: isDisabled ? () => {} : toggle,
     start,
     stop,
     cleanup

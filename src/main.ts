@@ -33,23 +33,29 @@ const config: Phaser.Types.Core.GameConfig = {
   },
 }
 
-// Initialize SDK mock in development
-if (process.env.NODE_ENV !== 'production') {
-  initializeSDKMock()
+// Initialize the application
+async function initializeApp() {
+  // Initialize SDK mock in development
+  if (process.env.NODE_ENV !== 'production') {
+    await initializeSDKMock()
+  }
+
+  // Create the game instance
+  const game = new Phaser.Game(config)
+
+  // Expose game globally for performance plugin
+  ;(window as any).game = game
+
+  // Initialize Remix SDK and development features
+  game.events.once("ready", () => {
+    initializeRemixSDK(game)
+    
+    // Initialize development features (only active in dev mode)
+    if (process.env.NODE_ENV !== 'production') {
+      initializeDevelopment()
+    }
+  })
 }
 
-// Create the game instance
-const game = new Phaser.Game(config)
-
-// Expose game globally for performance plugin
-;(window as any).game = game
-
-// Initialize Remix SDK and development features
-game.events.once("ready", () => {
-  initializeRemixSDK(game)
-  
-  // Initialize development features (only active in dev mode)
-  if (process.env.NODE_ENV !== 'production') {
-    initializeDevelopment()
-  }
-})
+// Start the application
+initializeApp().catch(console.error)

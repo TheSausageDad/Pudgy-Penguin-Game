@@ -6,7 +6,15 @@ import fs from "fs"
 import os from "os"
 import { buildApiPlugin } from "./.remix/plugins/vite-plugin-build-api"
 
+// Read multiplayer setting from package.json
+const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf-8'))
+const isMultiplayer = packageJson.multiplayer === true
+
 export default defineConfig({
+  define: {
+    // This will be replaced at build time with the actual boolean value
+    'GAME_MULTIPLAYER_MODE': JSON.stringify(isMultiplayer),
+  },
   server: {
     host: true,
     open: true,

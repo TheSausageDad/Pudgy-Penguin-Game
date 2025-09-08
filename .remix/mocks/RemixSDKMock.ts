@@ -12,10 +12,53 @@ interface FarcadeSDKEventListener {
   (event: FarcadeSDKEvent): void;
 }
 
+interface Player {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
+interface GameState {
+  id: string;
+  data: unknown;
+}
+
+interface MultiplayerGameOverData {
+  scores: Array<{ playerId: string; score: number }>;
+}
+
+// Global state for multiplayer coordination
+let multiplayerState: {
+  gameState: GameState | null;
+  players: Player[];
+  currentPlayerId: string | null;
+} = {
+  gameState: null,
+  players: [
+    { id: '1', name: 'Player 1', imageUrl: undefined },
+    { id: '2', name: 'Player 2', imageUrl: undefined }
+  ],
+  currentPlayerId: null
+};
+
 class RemixSDKMock {
   private eventListeners: Map<string, FarcadeSDKEventListener[]> = new Map();
   private isReady = false;
   private isMuted = false;
+  private isMultiplayer: boolean;
+  private instanceId: string;
+
+  constructor(isMultiplayer = false) {
+    this.isMultiplayer = isMultiplayer;
+    this.instanceId = Math.random().toString(36).substring(2, 9);
+    
+    if (isMultiplayer) {
+      // Set up multiplayer player assignment
+      if (!multiplayerState.currentPlayerId) {
+        multiplayerState.currentPlayerId = '1';
+      }
+    }
+  }
 
   // Single player API
   singlePlayer = {
@@ -23,6 +66,23 @@ class RemixSDKMock {
       ready: () => {
         this.isReady = true;
         this.emit('ready', {});
+        
+        if (this.isMultiplayer) {
+          // In multiplayer, send game_info after ready
+          setTimeout(() => {
+            // Get player ID from URL params or assign based on instance
+            const urlParams = new URLSearchParams(window.location.search);
+            const meId = urlParams.get('player') || urlParams.get('instance') || '1';
+            
+            // Default players if not set
+            const players = [
+              { id: '1', name: 'Player 1', imageUrl: undefined },
+              { id: '2', name: 'Player 2', imageUrl: undefined }
+            ];
+            
+            this.emit('game_info', { players, meId });
+          }, 100);
+        }
         
         // Notify parent window for dev UI
         this.postToParent('ready');
@@ -33,6 +93,72 @@ class RemixSDKMock {
         
         // Notify parent window for dev UI
         this.postToParent('game_over', data);
+      },
+
+      hapticFeedback: () => {
+        // Mock haptic feedback
+        this.postToParent('haptic_feedback');
+      },
+
+      reportError: (errorData: any) => {
+        this.postToParent('error', errorData);
+      }
+    }
+  };
+
+  // Multiplayer API
+  multiplayer = {
+    actions: {
+      ...this.singlePlayer.actions,
+      
+      ready: () => {
+        this.isReady = true;
+        this.emit('ready', {});
+        
+        // Always send game_info for multiplayer.ready() calls
+        setTimeout(() => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const meId = urlParams.get('player') || urlParams.get('instance') || '1';
+          
+          // Default players if not set
+          const players = [
+            { id: '1', name: 'Player 1', imageUrl: undefined },
+            { id: '2', name: 'Player 2', imageUrl: undefined }
+          ];
+          
+          this.emit('game_info', { players, meId });
+          
+          // Don't send initial null state - let the game decide when to start
+          // this.emit('game_state_updated', null);
+        }, 100);
+        
+        this.postToParent('ready');
+      },
+      
+      updateGameState: ({ data, alertUserIds }: { data: unknown; alertUserIds?: string[] }) => {
+        // Don't check isMultiplayer here - if game calls multiplayer.actions, honor it
+        
+        // Generate a new game state ID
+        const gameStateId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
+        
+        // Update global state
+        multiplayerState.gameState = { id: gameStateId, data };
+        
+        // Broadcast to all other instances
+        this.broadcastGameStateUpdate({ id: gameStateId, data });
+        
+        // Notify parent window for dev UI
+        this.postToParent('game_state_updated', { id: gameStateId, data });
+      },
+
+      refuteGameState: (gameStateId: string) => {
+        
+        this.postToParent('game_state_refuted', { gameStateId });
+      },
+
+      gameOver: ({ scores }: MultiplayerGameOverData) => {
+        this.emit('multiplayer_game_over', { scores });
+        this.postToParent('multiplayer_game_over', { scores });
       }
     }
   };
@@ -58,12 +184,12 @@ class RemixSDKMock {
   emit(eventType: string, data?: any): void {
     const listeners = this.eventListeners.get(eventType);
     if (listeners) {
-      const event: FarcadeSDKEvent = { type: eventType, data };
       listeners.forEach(listener => {
         try {
-          listener(event);
+          // Pass data directly to listener, not wrapped in event
+          listener(data);
         } catch (error) {
-          console.error(`[SDK] Error in '${eventType}' listener:`, error);
+          // Silently catch listener errors in development
         }
       });
     }
@@ -75,11 +201,33 @@ class RemixSDKMock {
       try {
         const message = {
           type: 'remix_sdk_event',
-          event: { type: eventType, data }
+          event: { type: eventType, data },
+          instanceId: this.instanceId
         };
         window.parent.postMessage(message, '*');
       } catch (error) {
-        console.warn('[SDK] Could not post to parent:', error);
+        // Silently handle postMessage errors
+      }
+    }
+  }
+
+  private broadcastGameStateUpdate(gameState: GameState): void {
+    // Don't check isMultiplayer - if called, broadcast it
+    
+    // Use the postMessage API to communicate between iframe instances
+    // In a real implementation, this would go through the Farcade servers
+    const message = {
+      type: 'multiplayer_game_state_broadcast',
+      gameState,
+      fromInstanceId: this.instanceId
+    };
+    
+    // Broadcast to parent window which will distribute to other instances
+    if (window.parent !== window) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (error) {
+        // Silently handle broadcast errors
       }
     }
   }
@@ -106,9 +254,19 @@ class RemixSDKMock {
 }
 
 // Initialize the mock SDK if we're in development and no real SDK exists
-export function initializeSDKMock(): void {
+export async function initializeSDKMock(): Promise<void> {
   if (import.meta.env.DEV) {
-    const mockSDK = new RemixSDKMock();
+    // Read multiplayer flag from package.json
+    let isMultiplayer = false;
+    try {
+      const response = await fetch('/package.json');
+      const packageJson = await response.json();
+      isMultiplayer = packageJson.multiplayer === true;
+    } catch (error) {
+      // Default to single-player if package.json can't be read
+    }
+
+    const mockSDK = new RemixSDKMock(isMultiplayer);
     (window as any).FarcadeSDK = mockSDK;
     (window as any).__remixSDKMock = mockSDK; // Internal reference for dev UI
     
@@ -121,7 +279,7 @@ export function initializeSDKMock(): void {
       }, 500);
     }, 1000);
     
-    // Listen for messages from parent window (dev UI)
+    // Listen for messages from parent window (dev UI and multiplayer coordination)
     window.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'remix_dev_command') {
         const { command } = event.data.data;
@@ -134,6 +292,15 @@ export function initializeSDKMock(): void {
           case 'toggle_mute':
             mockSDK.triggerMute(commandData.isMuted);
             break;
+        }
+      } else if (event.data && event.data.type === 'multiplayer_game_state_broadcast') {
+        // Receive game state updates from other instances
+        const { gameState, fromInstanceId } = event.data;
+        
+        // Don't process updates from ourselves
+        if (fromInstanceId !== mockSDK.instanceId) {
+          // Emit the game_state_updated event to the game
+          mockSDK.emit('game_state_updated', gameState);
         }
       }
     });

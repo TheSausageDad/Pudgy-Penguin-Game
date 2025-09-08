@@ -3,43 +3,134 @@ import { useDashboard } from '../../contexts'
 import { sendRemixCommand } from '../../utils'
 import { tw } from '../../utils/tw'
 
-export const GameOverlay: React.FC = () => {
+interface GameOverlayProps {
+  playerId?: string
+}
+
+export const GameOverlay: React.FC<GameOverlayProps> = ({ playerId }) => {
   const { state, dispatch } = useDashboard()
 
   const handlePlayAgain = () => {
-    // First, send command to game to actually restart it
-    sendRemixCommand('play_again')
-
-    // Then update our dashboard state
-    dispatch({
-      type: 'SDK_ADD_EVENT',
-      payload: {
-        type: 'play_again',
-        data: {},
-        timestamp: Date.now()
+    if (playerId) {
+      // Multiplayer: send play_again command to BOTH iframes
+      // This ensures both players restart together
+      const player1Iframe = document.getElementById(`game-iframe-1`) as HTMLIFrameElement
+      const player2Iframe = document.getElementById(`game-iframe-2`) as HTMLIFrameElement
+      
+      // Send play_again to both players
+      if (player1Iframe?.contentWindow) {
+        player1Iframe.contentWindow.postMessage({
+          type: 'remix_dev_command',
+          data: { command: 'play_again' }
+        }, '*')
       }
-    })
+      
+      if (player2Iframe?.contentWindow) {
+        player2Iframe.contentWindow.postMessage({
+          type: 'remix_dev_command',
+          data: { command: 'play_again' }
+        }, '*')
+      }
+      
+      // Add play_again events for BOTH players to dismiss both overlays
+      dispatch({
+        type: 'SDK_ADD_EVENT',
+        payload: {
+          type: 'play_again',
+          data: {},
+          playerId: '1',
+          timestamp: Date.now()
+        }
+      })
+      
+      dispatch({
+        type: 'SDK_ADD_EVENT',
+        payload: {
+          type: 'play_again',
+          data: {},
+          playerId: '2',
+          timestamp: Date.now()
+        }
+      })
+      
+      // Reset game state for BOTH players (hide both overlays)
+      dispatch({
+        type: 'GAME_UPDATE',
+        payload: { isGameOver: false, score: 0, playerId: '1' }
+      })
+      
+      dispatch({
+        type: 'GAME_UPDATE',
+        payload: { isGameOver: false, score: 0, playerId: '2' }
+      })
+    } else {
+      // Single player: use global command
+      sendRemixCommand('play_again')
+      
+      // Communicate with game iframe if SDK mock is available
+      if (window.__remixSDKMock) {
+        window.__remixSDKMock.triggerPlayAgain()
+      }
+      
+      // Update dashboard state for single player
+      dispatch({
+        type: 'SDK_ADD_EVENT',
+        payload: {
+          type: 'play_again',
+          data: {},
+          playerId: playerId,
+          timestamp: Date.now()
+        }
+      })
+      
+      // Reset game state (hide overlay) for single player
+      dispatch({
+        type: 'GAME_UPDATE',
+        payload: { isGameOver: false, score: 0, playerId: playerId }
+      })
+    }
 
     // Update SDK flags
     dispatch({
       type: 'SDK_UPDATE_FLAGS',
       payload: { playAgain: true }
     })
-
-    // Reset game state (hide overlay)
-    dispatch({
-      type: 'GAME_UPDATE',
-      payload: { isGameOver: false, score: 0 }
-    })
-
-    // Communicate with game iframe if SDK mock is available
-    if (window.__remixSDKMock) {
-      window.__remixSDKMock.triggerPlayAgain()
-    }
   }
 
 
-  if (!state.game.isGameOver) {
+  // Determine if game over should be shown
+  let isGameOver: boolean
+  let score: number
+  
+  if (playerId) {
+    // Multiplayer: use event-based logic for specific player
+    const playerEvents = state.sdk.events.filter(event => event.playerId === playerId)
+    
+    const latestGameOverEvent = playerEvents
+      .filter(event => event.type === 'game_over' || event.type === 'multiplayer_game_over')
+      .pop()
+    
+    const latestPlayAgainEvent = playerEvents
+      .filter(event => event.type === 'play_again')
+      .pop()
+    
+    isGameOver = latestGameOverEvent !== undefined && 
+      (!latestPlayAgainEvent || latestGameOverEvent.timestamp > latestPlayAgainEvent.timestamp)
+    
+    // For multiplayer_game_over, scores is an array
+    if (latestGameOverEvent?.type === 'multiplayer_game_over' && latestGameOverEvent?.data?.scores) {
+      const playerScore = latestGameOverEvent.data.scores.find((s: any) => s.playerId === playerId)
+      score = playerScore?.score || 0
+    } else {
+      score = latestGameOverEvent?.data?.score || latestGameOverEvent?.data?.finalScore || 0
+    }
+  } else {
+    // Single player: use simple game state logic (original behavior)
+    isGameOver = state.game.isGameOver
+    score = state.game.score || 0
+  }
+
+  if (!isGameOver) {
     return null
   }
 
@@ -62,7 +153,7 @@ export const GameOverlay: React.FC = () => {
           text-white font-extrabold uppercase mb-3 leading-none
           tracking-tight text-[clamp(48px,18cqw,144px)]
         `}>
-          {state.game.score}
+          {score}
         </div>
         <div 
           id="overlay-title"

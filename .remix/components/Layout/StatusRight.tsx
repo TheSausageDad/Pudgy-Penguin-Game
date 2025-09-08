@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { useUIState, useDevSettings } from '../../hooks'
 import { detectDeviceCapabilities } from '../../utils'
 import { SettingsPanel } from '../Panels'
@@ -6,8 +6,17 @@ import { cn, tw } from '../../utils/tw'
 import '../../styles/app.css'
 
 export const StatusRight: React.FC = () => {
-  const { toggleBuildPanel, isBuildPanelOpen } = useUIState()
+  const { toggleBuildPanel, isBuildPanelOpen, toggleGameStatePanel, isGameStatePanelOpen } = useUIState()
   const { capabilities } = useDevSettings()
+  const [isMultiplayer, setIsMultiplayer] = useState(false)
+  
+  // Check multiplayer flag
+  useEffect(() => {
+    fetch('/package.json')
+      .then(res => res.json())
+      .then(pkg => setIsMultiplayer(pkg.multiplayer === true))
+      .catch(() => setIsMultiplayer(false))
+  }, [])
 
   return (
     <>
@@ -21,44 +30,93 @@ export const StatusRight: React.FC = () => {
         <SettingsDropdown />
       )}
 
-      {/* Build Toggle Button - hide on mobile */}
+      {/* Panel Buttons - stack vertically when both are present */}
       {!capabilities.isMobileDevice && (
-        <button 
-        className={cn(
-          tw`
-            flex items-center gap-[6px] px-3 py-[6px]
-            bg-transparent border border-border-default
-            rounded-md text-text-secondary text-xs font-medium
-            cursor-pointer transition-all duration-fast
-            select-none h-8 box-border
-            hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.2)] hover:text-text-primary
-          `,
-          isBuildPanelOpen && tw`
-            bg-[rgba(34,197,94,0.1)] border-[rgba(34,197,94,0.2)] text-status-green
-            hover:bg-[rgba(34,197,94,0.15)] hover:border-[rgba(34,197,94,0.3)]
-          `
-        )}
-        onClick={() => {
-          toggleBuildPanel()
-        }}
-        title={isBuildPanelOpen ? "Close build panel" : "Open build panel"}
-        aria-label={isBuildPanelOpen ? "Close build panel" : "Open build panel"}
-        aria-expanded={isBuildPanelOpen}
-        aria-controls="build-panel"
-      >
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          width="16" 
-          height="16" 
-          viewBox="0 0 24 24" 
-          fill="currentColor"
-          aria-hidden="true"
-          className="w-4 h-4 flex-shrink-0"
-        >
-          <path d="M14.6 16.6l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4zm-5.2 0L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"/>
-        </svg>
-        <span>Build</span>
-      </button>
+        <div className={tw`
+          flex ${isMultiplayer ? 'flex-col gap-1' : 'flex-row'}
+        `}>
+          {/* Game State Button - only show in multiplayer mode */}
+          {isMultiplayer && (
+            <button 
+              className={cn(
+                tw`
+                  flex items-center gap-[6px] px-3 py-[6px]
+                  bg-transparent border border-border-default
+                  rounded-md text-text-secondary text-xs font-medium
+                  cursor-pointer transition-all duration-fast
+                  select-none h-8 box-border
+                  hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.2)] hover:text-text-primary
+                `,
+                isGameStatePanelOpen && tw`
+                  bg-[rgba(59,130,246,0.1)] border-[rgba(59,130,246,0.2)] text-blue-400
+                  hover:bg-[rgba(59,130,246,0.15)] hover:border-[rgba(59,130,246,0.3)]
+                `
+              )}
+              onClick={() => {
+                toggleGameStatePanel()
+              }}
+              title={isGameStatePanelOpen ? "Close game state panel" : "Open game state panel"}
+              aria-label={isGameStatePanelOpen ? "Close game state panel" : "Open game state panel"}
+              aria-expanded={isGameStatePanelOpen}
+              aria-controls="game-state-panel"
+            >
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="w-4 h-4 flex-shrink-0"
+              >
+                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              <span>State</span>
+            </button>
+          )}
+
+          {/* Build Toggle Button */}
+          <button 
+            className={cn(
+              tw`
+                flex items-center gap-[6px] px-3 py-[6px]
+                bg-transparent border border-border-default
+                rounded-md text-text-secondary text-xs font-medium
+                cursor-pointer transition-all duration-fast
+                select-none h-8 box-border
+                hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.2)] hover:text-text-primary
+              `,
+              isBuildPanelOpen && tw`
+                bg-[rgba(34,197,94,0.1)] border-[rgba(34,197,94,0.2)] text-status-green
+                hover:bg-[rgba(34,197,94,0.15)] hover:border-[rgba(34,197,94,0.3)]
+              `
+            )}
+            onClick={() => {
+              toggleBuildPanel()
+            }}
+            title={isBuildPanelOpen ? "Close build panel" : "Open build panel"}
+            aria-label={isBuildPanelOpen ? "Close build panel" : "Open build panel"}
+            aria-expanded={isBuildPanelOpen}
+            aria-controls="build-panel"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+              aria-hidden="true"
+              className="w-4 h-4 flex-shrink-0"
+            >
+              <path d="M14.6 16.6l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4zm-5.2 0L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4z"/>
+            </svg>
+            <span>Build</span>
+          </button>
+        </div>
       )}
     </>
   )

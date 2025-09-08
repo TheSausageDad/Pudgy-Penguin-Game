@@ -31,8 +31,7 @@ const initialState: DashboardState = {
     canvasGlow: true,
     backgroundPattern: true,
     fullSize: false,
-    showPerformancePanel: false,
-    showCabinetFrame: false
+    showPerformancePanel: false
   },
   
   ui: {
@@ -41,7 +40,8 @@ const initialState: DashboardState = {
     showStatusPanel: false,
     showSettingsPanel: false,
     showPerformancePanel: false,
-    showQrPanel: false
+    showQrPanel: false,
+    showGameStatePanel: false
   },
   
   sdk: {
