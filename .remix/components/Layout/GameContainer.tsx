@@ -38,7 +38,7 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
     if (isMini) {
       // Mini mode: use actual app size but respect screen boundaries
       const actualWidth = 393 // Real iPhone dimensions
-      const actualHeight = 695
+      const actualHeight = 590 // Updated for 2:3 aspect ratio
       const containerHeight = window.innerHeight - 90 // Reserve space for status bar
       const containerWidth = window.innerWidth - 20 // Account for padding
       
@@ -60,11 +60,11 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
     } else {
       // Full mode: calculate responsive size
       const containerHeight = window.innerHeight - 90 // Reserve space for status bar
-      const containerWidth = Math.min(window.innerWidth - 20, containerHeight * (9 / 16)) // 9:16 aspect ratio
-      const calculatedHeight = containerWidth * (16 / 9)
+      const containerWidth = Math.min(window.innerWidth - 20, containerHeight * (2 / 3)) // 2:3 aspect ratio
+      const calculatedHeight = containerWidth * (3 / 2)
       
       newFrameSize = {
-        width: Math.min(containerWidth, containerHeight * (9 / 16)),
+        width: Math.min(containerWidth, containerHeight * (2 / 3)),
         height: Math.min(calculatedHeight, containerHeight)
       }
     }

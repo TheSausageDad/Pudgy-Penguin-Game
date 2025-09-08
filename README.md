@@ -2,11 +2,11 @@
 
 ## Overview
 
-A TypeScript and Phaser.js template for creating mobile games on the Remix platform. Features 9:16 aspect ratio for exact mini-app dimensions, professional development environment with SDK testing, and comprehensive HTML5 game tooling.
+A TypeScript and Phaser.js template for creating mobile games on the Remix platform. Features 2:3 aspect ratio for exact mini-app dimensions, professional development environment with SDK testing, and comprehensive HTML5 game tooling.
 
 ## Features
 
-- 📱 Mobile-first 9:16 aspect ratio design
+- 📱 Mobile-first 2:3 aspect ratio design
 - 🎮 Phaser.js framework (CDN-loaded)
 - 🔧 TypeScript support with type safety
 - 🔄 Hot-reload dev server with QR code mobile testing
@@ -36,7 +36,7 @@ A TypeScript and Phaser.js template for creating mobile games on the Remix platf
 ## ⚠️ Important Notes
 
 - **Phaser.js is loaded from CDN**: The game framework is loaded in `index.html`, so Phaser is globally available. **Never add Phaser imports** to your TypeScript files - this will break your game.
-- **Mobile-First**: This template is designed for Farcaster mini-apps with a 9:16 aspect ratio.
+- **Mobile-First**: This template is designed for Farcaster mini-apps with a 2:3 aspect ratio.
 - **Development Environment**: The template includes a comprehensive development overlay that simulates the Remix platform environment.
 
 ## Quick Start (Step-by-Step)
@@ -74,7 +74,7 @@ npm run dev
 **What happens:**
 - Server starts at `localhost:3000` with QR code for mobile testing
 - Browser opens with **Remix Development Overlay**:
-  - Mini-app simulation (9:16 aspect ratio)
+  - Mini-app simulation (2:3 aspect ratio)
   - Remix SDK status panel (red/yellow/green indicators)
   - Full/Actual size toggle for testing game at actual mini-app scale
   - Remix "Game Over" Overlay simulation to test game restart loop
@@ -115,7 +115,7 @@ Follow the Quick Start steps above to set up the template first.
 ### Step 3: Ask Your LLM Assistant to Help Migrate
 Once your existing code is in the `src_prev` folder, ask your AI assistant (like Claude Code) to help you migrate:
 
-> "I have an existing Phaser.js game in the `src_prev` folder that I want to port to this Remix template. Please help me migrate the code into the proper `src` structure, ensuring it works with the 9:16 aspect ratio and Remix platform requirements. Please analyze my existing game structure and guide me through the migration process."
+> "I have an existing Phaser.js game in the `src_prev` folder that I want to port to this Remix template. Please help me migrate the code into the proper `src` structure, ensuring it works with the 2:3 aspect ratio and Remix platform requirements. Please analyze my existing game structure and guide me through the migration process."
 
 ### ⚠️ Important Migration Reality Check:
 **Things WILL break during migration!** This is completely normal and expected. Game porting is an iterative process that requires multiple rounds of fixes:
@@ -132,7 +132,7 @@ Once your existing code is in the `src_prev` folder, ask your AI assistant (like
 **Migration is a collaborative process** - Plan to spend time working with your AI assistant to resolve issues step by step. Don't expect a perfect one-shot migration.
 
 ### Migration Considerations:
-- **Aspect Ratio**: Your game will need to adapt to the 9:16 mobile format
+- **Aspect Ratio**: Your game will need to adapt to the 2:3 mobile format
 - **Asset Loading**: Assets may need to be restructured for the build process
 - **Phaser Imports**: Remove any Phaser imports since it's loaded globally via CDN
 - **Platform Integration**: Add Remix SDK integration for platform features
@@ -224,7 +224,7 @@ your-game/
 ├── src/                   # Your game code goes here
 │   ├── main.ts           # Game entry point - creates Phaser game
 │   ├── config/
-│   │   └── GameSettings.ts # Game settings (720x1280, debug mode, etc.)
+│   │   └── GameSettings.ts # Game settings (720x1080, debug mode, etc.)
 │   ├── scenes/
 │   │   └── GameScene.ts   # Main game scene (click-to-progress demo)
 │   ├── utils/
@@ -237,7 +237,7 @@ your-game/
 ### Key Files to Understand:
 - **`src/main.ts`**: Creates the Phaser game with your settings
 - **`src/scenes/GameScene.ts`**: Where your game logic lives (currently 3-click demo)
-- **`src/config/GameSettings.ts`**: Adjust canvas size (720x1280), debug mode, etc.
+- **`src/config/GameSettings.ts`**: Adjust canvas size (720x1080), debug mode, etc.
 - **`index.html`**: Loads Phaser and Remix SDK, conditionally loads development environment
 - **`.remix/`**: Development environment tooling — not included in production builds
 
@@ -306,7 +306,7 @@ This creates `dist/index.html` - a single file containing your entire game ready
 - **TypeScript**: Type-safe development with proper Phaser types
 - **Vite**: Fast build tool and dev server with hot reload
 - **Remix SDK**: Platform integration with comprehensive testing tools
-- **Mobile optimization**: 9:16 aspect ratio for proper mini-app scaling
+- **Mobile optimization**: 2:3 aspect ratio for proper mini-app scaling
 - **Professional Development Environment**:
   - **Advanced SDK Testing**: 2x2 grid status indicators with detailed hover panel
   - **Real-time Performance Monitoring**: Live FPS charts, memory tracking, and performance metrics

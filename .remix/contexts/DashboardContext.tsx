@@ -51,7 +51,7 @@ const initialState: DashboardState = {
   },
   
   game: {
-    frameSize: { width: 390, height: 844 },
+    frameSize: { width: 390, height: 585 },
     isGameOver: false,
     score: 0
   }

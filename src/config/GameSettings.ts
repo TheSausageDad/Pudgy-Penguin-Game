@@ -8,7 +8,7 @@ export const GameSettings = {
 
   canvas: {
     width: 720,
-    height: 1280,
+    height: 1080,
   },
 }
 
