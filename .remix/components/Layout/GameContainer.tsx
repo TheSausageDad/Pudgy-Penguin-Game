@@ -58,15 +58,18 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
     
     const latestGameState = gameStateEvents[gameStateEvents.length - 1]
     
-    if (latestGameState?.data?.currentPlayer !== undefined) {
+    // For game_state_updated events, the actual game data is nested in data.data
+    const gameData = latestGameState?.data?.data || latestGameState?.data || {}
+    
+    if (gameData.currentPlayer !== undefined) {
       // Use the currentPlayer field from game state
-      return latestGameState.data.currentPlayer === playerId
-    } else if (latestGameState?.data?.turn !== undefined) {
+      return gameData.currentPlayer === playerId
+    } else if (gameData.turn !== undefined) {
       // Use the turn field from game state
-      return latestGameState.data.turn === playerId
-    } else if (latestGameState?.data?.activePlayer !== undefined) {
+      return gameData.turn === playerId
+    } else if (gameData.activePlayer !== undefined) {
       // Use the activePlayer field from game state
-      return latestGameState.data.activePlayer === playerId
+      return gameData.activePlayer === playerId
     }
     
     // Default to player 1 if no turn data available
@@ -181,6 +184,11 @@ export const GameContainer: React.FC<GameContainerProps> = () => {
           switch (sdkEvent.type) {
             case 'ready':
               flagUpdates.ready = true
+              break
+            case 'game_state_updated':
+            case 'update_game_state':
+              // Game state updates are already handled by adding to events
+              // No specific flags to update
               break
             case 'game_over':
             case 'multiplayer_game_over':
