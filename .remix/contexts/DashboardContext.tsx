@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react'
+import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react'
 import { DashboardState, PerformanceData, BuildState, DevSettings, RemixDevFlags, SDKEvent } from '../types'
 
 interface DashboardAction {
@@ -10,6 +10,55 @@ interface DashboardContextType {
   state: DashboardState
   dispatch: React.Dispatch<DashboardAction>
 }
+
+// Get a unique key for this game based on the path
+function getGameKey() {
+  // Use the pathname as the unique identifier for the game
+  // e.g., /remix-chess, /my-game, etc.
+  const path = window.location.pathname || '/'
+  // Clean up the path to make a valid storage key
+  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default'
+  return `remix_dashboard_panels_${cleanPath}`
+}
+
+// Load panel states from localStorage for this specific game
+function loadPanelStates() {
+  try {
+    const gameKey = getGameKey()
+    const saved = localStorage.getItem(gameKey)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      console.log(`Loaded panel states for ${gameKey}:`, parsed)
+      return {
+        showBuildPanel: parsed.showBuildPanel || false,
+        showGameStatePanel: parsed.showGameStatePanel || false
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load panel states:', e)
+  }
+  return {
+    showBuildPanel: false,
+    showGameStatePanel: false
+  }
+}
+
+// Save panel states to localStorage for this specific game
+function savePanelStates(showBuildPanel: boolean, showGameStatePanel: boolean) {
+  try {
+    const gameKey = getGameKey()
+    const panelStates = {
+      showBuildPanel,
+      showGameStatePanel
+    }
+    localStorage.setItem(gameKey, JSON.stringify(panelStates))
+    console.log(`Saved panel states for ${gameKey}:`, panelStates)
+  } catch (e) {
+    console.error('Failed to save panel states:', e)
+  }
+}
+
+const savedPanelStates = loadPanelStates()
 
 const initialState: DashboardState = {
   performance: {
@@ -36,12 +85,12 @@ const initialState: DashboardState = {
   
   ui: {
     isMiniMode: false,
-    showBuildPanel: false,
+    showBuildPanel: savedPanelStates.showBuildPanel,
     showStatusPanel: false,
     showSettingsPanel: false,
     showPerformancePanel: false,
     showQrPanel: false,
-    showGameStatePanel: false
+    showGameStatePanel: savedPanelStates.showGameStatePanel
   },
   
   sdk: {
@@ -191,6 +240,11 @@ const DashboardContext = createContext<DashboardContextType | undefined>(undefin
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(dashboardReducer, initialState)
+  
+  // Save panel states to localStorage whenever they change
+  useEffect(() => {
+    savePanelStates(state.ui.showBuildPanel, state.ui.showGameStatePanel)
+  }, [state.ui.showBuildPanel, state.ui.showGameStatePanel])
   
   return (
     <DashboardContext.Provider value={{ state, dispatch }}>

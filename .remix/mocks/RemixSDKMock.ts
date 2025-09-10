@@ -27,12 +27,37 @@ interface MultiplayerGameOverData {
   scores: Array<{ playerId: string; score: number }>;
 }
 
+// Get a unique key for this game based on the path
+function getGameStateKey() {
+  // Use the pathname as the unique identifier for the game
+  const path = window.location.pathname || '/';
+  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default';
+  return `remix_game_state_${cleanPath}`;
+}
+
+// Load state from localStorage
+function loadPersistedState() {
+  try {
+    const key = getGameStateKey();
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log(`Loaded persisted game state for ${key}:`, parsed);
+      return parsed;
+    }
+  } catch (e) {
+    console.error('Failed to load persisted state:', e);
+  }
+  return null;
+}
+
 // Global state for multiplayer coordination
+// Initialize from persisted state if available
 let multiplayerState: {
   gameState: GameState | null;
   players: Player[];
   currentPlayerId: string | null;
-} = {
+} = loadPersistedState() || {
   gameState: null,
   players: [
     { id: '1', name: 'Player 1', imageUrl: undefined },
@@ -40,6 +65,76 @@ let multiplayerState: {
   ],
   currentPlayerId: null
 };
+
+// Save state to localStorage
+function persistState(state: any) {
+  try {
+    const key = getGameStateKey();
+    localStorage.setItem(key, JSON.stringify(state));
+    console.log(`Persisted game state for ${key}`);
+  } catch (e) {
+    console.error('Failed to persist state:', e);
+  }
+}
+
+// Store state in parent window and localStorage so it survives reloads
+function getSharedState() {
+  // First check if localStorage has been explicitly cleared
+  const persisted = loadPersistedState();
+  
+  // If localStorage is empty, it means it was cleared - respect that
+  if (persisted === null) {
+    // Clear parent window state as well
+    if (window.parent !== window) {
+      try {
+        const parentWindow = window.parent as any;
+        delete parentWindow.__remixGameState;
+      } catch (e) {
+        // Can't access parent
+      }
+    }
+    // Return default state for a new game
+    return {
+      gameState: null,
+      players: [
+        { id: '1', name: 'Player 1', imageUrl: undefined },
+        { id: '2', name: 'Player 2', imageUrl: undefined }
+      ],
+      currentPlayerId: null
+    };
+  }
+  
+  // If we have persisted state, use it and update parent
+  if (window.parent !== window) {
+    try {
+      const parentWindow = window.parent as any;
+      parentWindow.__remixGameState = persisted;
+    } catch (e) {
+      // Can't access parent
+    }
+  }
+  multiplayerState = persisted;
+  return persisted;
+}
+
+// Update shared state in both parent window and localStorage
+function updateSharedState(state: any) {
+  // Update in-memory state
+  multiplayerState = state;
+  
+  // Update parent window if possible
+  if (window.parent !== window) {
+    try {
+      const parentWindow = window.parent as any;
+      parentWindow.__remixGameState = state;
+    } catch (e) {
+      // Can't access parent
+    }
+  }
+  
+  // Always persist to localStorage for reload safety
+  persistState(state);
+}
 
 class RemixSDKMock {
   private eventListeners: Map<string, FarcadeSDKEventListener[]> = new Map();
@@ -53,9 +148,14 @@ class RemixSDKMock {
     this.instanceId = Math.random().toString(36).substring(2, 9);
     
     if (isMultiplayer) {
+      // Get shared state from parent window
+      const sharedState = getSharedState();
+      multiplayerState = sharedState;
+      
       // Set up multiplayer player assignment
       if (!multiplayerState.currentPlayerId) {
         multiplayerState.currentPlayerId = '1';
+        updateSharedState(multiplayerState);
       }
     }
   }
@@ -128,8 +228,20 @@ class RemixSDKMock {
           
           this.emit('game_info', { players, meId });
           
-          // Don't send initial null state - let the game decide when to start
-          // this.emit('game_state_updated', null);
+          // Add a small delay to ensure state is loaded
+          setTimeout(() => {
+            // Get the shared state from parent window
+            const sharedState = getSharedState();
+            multiplayerState = sharedState;
+            
+            if (sharedState.gameState) {
+              console.log('Sending existing game state on ready:', sharedState.gameState);
+              this.emit('game_state_updated', sharedState.gameState);
+            } else {
+              console.log('No existing game state, sending null to start new game');
+              this.emit('game_state_updated', null);
+            }
+          }, 50);
         }, 100);
         
         this.postToParent('ready');
@@ -141,8 +253,9 @@ class RemixSDKMock {
         // Generate a new game state ID
         const gameStateId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
         
-        // Update global state
+        // Update global state and share it
         multiplayerState.gameState = { id: gameStateId, data };
+        updateSharedState(multiplayerState);
         
         // Broadcast to all other instances
         this.broadcastGameStateUpdate({ id: gameStateId, data });
@@ -157,6 +270,10 @@ class RemixSDKMock {
       },
 
       gameOver: ({ scores }: MultiplayerGameOverData) => {
+        // Clear the game state on game over
+        multiplayerState.gameState = null;
+        updateSharedState(multiplayerState);
+        
         this.emit('multiplayer_game_over', { scores });
         this.postToParent('multiplayer_game_over', { scores });
       }
