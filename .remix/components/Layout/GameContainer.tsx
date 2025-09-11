@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { useDashboard } from '../../contexts'
 import { usePerformanceMonitor, useUnderglow } from '../../hooks'
 import { TopNavBar } from './TopNavBar'
+import { CanvasControlBar } from './CanvasControlBar'
 import { GameOverlay } from './GameOverlay'
 import { cn, tw } from '../../utils/tw'
 import '../../styles/app.css'
@@ -418,25 +419,30 @@ ${useTabView ? 'flex justify-center gap-2' : 'flex gap-[10px]'}
         {isMultiplayer ? (
           // Multiplayer layout - conditional based on useTabView
           useTabView ? (
-            // Tabbed view for narrow screens - single container with shared TopNavBar
-            <div 
-              key="multiplayer-tabbed"
-              className={tw`
-                relative overflow-hidden rounded-lg
-                border-2 border-[#99999905]
-                transition-[width,height] duration-normal ease-out
-                game-container
-              `}
-              style={{
-                width: `${frameSize.width}px`,
-                height: `${frameSize.height}px`,
-                zIndex: 1
-              }}
-              role="application"
-              aria-label="Game container"
-            >
-              <TopNavBar />
-              <div key="tab-container" style={{ position: 'absolute', inset: 0, top: '0px' }}>
+            // Tabbed view for narrow screens - single container with control bar for active tab
+            <div className={tw`flex flex-col items-center`}>
+              <CanvasControlBar 
+                playerId={activeTab === 1 ? '1' : '2'} 
+                iframeId={activeTab === 1 ? 'game-iframe-1' : 'game-iframe-2'}
+                isActive={getTurnIndicator(activeTab)}
+              />
+              <div 
+                key="multiplayer-tabbed"
+                className={tw`
+                  relative overflow-hidden rounded-lg
+                  border-2 border-[#99999905]
+                  transition-[width,height] duration-normal ease-out
+                  game-container
+                `}
+                style={{
+                  width: `${frameSize.width}px`,
+                  height: `${frameSize.height}px`,
+                  zIndex: 1
+                }}
+                role="application"
+                aria-label="Game container"
+              >
+                <div key="tab-container" style={{ position: 'absolute', inset: 0 }}>
                 <div key="player-1-tab" style={{ 
                   position: 'absolute', 
                   inset: 0, 
@@ -488,52 +494,34 @@ ${useTabView ? 'flex justify-center gap-2' : 'flex gap-[10px]'}
                   <GameOverlay playerId="2" />
                 </div>
               </div>
+              </div>
             </div>
           ) : (
-            // Side-by-side view for wide screens - separate containers with individual TopNavBars
-            <div key="multiplayer-side-by-side" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-              {/* Player labels above canvases */}
-              <div style={{ display: 'flex', gap: '10px', width: `${frameSize.width}px` }}>
-                <div className={tw`
-                  flex items-center justify-center gap-2 flex-1
-                  text-sm font-medium text-gray-300
-                `}>
-                  <span>Player 1</span>
-                  <div className={tw`
-                    w-2 h-2 rounded-full
-                    ${getTurnIndicator(1) ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}
-                  `} />
-                </div>
-                <div className={tw`
-                  flex items-center justify-center gap-2 flex-1
-                  text-sm font-medium text-gray-300
-                `}>
-                  <span>Player 2</span>
-                  <div className={tw`
-                    w-2 h-2 rounded-full
-                    ${getTurnIndicator(2) ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}
-                  `} />
-                </div>
-              </div>
-              {/* Game containers */}
-              <div style={{ display: 'flex', gap: '10px', width: `${frameSize.width}px`, height: `${frameSize.height}px` }}>
-              <div 
-                key="player-1-container"
-                className={tw`
-                  relative overflow-hidden rounded-lg
-                  border-2 border-[#99999905]
-                  transition-[width,height] duration-normal ease-out
-                  game-container
-                `}
-                style={{
-                  width: 'calc(50% - 5px)',
-                  height: '100%',
-                  zIndex: 1
-                }}
-                role="application"
-                aria-label="Player 1 game container"
-              >
-                <TopNavBar />
+            // Side-by-side view for wide screens - individual control bars for each container
+            <div key="multiplayer-side-by-side" style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              {/* Player 1 container with its own control bar */}
+              <div className={tw`flex flex-col`}>
+                <CanvasControlBar 
+                  playerId="1" 
+                  iframeId="game-iframe-1"
+                  isActive={getTurnIndicator(1)}
+                />
+                  <div 
+                  key="player-1-container"
+                  className={tw`
+                    relative overflow-hidden rounded-lg
+                    border-2 border-[#99999905]
+                    transition-[width,height] duration-normal ease-out
+                    game-container
+                  `}
+                  style={{
+                    width: `${frameSize.width / 2 - 5}px`,
+                    height: `${frameSize.height}px`,
+                    zIndex: 1
+                  }}
+                  role="application"
+                  aria-label="Player 1 game container"
+                >
                 <iframe
                   ref={iframeRef}
                   id="game-iframe-1"
@@ -545,7 +533,6 @@ ${useTabView ? 'flex justify-center gap-2' : 'flex gap-[10px]'}
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    top: '0px',
                     width: '100%',
                     height: '100%',
                     display: 'block',
@@ -553,25 +540,33 @@ ${useTabView ? 'flex justify-center gap-2' : 'flex gap-[10px]'}
                     border: 'none'
                   }}
                 />
-                <GameOverlay playerId="1" />
+                  <GameOverlay playerId="1" />
+                </div>
               </div>
-              <div 
-                key="player-2-container"
-                className={tw`
-                  relative overflow-hidden rounded-lg
-                  border-2 border-[#99999905]
-                  transition-[width,height] duration-normal ease-out
-                  game-container
-                `}
-                style={{
-                  width: 'calc(50% - 5px)',
-                  height: '100%',
-                  zIndex: 1
-                }}
-                role="application"
-                aria-label="Player 2 game container"
-              >
-                <TopNavBar />
+              
+              {/* Player 2 container with its own control bar */}
+              <div className={tw`flex flex-col`}>
+                <CanvasControlBar 
+                  playerId="2" 
+                  iframeId="game-iframe-2"
+                  isActive={getTurnIndicator(2)}
+                />
+                <div 
+                  key="player-2-container"
+                  className={tw`
+                    relative overflow-hidden rounded-lg
+                    border-2 border-[#99999905]
+                    transition-[width,height] duration-normal ease-out
+                    game-container
+                  `}
+                  style={{
+                    width: `${frameSize.width / 2 - 5}px`,
+                    height: `${frameSize.height}px`,
+                    zIndex: 1
+                  }}
+                  role="application"
+                  aria-label="Player 2 game container"
+                >
                 <iframe
                   ref={iframe2Ref}
                   id="game-iframe-2"
@@ -582,7 +577,6 @@ ${useTabView ? 'flex justify-center gap-2' : 'flex gap-[10px]'}
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    top: '0px',
                     width: '100%',
                     height: '100%',
                     display: 'block',
@@ -591,50 +585,51 @@ ${useTabView ? 'flex justify-center gap-2' : 'flex gap-[10px]'}
                   }}
                 />
                 <GameOverlay playerId="2" />
-              </div>
+                </div>
               </div>
             </div>
           )
         ) : (
           // Single player: show 1 iframe with overlay
-          <div 
-            key="singleplayer-container"
-            className={tw`
-              relative overflow-hidden rounded-lg
-              border-2 border-[#99999905]
-              transition-[width,height] duration-normal ease-out
-              game-container
-            `}
-            ref={gameFrameRef}
-            style={{
-              width: `${frameSize.width}px`,
-              height: `${frameSize.height}px`,
-              zIndex: 1
-            }}
-            role="application"
-            aria-label="Game container"
-          >
+          <div className={tw`flex flex-col items-center`}>
             <TopNavBar />
-            <iframe
-              ref={iframeRef}
-              id="game-iframe"
-              src="/"
-              title="Interactive game content"
-              aria-label="Game preview frame"
-              onLoad={handleIframeLoad}
-              sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin allow-top-navigation-by-user-activation"
+            <div 
+              key="singleplayer-container"
+              className={tw`
+                relative overflow-hidden rounded-lg
+                border-2 border-[#99999905]
+                transition-[width,height] duration-normal ease-out
+                game-container
+              `}
+              ref={gameFrameRef}
               style={{
-                position: 'absolute',
-                inset: 0,
-                top: '0px',
-                width: '100%',
-                height: '100%',
-                display: 'block',
-                zIndex: 2,
-                border: 'none'
+                width: `${frameSize.width}px`,
+                height: `${frameSize.height}px`,
+                zIndex: 1
               }}
-            />
-            <GameOverlay />
+              role="application"
+              aria-label="Game container"
+            >
+              <iframe
+                ref={iframeRef}
+                id="game-iframe"
+                src="/"
+                title="Interactive game content"
+                aria-label="Game preview frame"
+                onLoad={handleIframeLoad}
+                sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin allow-top-navigation-by-user-activation"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  display: 'block',
+                  zIndex: 2,
+                  border: 'none'
+                }}
+              />
+              <GameOverlay />
+            </div>
           </div>
         )}
       </div>
