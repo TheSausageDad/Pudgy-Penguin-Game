@@ -4,14 +4,17 @@ import GameSettings from "../config/GameSettings"
 declare global {
   interface Window {
     FarcadeSDK: any
+    debugLogs: string[]
   }
 }
+
 
 interface Ball {
   sprite: Phaser.GameObjects.Arc
   velocityX: number
   velocityY: number
   radius: number
+  isPopped: boolean
 }
 
 export class DemoScene extends Phaser.Scene {
@@ -19,6 +22,16 @@ export class DemoScene extends Phaser.Scene {
   private clickCount: number = 0
   private clickText?: Phaser.GameObjects.Text
   private gameOver: boolean = false
+  private elementsCreated: boolean = false
+  
+  // Color selection state
+  private selectedColor: 'green' | 'blue' | 'red' = 'green'
+  private colorSwatches: Phaser.GameObjects.Container | undefined
+  private colorValues = {
+    green: 0x33ff00,
+    blue: 0x0099ff,
+    red: 0xff3333
+  }
   
   // Multiplayer support
   private isMultiplayer: boolean = false
@@ -31,12 +44,21 @@ export class DemoScene extends Phaser.Scene {
     super({ key: "DemoScene" })
   }
 
-  preload(): void {}
+  preload(): void {
+  }
 
   create(): void {
-    // Initialize SDK and determine mode
+    // Initialize SDK first and wait for it to be ready before creating game elements
     this.initializeSDK()
+  }
 
+  private createGameElements(): void {
+    // Prevent double creation
+    if (this.elementsCreated) {
+      return
+    }
+    this.elementsCreated = true
+    
     // Add instructional text
     const title = this.add.text(GameSettings.canvas.width / 2, GameSettings.canvas.height / 2 - 100, 'Remix SDK Demo', {
       fontSize: '64px',
@@ -44,19 +66,27 @@ export class DemoScene extends Phaser.Scene {
       fontFamily: 'Arial'
     }).setOrigin(0.5).setDepth(100)
 
-    const instruction = this.add.text(GameSettings.canvas.width / 2, GameSettings.canvas.height / 2 - 20, 'Click anywhere 3 times to trigger Game Over!', {
+    const instruction = this.add.text(GameSettings.canvas.width / 2, GameSettings.canvas.height / 2 - 20, 'Pop 3 balls to trigger Game Over!', {
       fontSize: '32px',
       color: '#ffffff',
       fontFamily: 'Arial',
       align: 'center'
     }).setOrigin(0.5).setDepth(100)
 
-    // Add click counter text (centered at top)
-    this.clickText = this.add.text(GameSettings.canvas.width / 2, 50, 'Score: 0/3', {
+    // Add click counter text (left-aligned)
+    this.clickText = this.add.text(50, 50, 'Score: 0/3', {
       fontSize: '36px',
       color: '#ffffff',
       fontFamily: 'Arial'
-    }).setOrigin(0.5).setDepth(100)
+    }).setOrigin(0, 0.5).setDepth(100)
+
+    // Create color swatch selector in top right
+    this.createColorSwatches()
+    
+    // Update UI to reflect loaded state
+    if (this.clickText && this.clickCount > 0) {
+      this.clickText.setText(`Score: ${this.clickCount}/3`)
+    }
 
     // Add removal instructions at bottom
     const removeInstructions = this.add.text(
@@ -75,12 +105,10 @@ export class DemoScene extends Phaser.Scene {
     // Create bouncing balls
     this.createBalls(15)
 
-    // Add global click listener
-    this.input.on('pointerdown', () => {
-      if (!this.gameOver) {
-        this.handleClick()
-      }
-    })
+    // Don't save state immediately - wait for SDK to be ready
+    // The state will be saved after SDK initialization
+
+    // Remove global click listener - clicks will be handled per ball
   }
 
   private createBalls(count: number): void {
@@ -89,8 +117,8 @@ export class DemoScene extends Phaser.Scene {
       const x = Phaser.Math.Between(radius, GameSettings.canvas.width - radius)
       const y = Phaser.Math.Between(radius, GameSettings.canvas.height - radius)
       
-      // Remix green color
-      const color = 0x33ff00
+      // Use selected color
+      const color = this.colorValues[this.selectedColor]
       const ball = this.add.circle(x, y, radius, color)
       ball.setStrokeStyle(2, 0x000000)
       ball.setInteractive()
@@ -100,8 +128,16 @@ export class DemoScene extends Phaser.Scene {
         sprite: ball,
         velocityX: Phaser.Math.Between(-300, 300),
         velocityY: Phaser.Math.Between(-300, 300),
-        radius: radius
+        radius: radius,
+        isPopped: false
       }
+      
+      // Add click handler to this specific ball
+      ball.on('pointerdown', () => {
+        if (!this.gameOver && !ballData.isPopped) {
+          this.popBall(ballData)
+        }
+      })
       
       this.balls.push(ballData)
     }
@@ -113,19 +149,21 @@ export class DemoScene extends Phaser.Scene {
 
 
     this.balls.forEach(ball => {
-      // Update position
-      ball.sprite.x += ball.velocityX * dt
-      ball.sprite.y += ball.velocityY * dt
+      if (!ball.isPopped) {
+        // Update position
+        ball.sprite.x += ball.velocityX * dt
+        ball.sprite.y += ball.velocityY * dt
 
-      // Bounce off edges
-      if (ball.sprite.x - ball.radius <= 0 || ball.sprite.x + ball.radius >= GameSettings.canvas.width) {
-        ball.velocityX *= -1
-        ball.sprite.x = Phaser.Math.Clamp(ball.sprite.x, ball.radius, GameSettings.canvas.width - ball.radius)
-      }
-      
-      if (ball.sprite.y - ball.radius <= 0 || ball.sprite.y + ball.radius >= GameSettings.canvas.height) {
-        ball.velocityY *= -1
-        ball.sprite.y = Phaser.Math.Clamp(ball.sprite.y, ball.radius, GameSettings.canvas.height - ball.radius)
+        // Bounce off edges
+        if (ball.sprite.x - ball.radius <= 0 || ball.sprite.x + ball.radius >= GameSettings.canvas.width) {
+          ball.velocityX *= -1
+          ball.sprite.x = Phaser.Math.Clamp(ball.sprite.x, ball.radius, GameSettings.canvas.width - ball.radius)
+        }
+        
+        if (ball.sprite.y - ball.radius <= 0 || ball.sprite.y + ball.radius >= GameSettings.canvas.height) {
+          ball.velocityY *= -1
+          ball.sprite.y = Phaser.Math.Clamp(ball.sprite.y, ball.radius, GameSettings.canvas.height - ball.radius)
+        }
       }
     })
 
@@ -138,6 +176,9 @@ export class DemoScene extends Phaser.Scene {
       for (let j = i + 1; j < this.balls.length; j++) {
         const ball1 = this.balls[i]
         const ball2 = this.balls[j]
+        
+        // Skip popped balls
+        if (ball1.isPopped || ball2.isPopped) continue
         
         const dx = ball2.sprite.x - ball1.sprite.x
         const dy = ball2.sprite.y - ball1.sprite.y
@@ -182,31 +223,24 @@ export class DemoScene extends Phaser.Scene {
 
   private async initializeSDK(): Promise<void> {
     if (!window.FarcadeSDK) {
+      // No SDK, create elements immediately
+      this.createGameElements()
       return
     }
 
     // Determine multiplayer mode based on build configuration
-    // In development, we can check package.json dynamically
-    // In production, GAME_MULTIPLAYER_MODE will be replaced with true/false by Vite
+    // In production, GAME_MULTIPLAYER_MODE will be replaced with true/false by build script
     try {
       // @ts-ignore - This will be replaced at build time
       this.isMultiplayer = GAME_MULTIPLAYER_MODE
-      console.log('DemoScene multiplayer mode (from build):', this.isMultiplayer)
-    } catch {
-      // Fallback: If not built with our Vite config (e.g., on Remix.gg),
-      // try to detect based on available SDK methods
-      if (window.FarcadeSDK.multiplayer && window.FarcadeSDK.multiplayer.actions) {
-        this.isMultiplayer = true
-        console.log('DemoScene multiplayer mode (detected multiplayer SDK):', this.isMultiplayer)
-      } else {
-        this.isMultiplayer = false
-        console.log('DemoScene multiplayer mode (single-player fallback):', this.isMultiplayer)
-      }
+    } catch (error) {
+      // If GAME_MULTIPLAYER_MODE is not defined, we're in a Remix environment
+      // Since package.json says multiplayer: false, we should use single-player mode
+      this.isMultiplayer = false
     }
 
     // Set up SDK event listeners - just like chess.js does, no defensive checks
     window.FarcadeSDK.on('play_again', () => {
-      console.log(`[Player ${this.meId}] Play again triggered`)
       this.restartGame()
       // Send reset state to other player after restart
       if (this.isMultiplayer) {
@@ -219,20 +253,18 @@ export class DemoScene extends Phaser.Scene {
 
     window.FarcadeSDK.on('toggle_mute', (data: { isMuted: boolean }) => {
       // Handle mute toggle if needed
-      console.log('Toggle mute:', data.isMuted)
+      // Send toggle_mute event back to parent to update SDK flag
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'remix_sdk_event',
+          event: { type: 'toggle_mute', data: { isMuted: data.isMuted } }
+        }, '*')
+      }
     })
 
     if (this.isMultiplayer) {
       // Multiplayer setup - Set up listeners BEFORE calling ready
-      window.FarcadeSDK.on('game_info', ({ players, meId }: any) => {
-        console.log('Received game_info:', { players, meId })
-        this.players = players
-        this.meId = meId
-        console.log(`[Player ${this.meId}] Initialized with players:`, this.players)
-      })
-
       window.FarcadeSDK.on('game_state_updated', (gameState: any) => {
-        console.log(`[Player ${this.meId}] Received game_state_updated:`, gameState)
         
         // Handle it exactly like chess.js does
         if (!gameState) {
@@ -241,19 +273,79 @@ export class DemoScene extends Phaser.Scene {
           this.handleGameStateUpdate(gameState)
         }
       })
+      
+      // Add listener for state loading
+      window.FarcadeSDK.on('load_state', (state: any) => {
+        if (state) {
+          if (state.selectedColor) {
+            this.selectColor(state.selectedColor)
+          }
+          if (typeof state.clickCount === 'number') {
+            this.clickCount = state.clickCount
+            if (this.clickText) {
+              this.clickText.setText(`Score: ${this.clickCount}/3`)
+            }
+          }
+        }
+      })
+      
+      // Also listen for restore_game_state events
+      window.FarcadeSDK.on('restore_game_state', (data: any) => {
+        if (data?.gameState) {
+          const state = data.gameState
+          if (state.selectedColor) {
+            this.selectColor(state.selectedColor)
+          }
+          if (typeof state.clickCount === 'number') {
+            this.clickCount = state.clickCount
+            if (this.clickText) {
+              this.clickText.setText(`Score: ${this.clickCount}/3`)
+            }
+          }
+        }
+      })
 
       // Call multiplayer ready - no defensive checks, just like chess.js
-      console.log('Calling multiplayer.actions.ready()')
-      window.FarcadeSDK.multiplayer.actions.ready()
-      
-      // Send initial state after ready, like chess.js does in setupNewGame
-      setTimeout(() => {
-        this.sendGameState()
-      }, 100)
+      window.FarcadeSDK.multiplayer.actions.ready().then((data: any) => {
+        if (data.players) {
+          this.players = data.players
+        }
+        if (data.meId) {
+          this.meId = data.meId
+        }
+        if (data.initialGameState?.gameState) {
+          const state = data.initialGameState.gameState
+          if (state.selectedColor) {
+            this.selectedColor = state.selectedColor
+          }
+        }
+        // Now create game elements after state is loaded
+        this.createGameElements()
+        // Send initial state after ready, like chess.js does in setupNewGame
+        setTimeout(() => {
+          this.sendGameState()
+        }, 100)
+      }).catch((error: any) => {
+        // Create game elements anyway if there's an error
+        this.createGameElements()
+      })
     } else {
       // Single player - call ready
-      console.log('Calling singlePlayer.actions.ready()')
-      window.FarcadeSDK.singlePlayer.actions.ready()
+      // Single player - call ready and await the game_info response
+      window.FarcadeSDK.singlePlayer.actions.ready().then((data: any) => {
+        if (data?.initialGameState?.gameState) {
+          const state = data.initialGameState.gameState
+          if (state.selectedColor) {
+            // Just update the property, don't call selectColor yet (balls don't exist)
+            this.selectedColor = state.selectedColor
+          }
+        }
+        // Now create game elements after state is loaded
+        this.createGameElements()
+      }).catch((error: any) => {
+        // Create game elements anyway if there's an error
+        this.createGameElements()
+      })
     }
   }
 
@@ -262,23 +354,22 @@ export class DemoScene extends Phaser.Scene {
     
     // Wait until we have player info before sending state
     if (!this.players || this.players.length === 0) {
-      console.log(`[Player ${this.meId}] Cannot send state - no player info yet`)
       return
     }
 
     const otherPlayerId = this.players.find(p => p.id !== this.meId)?.id
 
-    // Include both players' click counts - structure like chess.js
+    // Include both players' click counts and selected color
     const stateData = {
       players: this.players,
       clickCounts: {
         [this.meId]: this.clickCount,
         [otherPlayerId || '2']: this.otherPlayerClicks
       },
+      selectedColor: this.selectedColor,
       gameOver: this.gameOver
     }
     
-    console.log(`[Player ${this.meId}] Sending state:`, stateData)
     
     // Call updateGameState directly, no defensive checks - like chess.js
     window.FarcadeSDK.multiplayer.actions.updateGameState({
@@ -288,7 +379,6 @@ export class DemoScene extends Phaser.Scene {
   }
 
   private setupNewGame(): void {
-    console.log(`[Player ${this.meId}] Setting up new game`)
     this.restartGame()
     // Send initial state
     if (this.isMultiplayer) {
@@ -308,12 +398,10 @@ export class DemoScene extends Phaser.Scene {
     const { id, data } = gameState
     
     if (!data) {
-      console.log(`[Player ${this.meId}] No data in game state`)
       this.setupNewGame()
       return
     }
 
-    console.log(`[Player ${this.meId}] Received state update:`, data)
     
     // Update game state from data
     if (data.players) {
@@ -329,6 +417,11 @@ export class DemoScene extends Phaser.Scene {
       return
     }
 
+    // Update selected color if provided
+    if (data.selectedColor && data.selectedColor !== this.selectedColor) {
+      this.selectColor(data.selectedColor)
+    }
+
     // Update all click counts
     if (data.clickCounts) {
       this.allClickCounts = { ...data.clickCounts }
@@ -338,7 +431,6 @@ export class DemoScene extends Phaser.Scene {
         const otherPlayerId = this.players.find(p => p.id !== this.meId)?.id
         if (otherPlayerId && data.clickCounts[otherPlayerId] !== undefined) {
           this.otherPlayerClicks = data.clickCounts[otherPlayerId]
-          console.log(`[Player ${this.meId}] Other player clicks:`, this.otherPlayerClicks)
         }
       }
       
@@ -356,7 +448,6 @@ export class DemoScene extends Phaser.Scene {
 
     // Check game state changes
     if (data.gameOver === true && !this.gameOver) {
-      console.log(`[Player ${this.meId}] Other player triggered game over`)
       // Store the scores before marking game over
       if (data.clickCounts) {
         // Update our knowledge of all click counts
@@ -383,7 +474,6 @@ export class DemoScene extends Phaser.Scene {
             score: data.clickCounts?.[player.id] || 0
           }))
           
-          console.log(`[Player ${this.meId}] Also triggering game over with scores:`, scores)
           window.FarcadeSDK.multiplayer.actions.gameOver({ scores })
         } else {
           // Fallback for single player mode
@@ -453,11 +543,9 @@ export class DemoScene extends Phaser.Scene {
         })
       }
       
-      console.log(`[Player ${this.meId}] Triggering multiplayer game over with scores:`, scores)
       window.FarcadeSDK.multiplayer.actions.gameOver({ scores })
     } else {
       // Single player
-      console.log(`Single player game over with score: ${this.clickCount}`)
       window.FarcadeSDK.singlePlayer.actions.gameOver({ score: this.clickCount })
     }
   }
@@ -466,13 +554,21 @@ export class DemoScene extends Phaser.Scene {
     this.clickCount = 0
     this.otherPlayerClicks = 0
     this.gameOver = false
+    this.selectedColor = 'green' // Reset to default color
     
     if (this.clickText) {
       this.clickText.setText('Score: 0/3')
     }
     
-    // Reset all balls to new positions
+    // Reset color selection UI
+    this.selectColor('green')
+    
+    // Reset all balls to new positions and unpop them
     this.balls.forEach(ball => {
+      ball.isPopped = false
+      ball.sprite.setVisible(true)
+      ball.sprite.setAlpha(1)
+      ball.sprite.setScale(1)
       ball.sprite.x = Phaser.Math.Between(ball.radius, GameSettings.canvas.width - ball.radius)
       ball.sprite.y = Phaser.Math.Between(ball.radius, GameSettings.canvas.height - ball.radius)
       ball.velocityX = Phaser.Math.Between(-300, 300)
@@ -481,6 +577,150 @@ export class DemoScene extends Phaser.Scene {
     
     // Focus the canvas to enable keyboard input
     this.game.canvas.focus()
+  }
+
+  private createColorSwatches(): void {
+    // Container for color swatches
+    this.colorSwatches = this.add.container(GameSettings.canvas.width - 150, 50)
+    this.colorSwatches.setDepth(101)
+
+    const colors: Array<'green' | 'blue' | 'red'> = ['green', 'blue', 'red']
+    colors.forEach((colorName, index) => {
+      const x = index * 45
+      
+      // Create circle swatch, highlighting the currently selected color
+      const swatch = this.add.circle(x, 0, 18, this.colorValues[colorName])
+      swatch.setStrokeStyle(3, colorName === this.selectedColor ? 0xffffff : 0x666666)
+      swatch.setInteractive()
+      swatch.setData('color', colorName)
+      
+      // Add click handler with stop propagation
+      swatch.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        this.selectColor(colorName)
+        pointer.event.stopPropagation()
+      })
+      
+      // Add hover effect
+      swatch.on('pointerover', () => {
+        swatch.setScale(1.1)
+      })
+      
+      swatch.on('pointerout', () => {
+        swatch.setScale(1.0)
+      })
+      
+      this.colorSwatches?.add(swatch)
+    })
+  }
+
+  private selectColor(color: 'green' | 'blue' | 'red'): void {
+    this.selectedColor = color
+    
+    // Update swatch borders to show selection
+    if (this.colorSwatches) {
+      this.colorSwatches.list.forEach(obj => {
+        const swatch = obj as Phaser.GameObjects.Arc
+        const swatchColor = swatch.getData('color')
+        swatch.setStrokeStyle(3, swatchColor === color ? 0xffffff : 0x666666)
+      })
+    }
+    
+    // Update all existing balls to new color
+    this.balls.forEach(ball => {
+      ball.sprite.setFillStyle(this.colorValues[color])
+    })
+    
+    // Save state after color change
+    this.saveGameState()
+  }
+
+  private saveGameState(): void {
+    // Save state to emulate SDK state saving
+    const gameState = {
+      selectedColor: this.selectedColor,
+      timestamp: Date.now()
+    }
+    
+    
+    // Save through SDK only - no localStorage
+    if (window.FarcadeSDK?.singlePlayer?.actions?.saveGameState) {
+      window.FarcadeSDK.singlePlayer.actions.saveGameState({ gameState })
+    } else if (window.FarcadeSDK?.multiplayer?.actions?.saveGameState && this.isMultiplayer) {
+      // For multiplayer mode
+      window.FarcadeSDK.multiplayer.actions.saveGameState({ 
+        gameState,
+        alertUserIds: this.players?.filter(p => p.id !== this.meId).map(p => p.id) || []
+      })
+    }
+  }
+
+  private loadGameState(): void {
+    // Don't load from localStorage - only from SDK events
+    // The SDK will send us restore_game_state events when needed
+    // Waiting for SDK restore_game_state event
+  }
+
+  private popBall(ball: Ball): void {
+    if (ball.isPopped) return
+    
+    ball.isPopped = true
+    const x = ball.sprite.x
+    const y = ball.sprite.y
+    const color = ball.sprite.fillColor
+    const radius = ball.radius
+    
+    // Create multiple small circles as particle effect
+    for (let i = 0; i < 20; i++) {
+      const particle = this.add.circle(x, y, Phaser.Math.Between(2, 6), color)
+      particle.setDepth(99)
+      
+      // Random velocity with gravity effect
+      const angle = Phaser.Math.Between(0, 360) * Math.PI / 180
+      const speed = Phaser.Math.Between(100, 400)
+      const vx = Math.cos(angle) * speed
+      const vy = Math.sin(angle) * speed - 200 // Initial upward bias
+      
+      // Animate particle with physics-like motion
+      let currentVY = vy
+      const gravity = 800
+      
+      this.tweens.add({
+        targets: particle,
+        x: x + vx * 0.8,
+        y: {
+          value: () => {
+            return particle.y
+          },
+          duration: 800
+        },
+        alpha: { from: 1, to: 0 },
+        scale: { from: 1, to: 0.2 },
+        duration: 800,
+        onUpdate: (tween) => {
+          const delta = 1/60 // Assume 60 FPS
+          currentVY += gravity * delta
+          particle.y += currentVY * delta
+        },
+        onComplete: () => {
+          particle.destroy()
+        }
+      })
+    }
+    
+    // Fade out and destroy ball
+    this.tweens.add({
+      targets: ball.sprite,
+      alpha: 0,
+      scale: 1.5,
+      duration: 200,
+      ease: 'Power2',
+      onComplete: () => {
+        ball.sprite.setVisible(false)
+      }
+    })
+    
+    // Handle click count
+    this.handleClick()
   }
 
   // --- Scene Shutdown Logic ---

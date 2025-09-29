@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { useDashboard } from '../contexts'
 import { DevSettings } from '../types'
-import { detectDeviceCapabilities } from '../utils'
+import { safeLocalStorage } from '../utils/safeLocalStorage'
 
 // Dynamic storage key based on game name from package.json
 const getStorageKey = async (): Promise<string> => {
@@ -22,21 +22,12 @@ const getStorageKey = async (): Promise<string> => {
 
 let STORAGE_KEY = 'unknown-game-dev-settings' // Fallback
 
-interface DeviceCapabilities {
-  isSafari: boolean
-  isMobileDevice: boolean
-  supportsUnderglow: boolean
-}
-
 export function useDevSettings() {
   const { state, dispatch } = useDashboard()
 
 
   const getDefaultSettings = useCallback((): DevSettings => {
-    const capabilities = detectDeviceCapabilities()
-    
     return {
-      canvasGlow: capabilities.supportsUnderglow,
       backgroundPattern: true,
       fullSize: false
     }
@@ -44,9 +35,14 @@ export function useDevSettings() {
 
   const loadSettings = useCallback((): DevSettings => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
+      const storage = safeLocalStorage()
+      if (!storage) return getDefaultSettings()
+      const saved = storage.getItem(STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved)
+        if (typeof parsed === 'object' && parsed !== null && 'canvasGlow' in parsed) {
+          delete parsed.canvasGlow
+        }
         return { ...getDefaultSettings(), ...parsed }
       }
     } catch (error) {
@@ -59,7 +55,10 @@ export function useDevSettings() {
     try {
       const currentSettings = state.settings
       const newSettings = { ...currentSettings, ...settings }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings))
+      const { canvasGlow, ...cleanSettings } = newSettings as typeof newSettings & { canvasGlow?: unknown }
+      const storage = safeLocalStorage()
+      if (!storage) return
+      storage.setItem(STORAGE_KEY, JSON.stringify(cleanSettings))
     } catch (error) {
       console.warn('Failed to save settings to localStorage:', error)
     }
@@ -133,17 +132,6 @@ export function useDevSettings() {
   }, [])
 
   const applySettings = useCallback((settings: DevSettings) => {
-    // Apply canvas glow setting
-    if (window.underglow && detectDeviceCapabilities().supportsUnderglow) {
-      if (settings.canvasGlow) {
-        window.underglow.enabled = true
-        window.underglow.start()
-      } else {
-        window.underglow.enabled = false
-        window.underglow.stop()
-      }
-    }
-
     // Apply background pattern setting with crossfade transition
     applyBackgroundPatternWithCrossfade(settings.backgroundPattern)
 
@@ -153,7 +141,7 @@ export function useDevSettings() {
       type: 'UI_SET_MINI_MODE',
       payload: !settings.fullSize
     })
-  }, [detectDeviceCapabilities, dispatch, applyBackgroundPatternWithCrossfade])
+  }, [dispatch, applyBackgroundPatternWithCrossfade])
 
   // Initialize storage key and load settings on mount
   useEffect(() => {
@@ -179,29 +167,16 @@ export function useDevSettings() {
     applySettings(defaults)
   }, [getDefaultSettings, dispatch, saveSettings, applySettings])
 
-  const capabilities = detectDeviceCapabilities()
-
   return {
     settings: state.settings,
     updateSetting,
     resetToDefaults,
-    capabilities,
-    isSupported: {
-      canvasGlow: capabilities.supportsUnderglow,
-      backgroundPattern: true,
-      fullSize: true
-    }
   }
 }
 
 // Extend window type for global access
 declare global {
   interface Window {
-    underglow?: {
-      enabled: boolean
-      start(): void
-      stop(): void
-    }
     __remixDevOverlay?: {
       setSize(isMini: boolean): void
     }

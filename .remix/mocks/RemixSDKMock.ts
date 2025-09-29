@@ -1,425 +1,947 @@
 /**
- * Development-only mock of the Remix/Farcade SDK
- * This provides the same API as the production SDK for testing purposes
+ * Development-only Farcade SDK mock.
+ *
+ * This file provides two pieces:
+ * 1. A thin client-side shim that mirrors the public surface of
+ *    @farcade/game-sdk@0.2.1 (the real production SDK).
+ * 2. A dev-only "host" that emulates the Remix/Farcade runtime so our
+ *    game can exercise the same handshake flow (game_info, state updates, etc.).
+ *
+ * By splitting the responsibilities this way we keep the convenience of
+ * local persistence and multi-instance testing while ensuring the game
+ * only interacts with the SDK surface that exists in production.
+ * 
+ * PROPER USAGE:
+ * =============
+ * 
+ * 1. INITIALIZATION FLOW:
+ *    - Game calls SDK.singlePlayer.actions.ready() or SDK.multiplayer.actions.ready()
+ *    - This returns a Promise<GameInfo> that resolves when the host responds
+ *    - Game should await this promise to get initial game state and player info
+ *    - Only call ready() ONCE per game instance - the SDK handles duplicate calls
+ * 
+ * 2. STATE PERSISTENCE:
+ *    - Game should ONLY use SDK methods for state (never localStorage directly)
+ *    - Use SDK.singlePlayer.actions.saveGameState() or multiplayer equivalent
+ *    - The SDK mock persists to localStorage (emulating server storage)
+ *    - GameStatePanel provides a dev interface to inspect/modify this state
+ * 
+ * 3. COMMON PITFALLS TO AVOID:
+ *    - Don't call ready() multiple times - it creates orphaned promises
+ *    - Don't call ready() without awaiting the promise - you'll miss game info
+ *    - Don't use localStorage directly in game code - always use SDK methods
+ *    - Don't assume player IDs - use the meId from game_info response
+ * 
+ * 4. SINGLE VS MULTIPLAYER:
+ *    - Single player: Only 1 player, simpler state management
+ *    - Multiplayer: Multiple players, state includes all player data
+ *    - Package.json "multiplayer" flag determines the mode
  */
 
-interface FarcadeSDKEvent {
-  type: string;
-  data?: any;
-}
+import { safeLocalStorage } from '../utils/safeLocalStorage'
+import { isDevEnvironment } from '../utils/environment'
 
-interface FarcadeSDKEventListener {
-  (event: FarcadeSDKEvent): void;
+interface GameStateEnvelope {
+  id: string
+  gameState: Record<string, unknown>
+  alertUserIds?: string[]
 }
 
 interface Player {
-  id: string;
-  name: string;
-  imageUrl?: string;
+  id: string
+  name: string
+  imageUrl?: string
 }
 
-interface GameState {
-  id: string;
-  data: unknown;
+interface GameInfo {
+  players: Player[]
+  player: Player
+  viewContext: 'full_screen'
+  initialGameState: GameStateEnvelope | null
 }
 
-interface MultiplayerGameOverData {
-  scores: Array<{ playerId: string; score: number }>;
+interface StoredState {
+  gameState: GameStateEnvelope | null
+  players: Player[]
+  currentPlayerId: string | null
 }
 
-// Get a unique key for this game based on the path
-function getGameStateKey() {
-  // Use the pathname as the unique identifier for the game
-  const path = window.location.pathname || '/';
-  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default';
-  return `remix_game_state_${cleanPath}`;
+interface InstanceHints {
+  clientId: string
+  playerId?: string
+  playerName?: string
 }
 
-// Load state from localStorage
-function loadPersistedState() {
-  try {
-    const key = getGameStateKey();
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      console.log(`Loaded persisted game state for ${key}:`, parsed);
-      return parsed;
-    }
-  } catch (e) {
-    console.error('Failed to load persisted state:', e);
-  }
-  return null;
+interface BroadcastEnvelope {
+  senderId: string
+  type: string
+  data: any
+  timestamp: number
 }
 
-// Global state for multiplayer coordination
-// Initialize from persisted state if available
-let multiplayerState: {
-  gameState: GameState | null;
-  players: Player[];
-  currentPlayerId: string | null;
-} = loadPersistedState() || {
-  gameState: null,
-  players: [
-    { id: '1', name: 'Player 1', imageUrl: undefined },
-    { id: '2', name: 'Player 2', imageUrl: undefined }
-  ],
-  currentPlayerId: null
-};
+const BROADCAST_STORAGE_KEY = '__remix_dev_host_broadcast__'
+const PLAYER_ASSIGNMENTS_KEY = '__remix_dev_player_assignments__'
 
-// Save state to localStorage
-function persistState(state: any) {
-  try {
-    const key = getGameStateKey();
-    localStorage.setItem(key, JSON.stringify(state));
-    console.log(`Persisted game state for ${key}`);
-  } catch (e) {
-    console.error('Failed to persist state:', e);
+const DEFAULT_PLAYERS: Player[] = [
+  { id: '1', name: 'Player 1' },
+  { id: '2', name: 'Player 2' }
+]
+
+function createDefaultState(): StoredState {
+  return {
+    gameState: null,
+    players: [...DEFAULT_PLAYERS],
+    currentPlayerId: null
   }
 }
 
-// Store state in parent window and localStorage so it survives reloads
-function getSharedState() {
-  // First check if localStorage has been explicitly cleared
-  const persisted = loadPersistedState();
-  
-  // If localStorage is empty, it means it was cleared - respect that
-  if (persisted === null) {
-    // Clear parent window state as well
-    if (window.parent !== window) {
-      try {
-        const parentWindow = window.parent as any;
-        delete parentWindow.__remixGameState;
-      } catch (e) {
-        // Can't access parent
-      }
+function getGameStateKey(): string {
+  const path = typeof window !== 'undefined' ? window.location.pathname || '/' : '/'
+  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default'
+  return `remix_game_state_${cleanPath}`
+}
+
+function generateEnvelopeId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function readPersistedState(): StoredState {
+  const storage = safeLocalStorage()
+  if (!storage) {
+    return createDefaultState()
+  }
+
+  try {
+    const raw = storage.getItem(getGameStateKey())
+    if (!raw) {
+      throw new Error('no state')
     }
-    // Return default state for a new game
+    const parsed = JSON.parse(raw)
     return {
-      gameState: null,
-      players: [
-        { id: '1', name: 'Player 1', imageUrl: undefined },
-        { id: '2', name: 'Player 2', imageUrl: undefined }
-      ],
-      currentPlayerId: null
-    };
-  }
-  
-  // If we have persisted state, use it and update parent
-  if (window.parent !== window) {
-    try {
-      const parentWindow = window.parent as any;
-      parentWindow.__remixGameState = persisted;
-    } catch (e) {
-      // Can't access parent
+      gameState: parsed.gameState ?? null,
+      players: Array.isArray(parsed.players) && parsed.players.length >= 2
+        ? parsed.players
+        : [...DEFAULT_PLAYERS],
+      currentPlayerId: typeof parsed.currentPlayerId === 'string' ? parsed.currentPlayerId : null
     }
+  } catch {
+    return createDefaultState()
   }
-  multiplayerState = persisted;
-  return persisted;
 }
 
-// Update shared state in both parent window and localStorage
-function updateSharedState(state: any) {
-  // Update in-memory state
-  multiplayerState = state;
-  
-  // Update parent window if possible
-  if (window.parent !== window) {
-    try {
-      const parentWindow = window.parent as any;
-      parentWindow.__remixGameState = state;
-    } catch (e) {
-      // Can't access parent
-    }
-  }
-  
-  // Always persist to localStorage for reload safety
-  persistState(state);
+function persistState(state: StoredState): void {
+  const storage = safeLocalStorage()
+  if (!storage) return
+  storage.setItem(getGameStateKey(), JSON.stringify(state))
 }
 
-class RemixSDKMock {
-  private eventListeners: Map<string, FarcadeSDKEventListener[]> = new Map();
-  private isReady = false;
-  private isMuted = false;
-  private isMultiplayer: boolean;
-  private instanceId: string;
+function getClientInstanceId(ctx: Window = window): string {
+  const anyCtx = ctx as any
+  if (typeof anyCtx.__remixDevClientId === 'string') {
+    return anyCtx.__remixDevClientId
+  }
 
-  constructor(isMultiplayer = false) {
-    this.isMultiplayer = isMultiplayer;
-    this.instanceId = Math.random().toString(36).substring(2, 9);
+  const id = `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  Object.defineProperty(anyCtx, '__remixDevClientId', {
+    value: id,
+    configurable: false,
+    enumerable: false,
+    writable: false
+  })
+  return id
+}
+
+function readInstanceHints(ctx: Window = window): InstanceHints {
+  const hints: InstanceHints = {
+    clientId: getClientInstanceId(ctx)
+  }
+
+  const globalHints = (ctx as any).__remixDevInstance || {}
+  if (typeof globalHints.playerId === 'string') {
+    hints.playerId = globalHints.playerId.trim()
+  }
+  if (typeof globalHints.playerName === 'string') {
+    hints.playerName = globalHints.playerName.trim()
+  }
+
+  if (typeof (ctx as any).__remixDevPlayerId === 'string') {
+    hints.playerId = (ctx as any).__remixDevPlayerId.trim()
+  }
+  if (typeof (ctx as any).__remixDevPlayerName === 'string') {
+    hints.playerName = (ctx as any).__remixDevPlayerName.trim()
+  }
+
+  let frameElement: HTMLElement | null = null
+  try {
+    frameElement = ctx.frameElement as HTMLElement | null
+  } catch {
+    frameElement = null
+  }
+  if (frameElement && frameElement.dataset) {
+    const { remixPlayerId, remixPlayer, playerId, player, remixPlayerName, playerName } = frameElement.dataset
+    const idCandidate = remixPlayerId || remixPlayer || playerId || player
+    if (idCandidate && !hints.playerId) {
+      hints.playerId = idCandidate.trim()
+    }
+    const nameCandidate = remixPlayerName || playerName
+    if (nameCandidate && !hints.playerName) {
+      hints.playerName = nameCandidate.trim()
+    }
+  }
+
+  if (ctx.name && !hints.playerId) {
+    const match = ctx.name.match(/player(?:Id)?=(\w+)/i)
+    if (match && match[1]) {
+      hints.playerId = match[1]
+    }
+  }
+
+  try {
+    const params = new URLSearchParams(ctx.location?.search || '')
+    const paramPlayer = params.get('player') || params.get('instance')
+    if (paramPlayer) {
+      hints.playerId = paramPlayer.trim()
+    }
+    const paramName = params.get('playerName')
+    if (paramName) {
+      hints.playerName = paramName.trim()
+    }
+  } catch {
+    // ignore
+  }
+
+  return hints
+}
+
+function readPlayerAssignments(): Record<string, string> {
+  const storage = safeLocalStorage()
+  if (!storage) return {}
+  try {
+    const raw = storage.getItem(PLAYER_ASSIGNMENTS_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writePlayerAssignments(assignments: Record<string, string>): void {
+  const storage = safeLocalStorage()
+  if (!storage) return
+  storage.setItem(PLAYER_ASSIGNMENTS_KEY, JSON.stringify(assignments))
+}
+
+function clearPlayerAssignments(): void {
+  const storage = safeLocalStorage()
+  if (!storage) return
+  storage.removeItem(PLAYER_ASSIGNMENTS_KEY)
+}
+
+/**
+ * Minimal client-side SDK mock – mirrors the production SDK's behaviour.
+ * 
+ * ARCHITECTURE:
+ * - This class provides the EXACT same API as the production @farcade/game-sdk
+ * - Games interact with this mock identically to how they'd use the real SDK
+ * - All platform-specific logic is hidden inside the mock implementation
+ * 
+ * KEY PRINCIPLES:
+ * - Games should NEVER check if they're in dev/prod - just use the SDK
+ * - The mock handles promise-based ready() flow just like production
+ * - State persistence happens automatically through SDK methods
+ * - The mock prevents common errors (duplicate ready calls, orphaned promises)
+ */
+class FarcadeSDKMock {
+  private isClient: boolean
+  private target: Window | null
+  private eventListeners: Map<string, Set<(data: unknown) => void>> = new Map()
+  private readyPromiseResolve: ((info: GameInfo) => void) | null = null
+  private hasHostReady = false
+  private readyPromise: Promise<GameInfo> | null = null
+  private readySent = false
+
+  constructor() {
+    this.isClient = typeof window !== 'undefined'
+    // When running in an iframe, target the parent window for SDK communication
+    // When running standalone, target self (window)
+    this.target = this.isClient ? (window !== window.parent ? window.parent : window) : null
+
+    if (this.isClient) {
+      window.addEventListener('message', this.handleMessage)
+      window.addEventListener('error', this.handleGlobalError)
+      window.addEventListener('unhandledrejection', this.handleUnhandledRejection)
+    }
+  }
+
+  on(eventType: string, callback: (data: unknown) => void): void {
+    if (!this.eventListeners.has(eventType)) {
+      this.eventListeners.set(eventType, new Set())
+    }
+    this.eventListeners.get(eventType)!.add(callback)
+
+    if (eventType === 'ready' && this.hasHostReady) {
+      queueMicrotask(() => {
+        try {
+          callback(undefined)
+        } catch (error) {
+          console.warn('[SDK Mock] ready listener error', error)
+        }
+      })
+    }
+  }
+
+  off(eventType: string, callback: (data: unknown) => void): void {
+    this.eventListeners.get(eventType)?.delete(callback)
+  }
+
+  setTarget(target: Window): void {
+    this.target = target
+  }
+
+  /**
+   * Core ready() method that initiates the SDK handshake.
+   * 
+   * IMPORTANT: This method should only be called ONCE per game instance.
+   * The SDK handles duplicate calls by returning the same promise.
+   * 
+   * Flow:
+   * 1. Game calls ready() and receives a Promise<GameInfo>
+   * 2. SDK sends 'ready' message to host
+   * 3. Host responds with 'game_info' event containing player data and initial state
+   * 4. SDK resolves the promise with the GameInfo
+   * 5. Game uses this data to initialize (players, initial state, etc.)
+   * 
+   * The real Farcade SDK resolves the ready() promise with the GameInfo payload.
+   * Consumers should await the promise rather than relying on a separate
+   * 'game_info' event, which mirrors the current platform recommendation.
+   */
+  private ready = (): Promise<GameInfo> => {
+    // Return existing promise if already created (prevents orphaned promises)
+    if (this.readyPromise) {
+      // Silently return existing promise
+      return this.readyPromise
+    }
     
-    if (isMultiplayer) {
-      // Get shared state from parent window
-      const sharedState = getSharedState();
-      multiplayerState = sharedState;
-      
-      // Set up multiplayer player assignment
-      if (!multiplayerState.currentPlayerId) {
-        multiplayerState.currentPlayerId = '1';
-        updateSharedState(multiplayerState);
-      }
+    // Create the promise that will be returned for all ready() calls
+    this.readyPromise = new Promise<GameInfo>((resolve) => {
+      this.readyPromiseResolve = resolve
+    })
+    
+    // Only send the ready message once (prevents duplicate handshakes)
+    if (!this.readySent) {
+      this.readySent = true
+      this.sendMessage('ready', undefined)
     }
+    
+    return this.readyPromise
   }
 
-  // Single player API
   singlePlayer = {
     actions: {
-      ready: () => {
-        this.isReady = true;
-        this.emit('ready', {});
-        
-        if (this.isMultiplayer) {
-          // In multiplayer, send game_info after ready
-          setTimeout(() => {
-            // Get player ID from URL params or assign based on instance
-            const urlParams = new URLSearchParams(window.location.search);
-            const meId = urlParams.get('player') || urlParams.get('instance') || '1';
-            
-            // Default players if not set
-            const players = [
-              { id: '1', name: 'Player 1', imageUrl: undefined },
-              { id: '2', name: 'Player 2', imageUrl: undefined }
-            ];
-            
-            this.emit('game_info', { players, meId });
-          }, 100);
-        }
-        
-        // Notify parent window for dev UI
-        this.postToParent('ready');
+      ready: () => this.ready(),  // Make sure it returns the promise
+      gameOver: ({ score }: { score: number }) => {
+        this.sendMessage('game_over', { score })
       },
-      
-      gameOver: (data: { score?: number; finalScore?: number; highScore?: number } = {}) => {
-        this.emit('game_over', data);
-        
-        // Notify parent window for dev UI
-        this.postToParent('game_over', data);
-      },
-
       hapticFeedback: () => {
-        // Mock haptic feedback
-        this.postToParent('haptic_feedback');
+        this.sendMessage('haptic_feedback', undefined)
       },
-
-      reportError: (errorData: any) => {
-        this.postToParent('error', errorData);
+      reportError: (errorData: unknown) => {
+        this.sendMessage('error', errorData)
+      },
+      saveGameState: ({ gameState }: { gameState: Record<string, unknown> }) => {
+        this.sendMessage('save_game_state', { gameState })
       }
     }
-  };
+  }
 
-  // Multiplayer API
   multiplayer = {
     actions: {
-      ...this.singlePlayer.actions,
-      
-      ready: () => {
-        this.isReady = true;
-        this.emit('ready', {});
-        
-        // Always send game_info for multiplayer.ready() calls
-        setTimeout(() => {
-          const urlParams = new URLSearchParams(window.location.search);
-          const meId = urlParams.get('player') || urlParams.get('instance') || '1';
-          
-          // Default players if not set
-          const players = [
-            { id: '1', name: 'Player 1', imageUrl: undefined },
-            { id: '2', name: 'Player 2', imageUrl: undefined }
-          ];
-          
-          this.emit('game_info', { players, meId });
-          
-          // Add a small delay to ensure state is loaded
-          setTimeout(() => {
-            // Get the shared state from parent window
-            const sharedState = getSharedState();
-            multiplayerState = sharedState;
-            
-            if (sharedState.gameState) {
-              console.log('Sending existing game state on ready:', sharedState.gameState);
-              this.emit('game_state_updated', sharedState.gameState);
-            } else {
-              console.log('No existing game state, sending null to start new game');
-              this.emit('game_state_updated', null);
-            }
-          }, 50);
-        }, 100);
-        
-        this.postToParent('ready');
+      ready: () => this.ready(),  // Make sure it returns the promise for multiplayer too
+      gameOver: ({ scores }: { scores: Array<{ playerId: string; score: number }> }) => {
+        this.sendMessage('multiplayer_game_over', { scores })
       },
-      
-      updateGameState: ({ data, alertUserIds }: { data: unknown; alertUserIds?: string[] }) => {
-        // Don't check isMultiplayer here - if game calls multiplayer.actions, honor it
-        
-        // Generate a new game state ID
-        const gameStateId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
-        
-        // Update global state and share it
-        multiplayerState.gameState = { id: gameStateId, data };
-        updateSharedState(multiplayerState);
-        
-        // Broadcast to all other instances
-        this.broadcastGameStateUpdate({ id: gameStateId, data });
-        
-        // Notify parent window for dev UI
-        this.postToParent('game_state_updated', { id: gameStateId, data });
+      refuteGameState: ({ gameStateId }: { gameStateId: string }) => {
+        this.sendMessage('refute_game_state', { gameStateId })
       },
-
-      refuteGameState: (gameStateId: string) => {
-        
-        this.postToParent('game_state_refuted', { gameStateId });
+      saveGameState: ({ gameState, alertUserIds }: { gameState: Record<string, unknown>; alertUserIds?: string[] }) => {
+        this.sendMessage('multiplayer_save_game_state', { gameState, alertUserIds })
       },
-
-      gameOver: ({ scores }: MultiplayerGameOverData) => {
-        // Clear the game state on game over
-        multiplayerState.gameState = null;
-        updateSharedState(multiplayerState);
-        
-        this.emit('multiplayer_game_over', { scores });
-        this.postToParent('multiplayer_game_over', { scores });
-      }
-    }
-  };
-
-  // Event system
-  on(eventType: string, listener: FarcadeSDKEventListener): void {
-    if (!this.eventListeners.has(eventType)) {
-      this.eventListeners.set(eventType, []);
-    }
-    this.eventListeners.get(eventType)!.push(listener);
-  }
-
-  off(eventType: string, listener: FarcadeSDKEventListener): void {
-    const listeners = this.eventListeners.get(eventType);
-    if (listeners) {
-      const index = listeners.indexOf(listener);
-      if (index !== -1) {
-        listeners.splice(index, 1);
+      hapticFeedback: () => {
+        this.sendMessage('haptic_feedback', undefined)
+      },
+      reportError: (errorData: unknown) => {
+        this.sendMessage('error', errorData)
       }
     }
   }
 
-  emit(eventType: string, data?: any): void {
-    const listeners = this.eventListeners.get(eventType);
-    if (listeners) {
-      listeners.forEach(listener => {
-        try {
-          // Pass data directly to listener, not wrapped in event
-          listener(data);
-        } catch (error) {
-          // Silently catch listener errors in development
-        }
-      });
+  private emit(eventType: string, data: unknown): void {
+    if (eventType === 'ready') {
+      this.hasHostReady = true
     }
-  }
+    if (eventType === 'game_info' && this.readyPromiseResolve) {
+      this.readyPromiseResolve(data as GameInfo)
+      this.readyPromiseResolve = null
+    }
 
-  // Utility methods for dev environment
-  private postToParent(eventType: string, data?: any): void {
-    if (window.parent !== window) {
+    const listeners = this.eventListeners.get(eventType)
+    if (!listeners) return
+
+    listeners.forEach((listener) => {
       try {
-        const message = {
-          type: 'remix_sdk_event',
-          event: { type: eventType, data },
-          instanceId: this.instanceId
-        };
-        window.parent.postMessage(message, '*');
-      } catch (error) {
-        // Silently handle postMessage errors
+        listener(data)
+      } catch {
+        // ignore listener errors in dev
       }
+    })
+  }
+
+  private handleMessage = (event: MessageEvent) => {
+    const payload = event.data
+    if (!payload || typeof payload !== 'object') return
+    if (payload.__fromRemixDevHost === true && payload.type === 'game_event') {
+      // Received message from DevHost
+      this.emit(payload.event.type, payload.event.data)
+      return
+    }
+
+    if (payload.type !== 'game_event') return
+    this.emit(payload.event.type, payload.event.data)
+  }
+
+  private sendMessage(type: string, data: unknown): void {
+    if (!this.isClient || !this.target) return
+    const gameEvent = {
+      type: 'game_event',
+      event: { type, data }
+    }
+    // Send message to host
+    this.target.postMessage(gameEvent, '*')
+  }
+
+  getStatus() {
+    return {
+      ready: this.hasHostReady,
+      muted: this.isMuted
     }
   }
 
-  private broadcastGameStateUpdate(gameState: GameState): void {
-    // Don't check isMultiplayer - if called, broadcast it
-    
-    // Use the postMessage API to communicate between iframe instances
-    // In a real implementation, this would go through the Farcade servers
-    const message = {
-      type: 'multiplayer_game_state_broadcast',
-      gameState,
-      fromInstanceId: this.instanceId
-    };
-    
-    // Broadcast to parent window which will distribute to other instances
-    if (window.parent !== window) {
-      try {
-        window.parent.postMessage(message, '*');
-      } catch (error) {
-        // Silently handle broadcast errors
-      }
-    }
+  private handleGlobalError = (event: ErrorEvent) => {
+    this.sendMessage('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      error: event.error
+    })
   }
 
-  // Dev-only methods for triggering events from parent window
+  private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason))
+    this.sendMessage('error', {
+      message: error.message,
+      error
+    })
+  }
+}
+
+/**
+ * Dev host controller – simulates the Remix runtime while keeping state
+ * in localStorage so multiple windows / reloads stay in sync.
+ */
+class RemixDevHostController {
+  private readonly hostId = Math.random().toString(36).slice(2, 10)
+  private state: StoredState
+  private readonly isMultiplayer: boolean
+  private readonly clientWindows: Map<string, Window> = new Map()
+  private readonly windowToClientId: Map<Window, string> = new Map()
+  private readonly handledReadyClients: Set<string> = new Set()
+
+  constructor(isMultiplayer: boolean) {
+    this.isMultiplayer = isMultiplayer
+    this.state = readPersistedState()
+
+    window.addEventListener('message', this.handleIncomingMessage)
+    window.addEventListener('storage', this.handleStorageBroadcast)
+
+    // Let dev tooling know the host is active
+    this.publishDevEvent('host_initialized', { hostId: this.hostId })
+  }
+
   triggerPlayAgain(): void {
-    this.emit('play_again', {});
-    this.postToParent('play_again', {});
+    this.sendGameEvent('play_again', {})
+    this.publishDevEvent('play_again', {})
   }
 
   triggerMute(isMuted: boolean): void {
-    this.isMuted = isMuted;
-    this.emit('toggle_mute', { isMuted });
-    this.postToParent('toggle_mute', { isMuted });
+    this.sendGameEvent('toggle_mute', { isMuted })
+    this.publishDevEvent('toggle_mute', { isMuted })
   }
 
-  // Status getters for dev UI
-  getStatus() {
-    return {
-      ready: this.isReady,
-      muted: this.isMuted
-    };
+  registerClientWindow(targetWindow: Window, explicitClientId?: string): string {
+    if (!targetWindow) {
+      throw new Error('registerClientWindow called without targetWindow')
+    }
+
+    const existingId = this.windowToClientId.get(targetWindow)
+    if (existingId) {
+      this.clientWindows.set(existingId, targetWindow)
+      return existingId
+    }
+
+    const clientId = explicitClientId && explicitClientId.trim().length > 0
+      ? explicitClientId.trim()
+      : `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+    const isFirstClient = this.clientWindows.size === 0
+
+    this.clientWindows.set(clientId, targetWindow)
+    this.windowToClientId.set(targetWindow, clientId)
+
+    // Don't send ready event here - it's not part of the flow
+    // The game sends 'ready', we respond with 'game_info'
+    // We don't send 'ready' back to the game
+    this.publishDevEvent('client_registered', { clientId })
+
+    // Demo mute toggle after first client registers (useful for verifying SDK integration)
+    if (isFirstClient) {
+      setTimeout(() => {
+        this.sendGameEvent('toggle_mute', { isMuted: true })
+        this.publishDevEvent('toggle_mute', { isMuted: true })
+
+        setTimeout(() => {
+          this.sendGameEvent('toggle_mute', { isMuted: false })
+          this.publishDevEvent('toggle_mute', { isMuted: false })
+        }, 500)
+      }, 1500)
+    }
+
+    return clientId
+  }
+
+  private handleIncomingMessage = (event: MessageEvent) => {
+    const payload = event.data
+    if (!payload || typeof payload !== 'object') return
+    if (payload.__fromRemixDevHost === true) return
+    if (payload.type !== 'game_event') return
+
+    const { type, data } = payload.event
+    const sourceWindow = event.source as Window | null
+
+    // Handle incoming game event
+
+    switch (type) {
+      case 'ready':
+        this.handleReady(sourceWindow)
+        break
+      case 'save_game_state':
+        // Single player save - convert to same format as multiplayer
+        this.handleSaveGameState(data)
+        // Also broadcast as single player event for the dashboard
+        this.publishDevEvent('single_player_save_game_state', data)
+        window.postMessage({
+          type: 'single_player_game_state_broadcast',
+          gameState: data?.gameState ? {
+            id: generateEnvelopeId(),
+            gameState: data.gameState
+          } : null
+        }, '*')
+        break
+      case 'multiplayer_save_game_state':
+        this.handleSaveGameState(data)
+        break
+      case 'refute_game_state':
+        this.publishDevEvent('game_state_refuted', data)
+        break
+      case 'multiplayer_game_over':
+        this.handleMultiplayerGameOver(data)
+        break
+      case 'game_over':
+      case 'haptic_feedback':
+      case 'error':
+        // No special handling needed in dev – forward to tooling for visibility
+        this.publishDevEvent(type, data)
+        break
+      default:
+        this.publishDevEvent('unhandled_game_event', { type, data })
+    }
+  }
+
+  private handleStorageBroadcast = (event: StorageEvent) => {
+    if (event.key !== BROADCAST_STORAGE_KEY || !event.newValue) return
+
+    try {
+      const envelope: BroadcastEnvelope = JSON.parse(event.newValue)
+      if (envelope.senderId === this.hostId) return
+      this.sendGameEvent(envelope.type, envelope.data)
+    } catch (error) {
+      console.warn('[Remix Dev Host] Failed to process storage broadcast', error)
+    }
+  }
+
+  /**
+   * Handles the 'ready' message from the game client.
+   * This is the host's side of the handshake - it responds with game_info.
+   * 
+   * Flow:
+   * 1. Receives 'ready' from game
+   * 2. Assigns or retrieves player ID for this client
+   * 3. Loads any persisted game state
+   * 4. Sends 'game_info' response with player data and initial state
+   * 
+   * IMPORTANT: Guard against duplicate ready calls from the same client
+   * to prevent player duplication and state corruption.
+   */
+  private handleReady(sourceWindow: Window | null): void {
+    // Processing ready handshake
+    
+    const contextWindow = sourceWindow || window
+    const hints = readInstanceHints(contextWindow)
+    
+    // Guard against duplicate ready calls from same client (prevents player duplication)
+    if (this.handledReadyClients.has(hints.clientId)) {
+      // Already handled ready for this client
+      return
+    }
+    
+    // Mark this client as handled
+    this.handledReadyClients.add(hints.clientId)
+    
+    // Re-read persisted state in case it was updated externally (e.g., by loading a saved state)
+    this.state = readPersistedState()
+    
+    const assignments = readPlayerAssignments()
+
+    let resolvedPlayerId: string
+    if (hints.playerId) {
+      resolvedPlayerId = hints.playerId
+    } else if (assignments[hints.clientId]) {
+      resolvedPlayerId = assignments[hints.clientId]
+    } else {
+      // For single player mode, always use player 1
+      // For multiplayer, assign available player
+      if (!this.isMultiplayer) {
+        resolvedPlayerId = '1'
+      } else {
+        const assignedIds = new Set(Object.values(assignments))
+        const available = this.state.players.find((p) => !assignedIds.has(p.id))
+        if (available) {
+          resolvedPlayerId = available.id
+        } else {
+          // Don't create unlimited players - cap at 2 for typical multiplayer
+          if (this.state.players.length >= 2) {
+            // Reuse the first unassigned player or player 1
+            resolvedPlayerId = '1'
+          } else {
+            const nextIndex = this.state.players.length + 1
+            resolvedPlayerId = String(nextIndex)
+            this.state.players = [
+              ...this.state.players,
+              {
+                id: resolvedPlayerId,
+                name: `Player ${nextIndex}`
+              }
+            ]
+          }
+        }
+      }
+    }
+
+    assignments[hints.clientId] = resolvedPlayerId
+    writePlayerAssignments(assignments)
+
+    // Only add player if they don't exist
+    const existingIndex = this.state.players.findIndex((p) => p.id === resolvedPlayerId)
+    if (existingIndex === -1) {
+      // Only add if we haven't exceeded reasonable player count
+      if (this.state.players.length < 2 || this.isMultiplayer) {
+        this.state.players = [
+          ...this.state.players,
+          {
+            id: resolvedPlayerId,
+            name: hints.playerName || `Player ${resolvedPlayerId}`
+          }
+        ]
+      }
+    } else if (hints.playerName && this.state.players[existingIndex].name !== hints.playerName) {
+      const updatedPlayers = [...this.state.players]
+      updatedPlayers[existingIndex] = {
+        ...updatedPlayers[existingIndex],
+        name: hints.playerName
+      }
+      this.state.players = updatedPlayers
+    }
+
+    // For single player, ensure we only have one player
+    if (!this.isMultiplayer && this.state.players.length > 1) {
+      this.state.players = [this.state.players[0]]
+    }
+
+    persistState(this.state)
+
+    if (sourceWindow) {
+      const registeredId = this.registerClientWindow(sourceWindow, hints.clientId)
+      hints.clientId = registeredId
+    } else if (!this.clientWindows.has(hints.clientId)) {
+      this.clientWindows.set(hints.clientId, window)
+    }
+
+    const player = this.state.players.find((p) => p.id === resolvedPlayerId) || this.state.players[0]
+    
+    // Match the real SDK's GameInfo structure
+    // Real SDK uses 'meId' not 'player' according to the type definitions
+    const gameInfo: any = {
+      players: [...this.state.players],
+      meId: resolvedPlayerId, // This is what the real SDK expects
+      player, // Keep for backward compatibility if needed
+      viewContext: 'full_screen',
+      initialGameState: this.state.gameState
+    }
+
+    this.publishDevEvent('game_info_assigned', {
+      clientId: hints.clientId,
+      playerId: resolvedPlayerId,
+      playerName: player.name
+    })
+
+    // Send game_info response
+    setTimeout(() => {
+      this.sendGameEvent('game_info', gameInfo, hints.clientId)
+      this.publishDevEvent('game_info', gameInfo)
+    }, 50)
+  }
+
+  /**
+   * Handles game state save requests from the game.
+   * 
+   * This emulates the server-side persistence that the real SDK would do.
+   * In development, we persist to localStorage which allows:
+   * - State to survive page refreshes
+   * - GameStatePanel to inspect and modify state
+   * - Multiple game instances to share state (for multiplayer testing)
+   * 
+   * The game should ONLY save state through SDK methods, never directly to localStorage.
+   */
+  private handleSaveGameState(data: { gameState: Record<string, unknown>; alertUserIds?: string[] } | undefined): void {
+    if (!data || typeof data !== 'object') return
+
+    const envelope: GameStateEnvelope | null = data.gameState
+      ? {
+          id: generateEnvelopeId(),
+          gameState: data.gameState,
+          alertUserIds: Array.isArray(data.alertUserIds) ? data.alertUserIds : undefined
+        }
+      : null
+
+    this.state.gameState = envelope
+
+    const typed = data.gameState as any
+    if (typed && Array.isArray(typed.players) && typed.players.length >= 2) {
+      this.state.players = typed.players.map((p: any, index: number) => ({
+        id: String(p.id || p.playerId || index + 1),
+        name: p.name || p.username || `Player ${index + 1}`
+      }))
+    }
+
+    if (typed && typeof typed.currentPlayer === 'number') {
+      this.state.currentPlayerId = String(typed.currentPlayer)
+    } else if (typed && typeof typed.turn === 'string') {
+      this.state.currentPlayerId = typed.turn === 'w' ? '1' : '2'
+    }
+
+    persistState(this.state)
+
+    this.sendGameEvent('game_state_updated', envelope)
+    this.publishDevEvent('game_state_updated', envelope)
+    this.broadcastToOtherWindows('game_state_updated', envelope)
+  }
+
+  private handleMultiplayerGameOver(data: unknown): void {
+    this.state.gameState = null
+    this.state.currentPlayerId = null
+    persistState(this.state)
+
+    this.sendGameEvent('multiplayer_game_over', data)
+    this.publishDevEvent('multiplayer_game_over', data)
+    this.broadcastToOtherWindows('multiplayer_game_over', data)
+    clearPlayerAssignments()
+  }
+
+  resetState(): void {
+    this.state = createDefaultState()
+    persistState(this.state)
+    clearPlayerAssignments()
+    this.clientWindows.clear()
+    this.windowToClientId.clear()
+    this.handledReadyClients.clear()
+    this.sendGameEvent('game_state_updated', null)
+  }
+
+  private sendGameEvent(type: string, data: unknown, targetClientId?: string): void {
+    // Send game event to client(s)
+    const payload = {
+      __fromRemixDevHost: true,
+      type: 'game_event',
+      event: { type, data }
+    }
+    if (targetClientId) {
+      const targetWindow = this.clientWindows.get(targetClientId)
+      // Send to specific client window
+      if (targetWindow) {
+        this.postToClient(targetWindow, payload)
+      }
+      return
+    }
+
+    if (this.clientWindows.size === 0) {
+      this.postToClient(window, payload)
+      return
+    }
+
+    for (const clientWindow of this.clientWindows.values()) {
+      this.postToClient(clientWindow, payload)
+    }
+  }
+
+  private postToClient(targetWindow: Window, payload: unknown): void {
+    try {
+      targetWindow.postMessage(payload, '*')
+    } catch (error) {
+      console.warn('[Remix Dev Host] Failed to post message to client', error)
+    }
+  }
+
+  private broadcastToOtherWindows(type: string, data: unknown): void {
+    const storage = safeLocalStorage()
+    if (!storage) return
+
+    const envelope: BroadcastEnvelope = {
+      senderId: this.hostId,
+      type,
+      data,
+      timestamp: Date.now()
+    }
+
+    storage.setItem(BROADCAST_STORAGE_KEY, JSON.stringify(envelope))
+  }
+
+  private publishDevEvent(type: string, data: unknown): void {
+    const payload = {
+      type: 'remix_sdk_event',
+      event: { type, data },
+      hostId: this.hostId
+    }
+    window.postMessage(payload, '*')
   }
 }
 
-// Initialize the mock SDK if we're in development and no real SDK exists
+/**
+ * Bootstraps the SDK mock + host bridge in development.
+ * 
+ * IMPORTANT: This should be called BEFORE creating the Phaser game instance.
+ * This ensures the SDK is available when game scenes initialize.
+ * 
+ * The function:
+ * 1. Creates the SDK mock and exposes it as window.FarcadeSDK
+ * 2. Determines single/multiplayer mode from package.json
+ * 3. Sets up the host controller (if running as top window)
+ * 4. Handles iframe communication (if running in an iframe)
+ * 
+ * Games should call SDK methods exactly as they would in production.
+ * The mock handles all the development-specific concerns internally.
+ */
 export async function initializeSDKMock(): Promise<void> {
-  if (import.meta.env.DEV) {
-    // Read multiplayer flag from package.json
-    let isMultiplayer = false;
-    try {
-      const response = await fetch('/package.json');
-      const packageJson = await response.json();
-      isMultiplayer = packageJson.multiplayer === true;
-    } catch (error) {
-      // Default to single-player if package.json can't be read
-    }
+  if (!isDevEnvironment()) {
+    return
+  }
 
-    const mockSDK = new RemixSDKMock(isMultiplayer);
-    (window as any).FarcadeSDK = mockSDK;
-    (window as any).__remixSDKMock = mockSDK; // Internal reference for dev UI
-    
-    // Test toggle_mute events on startup to demonstrate functionality
-    setTimeout(() => {
-      mockSDK.triggerMute(true);
-      
-      setTimeout(() => {
-        mockSDK.triggerMute(false);
-      }, 500);
-    }, 1000);
-    
-    // Listen for messages from parent window (dev UI and multiplayer coordination)
-    window.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'remix_dev_command') {
-        const { command } = event.data.data;
-        const commandData = event.data.data;
-        
-        switch (command) {
-          case 'play_again':
-            mockSDK.triggerPlayAgain();
-            break;
-          case 'toggle_mute':
-            mockSDK.triggerMute(commandData.isMuted);
-            break;
-        }
-      } else if (event.data && event.data.type === 'multiplayer_game_state_broadcast') {
-        // Receive game state updates from other instances
-        const { gameState, fromInstanceId } = event.data;
-        
-        // Don't process updates from ourselves
-        if (fromInstanceId !== mockSDK.instanceId) {
-          // Emit the game_state_updated event to the game
-          mockSDK.emit('game_state_updated', gameState);
+  // Create SDK immediately to avoid race conditions on mobile
+  const sdk = new FarcadeSDKMock()
+  ;(window as any).FarcadeSDK = sdk
+
+  const isMultiplayer = await determineMultiplayerFlag()
+
+  let devHost: RemixDevHostController | undefined
+  const clientId = getClientInstanceId(window)
+
+  if (window === window.top) {
+    devHost = ensureDevHost(isMultiplayer)
+  } else {
+    try {
+      window.parent?.postMessage({
+        type: '__remix_dev_host_request__',
+        multiplayer: isMultiplayer,
+        clientId
+      }, '*')
+    } catch {
+      // ignore – if parent is unavailable, we're likely top-level already
+    }
+  }
+
+  ;(window as any).__remixSDKMock = {
+    sdk,
+    host: devHost,
+    triggerPlayAgain: (window === window.top && devHost)
+      ? () => devHost!.triggerPlayAgain()
+      : () => window.parent?.postMessage({ type: '__remix_dev_host_command__', command: 'play_again' }, '*'),
+    triggerMute: (isMuted: boolean) => {
+      if (window === window.top && devHost) {
+        devHost.triggerMute(isMuted)
+      } else {
+        window.parent?.postMessage({
+          type: '__remix_dev_host_command__',
+          command: 'toggle_mute',
+          data: { isMuted }
+        }, '*')
+      }
+    }
+  }
+}
+
+async function determineMultiplayerFlag(): Promise<boolean> {
+  try {
+    const response = await fetch('/package.json')
+    if (!response.ok) return true
+    const pkg = await response.json()
+    return pkg?.multiplayer === true
+  } catch {
+    return true
+  }
+}
+
+export function ensureDevHost(isMultiplayer: boolean): RemixDevHostController {
+  const existing = (window as any).__remixDevHost
+  if (existing) {
+    return existing
+  }
+  const host = new RemixDevHostController(isMultiplayer)
+  ;(window as any).__remixDevHost = host
+  return host
+}
+
+if (typeof window !== 'undefined' && window === window.top && isDevEnvironment()) {
+  window.addEventListener('message', (event) => {
+    const payload = event.data
+    if (!payload || typeof payload !== 'object') return
+    if (payload.type === '__remix_dev_host_request__') {
+      const host = ensureDevHost(payload.multiplayer !== false)
+      if (event.source && typeof (event.source as Window).postMessage === 'function') {
+        try {
+          host.registerClientWindow(event.source as Window, payload.clientId)
+        } catch (error) {
+          console.warn('[Remix Dev Host] register client failed', error)
         }
       }
-    });
-  }
+      window.postMessage({ type: '__remix_dev_host_ready__' }, '*')
+    }
+    if (payload.type === '__remix_dev_host_command__') {
+      const host = ensureDevHost(true)
+      if (payload.command === 'play_again') {
+        host.triggerPlayAgain()
+      } else if (payload.command === 'toggle_mute') {
+        host.triggerMute(Boolean(payload.data?.isMuted))
+      } else if (payload.command === 'reset_state') {
+        host.resetState()
+      }
+    }
+  })
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react'
 import { DashboardState, PerformanceData, BuildState, DevSettings, RemixDevFlags, SDKEvent } from '../types'
+import { safeLocalStorage } from '../utils/safeLocalStorage'
 
 interface DashboardAction {
   type: string
@@ -13,6 +14,7 @@ interface DashboardContextType {
 
 // Get a unique key for this game based on the path
 function getGameKey() {
+  if (typeof window === 'undefined') return null
   // Use the pathname as the unique identifier for the game
   // e.g., /remix-chess, /my-game, etc.
   const path = window.location.pathname || '/'
@@ -21,14 +23,21 @@ function getGameKey() {
   return `remix_dashboard_panels_${cleanPath}`
 }
 
+const defaultPanelState = {
+  showBuildPanel: false,
+  showGameStatePanel: false
+}
+
 // Load panel states from localStorage for this specific game
 function loadPanelStates() {
   try {
+    const storage = safeLocalStorage()
+    if (!storage) return defaultPanelState
     const gameKey = getGameKey()
-    const saved = localStorage.getItem(gameKey)
+    if (!gameKey) return defaultPanelState
+    const saved = storage.getItem(gameKey)
     if (saved) {
       const parsed = JSON.parse(saved)
-      console.log(`Loaded panel states for ${gameKey}:`, parsed)
       return {
         showBuildPanel: parsed.showBuildPanel || false,
         showGameStatePanel: parsed.showGameStatePanel || false
@@ -37,22 +46,21 @@ function loadPanelStates() {
   } catch (e) {
     console.error('Failed to load panel states:', e)
   }
-  return {
-    showBuildPanel: false,
-    showGameStatePanel: false
-  }
+  return defaultPanelState
 }
 
 // Save panel states to localStorage for this specific game
 function savePanelStates(showBuildPanel: boolean, showGameStatePanel: boolean) {
   try {
+    const storage = safeLocalStorage()
+    if (!storage) return
     const gameKey = getGameKey()
+    if (!gameKey) return
     const panelStates = {
       showBuildPanel,
       showGameStatePanel
     }
-    localStorage.setItem(gameKey, JSON.stringify(panelStates))
-    console.log(`Saved panel states for ${gameKey}:`, panelStates)
+    storage.setItem(gameKey, JSON.stringify(panelStates))
   } catch (e) {
     console.error('Failed to save panel states:', e)
   }
@@ -77,7 +85,6 @@ const initialState: DashboardState = {
   },
   
   settings: {
-    canvasGlow: true,
     backgroundPattern: true,
     fullSize: false,
     showPerformancePanel: false
@@ -102,7 +109,10 @@ const initialState: DashboardState = {
   game: {
     frameSize: { width: 390, height: 585 },
     isGameOver: false,
-    score: 0
+    score: 0,
+    activePlayerUserId: null,
+    activePlayerFrame: null,
+    mutedFrames: {}
   }
 }
 

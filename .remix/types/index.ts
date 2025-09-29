@@ -35,7 +35,6 @@ export interface BuildState {
 }
 
 export interface DevSettings {
-  canvasGlow: boolean
   backgroundPattern: boolean
   fullSize: boolean
 }
@@ -81,6 +80,9 @@ export interface DashboardState {
     frameSize: { width: number; height: number }
     isGameOver: boolean
     score: number
+    activePlayerUserId: string | null
+    activePlayerFrame: 1 | 2 | null
+    mutedFrames: Record<string, boolean>
   }
 }
 
@@ -88,5 +90,5 @@ export interface SDKEvent {
   type: string
   data?: any
   timestamp: number
+  playerId?: string
 }
-

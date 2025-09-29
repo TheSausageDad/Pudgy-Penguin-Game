@@ -44,12 +44,19 @@ export function initializeRemixSDK(game: Phaser.Game): void {
   // Make the game canvas focusable
   game.canvas.setAttribute("tabindex", "-1")
 
-  // Signal ready state
-  window.FarcadeSDK.singlePlayer.actions.ready()
-
+  // Don't call ready() here - let the game scene handle it
+  // The scene needs to await the promise to get the game info
+  
   // Set mute/unmute handler
   window.FarcadeSDK.on("toggle_mute", (data: { isMuted: boolean }) => {
     game.sound.mute = data.isMuted
+    // Send toggle_mute event back to parent to update SDK flag
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'remix_sdk_event',
+        event: { type: 'toggle_mute', data: { isMuted: data.isMuted } }
+      }, '*')
+    }
   })
 
   // Setup play_again handler
@@ -117,8 +124,7 @@ function loadRemixPerformancePlugin(): void {
             }
           }, 100);
           
-          // Log success for debugging
-          console.log('[Remix Dev] Performance plugin loaded successfully');
+          // Performance plugin loaded successfully
         }
 
         // Clean up the script element
@@ -130,10 +136,8 @@ function loadRemixPerformancePlugin(): void {
       })
       .catch(error => {
         // Performance plugin loading failed, but this is non-critical
-        console.log('Performance plugin not available (fallback mode will be used):', error.message);
       });
   } catch (error) {
     // Silently fail if plugin loading fails
-    console.log('Performance plugin loading failed (fallback mode will be used)');
   }
 }

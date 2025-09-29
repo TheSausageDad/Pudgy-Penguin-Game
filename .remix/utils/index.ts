@@ -42,7 +42,7 @@ export function detectDeviceCapabilities() {
   const isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || 
                         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   
-  return { isSafari, isMobileDevice, supportsUnderglow: !isSafari && !isMobileDevice }
+  return { isSafari, isMobileDevice }
 }
 
 export function debounce<T extends (...args: any[]) => any>(
@@ -108,11 +108,49 @@ export function lerp(start: number, end: number, factor: number): number {
 /**
  * Send a command to the game iframe (equivalent to sendToGame in original system)
  */
-export function sendToGame(type: string, data: any): void {
-  const gameIframe = document.querySelector('#game-iframe') as HTMLIFrameElement
-  if (gameIframe?.contentWindow) {
-    gameIframe.contentWindow.postMessage({ type, data }, '*')
+export function sendToGame(
+  type: string,
+  data: any,
+  targetIframeId?: string | string[]
+): void {
+  const payload = { type, data }
+  const toIdArray = (target?: string | string[]) => {
+    if (!target) return [] as string[]
+    return Array.isArray(target)
+      ? target.filter((id) => typeof id === 'string' && id.length > 0)
+      : [target]
+  }
+
+  const iframeIds = toIdArray(targetIframeId)
+  let delivered = false
+
+  const postToIframe = (iframe: HTMLIFrameElement | null) => {
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(payload, '*')
+      delivered = true
+    }
+  }
+
+  if (iframeIds.length > 0) {
+    iframeIds.forEach((iframeId) => {
+      const iframe = document.getElementById(iframeId) as HTMLIFrameElement | null
+      postToIframe(iframe)
+    })
   } else {
+    // Prefer the primary single-player iframe when available
+    const primaryIframe = document.querySelector('#game-iframe') as HTMLIFrameElement | null
+    postToIframe(primaryIframe)
+
+    if (!delivered) {
+      // Broadcast to any iframe that matches the game id pattern (covers multiplayer)
+      const frameNodes = document.querySelectorAll('iframe[id^="game-iframe"]')
+      frameNodes.forEach((node) => {
+        postToIframe(node as HTMLIFrameElement)
+      })
+    }
+  }
+
+  if (!delivered) {
     console.warn('❌ Could not send to game: iframe not found or not ready')
   }
 }
@@ -120,9 +158,17 @@ export function sendToGame(type: string, data: any): void {
 /**
  * Send a Remix development command to the game
  */
-export function sendRemixCommand(command: string, commandData?: any): void {
-  sendToGame('remix_dev_command', { 
-    command, 
-    data: commandData 
-  })
+export function sendRemixCommand(
+  command: string,
+  commandData?: any,
+  targetIframeId?: string | string[]
+): void {
+  sendToGame(
+    'remix_dev_command',
+    {
+      command,
+      data: commandData,
+    },
+    targetIframeId
+  )
 }

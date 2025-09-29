@@ -11,40 +11,6 @@ interface TopNavBarProps {
 export const TopNavBar: React.FC<TopNavBarProps> = () => {
   const { state, dispatch } = useDashboard()
 
-  const handleRefresh = () => {
-    // Find all game iframes and reload them
-    const iframe1 = document.getElementById('game-iframe-1') as HTMLIFrameElement
-    const iframe2 = document.getElementById('game-iframe-2') as HTMLIFrameElement
-    const iframeSingle = document.getElementById('game-iframe') as HTMLIFrameElement
-    
-    // Reload single player iframe
-    if (iframeSingle) {
-      iframeSingle.src = iframeSingle.src
-    }
-    
-    // Reload multiplayer iframes
-    if (iframe1) {
-      iframe1.src = iframe1.src
-    }
-    if (iframe2) {
-      iframe2.src = iframe2.src
-    }
-    
-    // Reset game state in dashboard
-    dispatch({
-      type: 'GAME_UPDATE',
-      payload: {
-        isGameOver: false,
-        score: 0
-      }
-    })
-    
-    // Clear SDK events
-    dispatch({
-      type: 'SDK_CLEAR_EVENTS'
-    })
-  }
-
   const handleMuteToggle = () => {
     const newMutedState = !state.sdk.isMuted
     
@@ -81,45 +47,45 @@ export const TopNavBar: React.FC<TopNavBarProps> = () => {
 
   return (
     <div className={tw`
-      w-full
-      flex justify-end items-center gap-2
-      mb-2
+      absolute top-0 left-0 right-0 z-40
+      pt-1 px-4 pb-3
+      flex justify-between items-center
+      pointer-events-none
+      [&_button]:pointer-events-auto
     `}>
-      <button 
-        type="button" 
-        className={tw`
-          group inline-flex items-center justify-center
-          w-8 h-8 rounded-md
-          border border-[#99999920]
-          bg-transparent text-white cursor-pointer
-          transition-all duration-fast
-          hover:border-[#99999940] hover:bg-[rgba(255,255,255,0.02)]
-        `}
-        onClick={handleRefresh}
-        title="Refresh game"
-        aria-label="Refresh game"
-      >
-        <svg 
-          className="w-4 h-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] fill-white opacity-80 group-hover:opacity-100 transition-opacity"
-          xmlns="http://www.w3.org/2000/svg" 
-          width="24" 
-          height="24" 
-          viewBox="0 0 24 24" 
-          aria-hidden="true"
+      <div className="flex-shrink-0">
+        <button 
+          className={tw`
+            inline-flex items-center justify-center
+            w-9 h-9 rounded-md border-none
+            bg-transparent text-white
+            cursor-not-allowed opacity-100
+            -ml-[10px] transition-all duration-fast
+          `}
+          title="No previous screen in development mode"
+          aria-label="Navigate back (disabled in development)"
+          aria-disabled="true"
+          disabled
         >
-          <path d="M13.5 2c-5.621 0-10.211 4.443-10.475 10h-3.025l5 6.625 5-6.625h-2.975c.257-3.351 3.06-6 6.475-6 3.584 0 6.5 2.916 6.5 6.5s-2.916 6.5-6.5 6.5c-1.863 0-3.542-.793-4.728-2.053l-2.427 3.216c1.877 1.754 4.389 2.837 7.155 2.837 5.79 0 10.5-4.71 10.5-10.5s-4.71-10.5-10.5-10.5z"/>
-        </svg>
-      </button>
+          <svg 
+            className="w-4 h-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] fill-white"
+            xmlns="http://www.w3.org/2000/svg" 
+            viewBox="0 0 20.79 33.27" 
+            aria-hidden="true"
+          >
+            <path d="M16.87,0l3.92,3.92-12.94,12.72,12.94,12.71-3.92,3.92L0,16.64,16.87,0Z" />
+          </svg>
+        </button>
+      </div>
       
       <button 
         type="button" 
         className={tw`
-          group inline-flex items-center justify-center
-          w-8 h-8 rounded-md
-          border border-[#99999920]
+          inline-flex items-center justify-center
+          w-9 h-9 rounded-md border-none
           bg-transparent text-white cursor-pointer
-          transition-all duration-fast
-          hover:border-[#99999940] hover:bg-[rgba(255,255,255,0.02)]
+          -mr-[10px] transition-all duration-fast
+          hover:bg-[rgba(255,255,255,0.1)]
         `}
         onClick={handleMuteToggle}
         title={state.sdk.isMuted ? "Unmute audio" : "Mute audio"}
@@ -127,7 +93,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = () => {
         aria-pressed={state.sdk.isMuted}
       >
         <svg 
-          className="w-4 h-4 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] fill-white opacity-80 group-hover:opacity-100 transition-opacity"
+          className="w-5 h-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] fill-white"
           xmlns="http://www.w3.org/2000/svg" 
           width="24" 
           height="24" 

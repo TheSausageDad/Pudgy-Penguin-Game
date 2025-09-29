@@ -781,12 +781,12 @@ const PerformanceError = ({ children }) => (
 
 **Caveats**:
 - ⚠️ Dynamic `$status` prop for lights
-- ⚠️ Conditional glow effects
+- ⚠️ Conditional shadow effects
 - ⚠️ Different sizes for indicators
 
 **Migration**:
 ```tsx
-// Status light with conditional glow
+// Status light with conditional shadow
 <div className={cn(
   "w-2 h-2 rounded-full transition-all duration-300 shrink-0",
   status ? "bg-status-green shadow-[0_0_4px_rgba(34,197,94,0.6)]" 

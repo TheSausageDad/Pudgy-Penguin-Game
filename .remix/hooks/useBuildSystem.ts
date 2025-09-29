@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useDashboard } from '../contexts'
+import { safeLocalStorage } from '../utils/safeLocalStorage'
+import { isDevEnvironment } from '../utils/environment'
 
 interface BuildData {
   code: string
@@ -25,6 +27,8 @@ export function useBuildSystem() {
   // Save build code to localStorage per-game
   const saveBuildCode = useCallback((code: string, buildTime: number, fileSize: number) => {
     try {
+      const storage = safeLocalStorage()
+      if (!storage) return
       const buildData: BuildData = {
         code,
         buildTime,
@@ -32,7 +36,7 @@ export function useBuildSystem() {
         savedAt: Date.now(),
         fileSize
       }
-      localStorage.setItem(`remix-build-${gameId}`, JSON.stringify(buildData))
+      storage.setItem(`remix-build-${gameId}`, JSON.stringify(buildData))
       setLastBuildCodeTimestamp(lastUpdateTime)
     } catch (error) {
       console.warn('Failed to save build code to localStorage:', error)
@@ -42,7 +46,9 @@ export function useBuildSystem() {
   // Load saved build code if game code hasn't changed
   const loadSavedBuildCode = useCallback((): boolean => {
     try {
-      const saved = localStorage.getItem(`remix-build-${gameId}`)
+      const storage = safeLocalStorage()
+      if (!storage) return false
+      const saved = storage.getItem(`remix-build-${gameId}`)
       if (!saved) return false
 
       const buildData: BuildData = JSON.parse(saved)
@@ -183,7 +189,7 @@ export function useBuildSystem() {
   const getBuildInfo = useCallback(async () => {
     try {
       // In development, skip build info API since it's not available
-      if (import.meta.env.DEV) {
+      if (isDevEnvironment()) {
         // Don't overwrite existing build info in development
         // The actual build process will set the correct values
         return

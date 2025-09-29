@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react'
-import { useUIState, useDevSettings } from '../../hooks'
+import { useUIState } from '../../hooks'
 import { detectDeviceCapabilities } from '../../utils'
 import { SettingsPanel } from '../Panels'
 import { cn, tw } from '../../utils/tw'
@@ -7,7 +7,7 @@ import '../../styles/app.css'
 
 export const StatusRight: React.FC = () => {
   const { toggleBuildPanel, isBuildPanelOpen, toggleGameStatePanel, isGameStatePanelOpen } = useUIState()
-  const { capabilities } = useDevSettings()
+  const capabilities = detectDeviceCapabilities()
   const [isMultiplayer, setIsMultiplayer] = useState(false)
   
   // Check multiplayer flag
@@ -20,24 +20,18 @@ export const StatusRight: React.FC = () => {
 
   return (
     <>
-      {/* Mobile QR Button - only show on non-touch devices */}
-      {!capabilities.isMobileDevice && (
-        <MobileQrButton />
-      )}
+      {/* Mobile QR Button - always show */}
+      <MobileQrButton />
 
-      {/* Settings Button - hide on mobile */}
-      {!capabilities.isMobileDevice && (
-        <SettingsDropdown />
-      )}
+      {/* Settings Button - always show */}
+      <SettingsDropdown />
 
       {/* Panel Buttons - stack vertically when both are present */}
-      {!capabilities.isMobileDevice && (
-        <div className={tw`
-          flex ${isMultiplayer ? 'flex-col gap-1' : 'flex-row'}
-        `}>
-          {/* Game State Button - only show in multiplayer mode */}
-          {isMultiplayer && (
-            <button 
+      <div className={tw`
+        flex flex-col gap-1
+      `}>
+          {/* Game State Button - show for both single player and multiplayer */}
+          <button 
               className={cn(
                 tw`
                   flex items-center gap-[6px] px-3 py-[6px]
@@ -77,7 +71,6 @@ export const StatusRight: React.FC = () => {
               </svg>
               <span>State</span>
             </button>
-          )}
 
           {/* Build Toggle Button */}
           <button 
@@ -117,7 +110,6 @@ export const StatusRight: React.FC = () => {
             <span>Build</span>
           </button>
         </div>
-      )}
     </>
   )
 }
@@ -134,8 +126,10 @@ const MobileQrButton: React.FC = () => {
       try {
         const currentUrl = window.location.href;
         const url = new URL(currentUrl);
-        
-        let finalUrl = currentUrl;
+
+        // Add isolated parameter for mobile view
+        url.searchParams.set('isolated', 'true');
+        let finalUrl = url.toString();
         
         // If using localhost, try to get the actual IP
         if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
@@ -150,6 +144,8 @@ const MobileQrButton: React.FC = () => {
                 // Replace the port with current port if needed
                 const ipUrlObj = new URL(ipUrl);
                 ipUrlObj.port = url.port || '3000';
+                // Add isolated parameter for mobile view
+                ipUrlObj.searchParams.set('isolated', 'true');
                 finalUrl = ipUrlObj.toString();
               } else {
                 console.warn('Could not resolve network IP, QR code will use localhost');

@@ -22,6 +22,10 @@ if (!fs.existsSync(distDir)) {
 
 async function buildGame() {
   try {
+    // Read package.json to get multiplayer setting
+    const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"))
+    const isMultiplayer = packageJson.multiplayer || false
+    
     // Step 1: Bundle the TypeScript code with esbuild
     const result = await esbuild.build({
       entryPoints: [path.join(srcDir, "main.ts")],
@@ -33,7 +37,11 @@ async function buildGame() {
       sourcemap: false,
       minify: true,
       target: ["es2020"],
-      pure: ["console.log"],
+      pure: ["console.log"], // Temporarily disabled for debugging
+      define: {
+        'GAME_MULTIPLAYER_MODE': JSON.stringify(isMultiplayer),
+        'process.env.NODE_ENV': JSON.stringify('production')
+      },
       write: true,
       logLevel: "silent",
     })

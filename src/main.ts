@@ -3,6 +3,7 @@ import { initializeRemixSDK, initializeDevelopment } from "./utils/RemixUtils"
 import { initializeSDKMock } from "../.remix/mocks/RemixSDKMock"
 import GameSettings from "./config/GameSettings"
 
+
 // Game configuration
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.WEBGL, // Using WebGL for shader support
@@ -58,4 +59,6 @@ async function initializeApp() {
 }
 
 // Start the application
-initializeApp().catch(console.error)
+initializeApp().catch((error) => {
+  console.error('[MAIN] Failed to initialize app:', error)
+})
