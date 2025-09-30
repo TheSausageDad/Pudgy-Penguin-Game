@@ -13,8 +13,8 @@ importers:
         version: 3.90.0
     devDependencies:
       '@farcade/game-sdk':
-        specifier: ^0.0.13
-        version: 0.0.13
+        specifier: ^0.2
+        version: 0.2.1
       '@tailwindcss/vite':
         specifier: ^4.1.13
         version: 4.1.13(vite@6.3.6(@types/node@22.18.6)(jiti@2.6.0)(lightningcss@1.30.1))
@@ -455,8 +455,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@farcade/game-sdk@0.0.13':
-    resolution: {integrity: sha512-2QoKZ/JYCP2tFuv3g9//XUafHc6YAM5UBpQKRRVAiqNjDu4Ho1IilX/w3sCTenN/Hd8yrsTpS9mh57ei8gKvPg==}
+  '@farcade/game-sdk@0.2.1':
+    resolution: {integrity: sha512-EGSc21GNTF0by/znMhOvryxmlNkU+CTjFdUYpjb7naDq0R3wk24Epdpru7bUyjY1wOgmwhonQfUMbtKNSZmf9Q==}
 
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
@@ -1423,9 +1423,7 @@ snapshots:
   '@esbuild/win32-x64@0.25.10':
     optional: true
 
-  '@farcade/game-sdk@0.0.13':
-    dependencies:
-      eventemitter3: 5.0.1
+  '@farcade/game-sdk@0.2.1': {}
 
   '@isaacs/fs-minipass@4.0.1':
     dependencies:

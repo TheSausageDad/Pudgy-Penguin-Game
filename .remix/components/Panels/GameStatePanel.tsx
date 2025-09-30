@@ -40,20 +40,40 @@ function normalizeGameState(raw: any) {
   return raw
 }
 
-// Get a unique key for this game based on the path
-function getGameStateKey() {
+// Cache for the game name from package.json
+let cachedGameName: string | null = null
+
+// Fetch the game name from package.json
+async function getGameName(): Promise<string> {
+  if (cachedGameName) return cachedGameName
+
+  try {
+    const response = await fetch('/package.json')
+    if (response.ok) {
+      const packageJson = await response.json()
+      cachedGameName = packageJson.name || 'unknown-game'
+      return cachedGameName
+    }
+  } catch (error) {
+    console.warn('Failed to fetch game name from package.json:', error)
+  }
+
+  cachedGameName = 'unknown-game'
+  return cachedGameName
+}
+
+// Get a unique key for this game based on the package.json name
+function getGameStateKey(gameName: string = 'unknown-game') {
   if (typeof window === 'undefined') return null
-  const path = window.location.pathname || '/'
-  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default'
-  return `remix_game_state_${cleanPath}`
+  const cleanName = gameName.replace(/[^a-zA-Z0-9-_]/g, '_')
+  return `remix_game_state_${cleanName}`
 }
 
 // Get the key for saved states list
-function getSavedStatesKey() {
+function getSavedStatesKey(gameName: string = 'unknown-game') {
   if (typeof window === 'undefined') return null
-  const path = window.location.pathname || '/'
-  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default'
-  return `remix_saved_states_${cleanPath}`
+  const cleanName = gameName.replace(/[^a-zA-Z0-9-_]/g, '_')
+  return `remix_saved_states_${cleanName}`
 }
 
 // Generate a short hash for saved state ID
@@ -62,11 +82,12 @@ function generateShortHash(): string {
 }
 
 // Load game state from localStorage
-function loadGameStateFromStorage() {
+async function loadGameStateFromStorage() {
   try {
     const storage = safeLocalStorage()
     if (!storage) return null
-    const key = getGameStateKey()
+    const gameName = await getGameName()
+    const key = getGameStateKey(gameName)
     if (!key) return null
     const stored = storage.getItem(key)
     if (stored) {
@@ -88,26 +109,37 @@ function loadGameStateFromStorage() {
 
 export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
   const { state } = useDashboard()
-  const [gameState, setGameState] = useState<any>(() => {
-    // Initialize with persisted state if available
-    return loadGameStateFromStorage()
-  })
-  const [textContent, setTextContent] = useState<string>(() => {
-    const initial = loadGameStateFromStorage()
-    return initial ? JSON.stringify(initial, null, 2) : ''
-  })
+  const [gameName, setGameName] = useState<string>('unknown-game')
+  const [gameState, setGameState] = useState<any>(null)
+  const [textContent, setTextContent] = useState<string>('')
   const [parseError, setParseError] = useState<string | null>(null)
   const [savedStates, setSavedStates] = useState<SavedState[]>([])
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState<string>('')
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Initialize game name and load initial state
+  useEffect(() => {
+    const initialize = async () => {
+      const name = await getGameName()
+      setGameName(name)
+
+      // Load initial state after we have the game name
+      const initialState = await loadGameStateFromStorage()
+      if (initialState) {
+        setGameState(initialState)
+        setTextContent(JSON.stringify(initialState, null, 2))
+      }
+    }
+    initialize()
+  }, [])
+
   // Load saved states from localStorage
   const loadSavedStates = useCallback(() => {
     try {
       const storage = safeLocalStorage()
       if (!storage) return []
-      const key = getSavedStatesKey()
+      const key = getSavedStatesKey(gameName)
       if (!key) return []
       const stored = storage.getItem(key)
       if (stored) {
@@ -117,20 +149,20 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
       console.error('Failed to load saved states:', e)
     }
     return []
-  }, [])
+  }, [gameName])
 
   // Save states list to localStorage
   const saveSavedStatesToStorage = useCallback((states: SavedState[]) => {
     try {
       const storage = safeLocalStorage()
       if (!storage) return
-      const key = getSavedStatesKey()
+      const key = getSavedStatesKey(gameName)
       if (!key) return
       storage.setItem(key, JSON.stringify(states))
     } catch (e) {
       console.error('Failed to save states list:', e)
     }
-  }, [])
+  }, [gameName])
 
   // Initialize saved states on mount
   useEffect(() => {
@@ -143,7 +175,7 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
       const parsedState = normalizeGameState(JSON.parse(text))
       setParseError(null)
       setGameState(parsedState)
-      
+
       const stateBody = parsedState && typeof parsedState === 'object'
         ? parsedState.gameState ?? parsedState
         : null
@@ -152,9 +184,9 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
       if (stateBody && typeof stateBody === 'object' && !stateBody.timestamp) {
         stateBody.timestamp = Date.now()
       }
-      
+
       // Save to localStorage
-      const key = getGameStateKey()
+      const key = getGameStateKey(gameName)
       const stateToSave = {
         gameState: parsedState,
         players: stateBody?.players || [
@@ -167,7 +199,7 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
       if (storage && key) {
         storage.setItem(key, JSON.stringify(stateToSave))
       }
-      
+
       // Update parent window state if accessible
       if (window.parent !== window) {
         try {
@@ -177,7 +209,7 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
           console.error('Cannot update parent window state:', e)
         }
       }
-      
+
       // Reload both iframes to ensure they properly initialize with the new state
       const iframes = document.querySelectorAll('iframe')
       iframes.forEach((iframe, index) => {
@@ -185,11 +217,11 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
           iframe.contentWindow.location.reload()
         }
       })
-      
+
     } catch (error) {
       setParseError(error instanceof Error ? error.message : 'Invalid JSON')
     }
-  }, [])
+  }, [gameName])
 
   // Handle text changes with debounce
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -218,6 +250,12 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
         const newState = normalizeGameState(event.data.gameState)
         setGameState(newState)
         setTextContent(JSON.stringify(newState, null, 2))
+
+        // Clear any pending autoSave to prevent stale text from being saved
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+          debounceTimerRef.current = null
+        }
       }
     }
 
@@ -227,44 +265,56 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
   
   // Listen for localStorage changes from other windows/iframes
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      const gameKey = getGameStateKey()
+    const handleStorageChange = async (e: StorageEvent) => {
+      const gameKey = getGameStateKey(gameName)
       if (e.key === gameKey) {
-        const storedState = loadGameStateFromStorage()
+        const storedState = await loadGameStateFromStorage()
         if (storedState) {
           setGameState(storedState)
           setTextContent(JSON.stringify(storedState, null, 2))
+
+          // Clear any pending autoSave to prevent stale text from being saved
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current)
+            debounceTimerRef.current = null
+          }
         }
       }
     }
-    
+
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
-  }, [])
+  }, [gameName])
   
   // Check for updates when panel opens
   useEffect(() => {
     if (!isOpen) return
-    
-    const checkForUpdates = () => {
-      const storedState = loadGameStateFromStorage()
+
+    const checkForUpdates = async () => {
+      const storedState = await loadGameStateFromStorage()
       if (storedState) {
         const currentStateStr = JSON.stringify(gameState)
         const storedStateStr = JSON.stringify(storedState)
-        
+
         if (currentStateStr !== storedStateStr) {
           setGameState(storedState)
           setTextContent(JSON.stringify(storedState, null, 2))
+
+          // Clear any pending autoSave to prevent stale text from being saved
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current)
+            debounceTimerRef.current = null
+          }
         }
       }
     }
-    
+
     // Check immediately when panel opens
     checkForUpdates()
-    
+
     // Also check periodically (less frequently - every 5 seconds)
     const interval = setInterval(checkForUpdates, 5000)
-    
+
     return () => clearInterval(interval)
   }, [isOpen, gameState])
 
@@ -281,6 +331,12 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
       if (normalized !== undefined) {
         setGameState(normalized)
         setTextContent(JSON.stringify(normalized, null, 2))
+
+        // Clear any pending autoSave to prevent stale text from being saved
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+          debounceTimerRef.current = null
+        }
       }
     }
   }, [state.sdk.events])
@@ -327,7 +383,7 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
     }
 
     // Save to localStorage FIRST
-    const key = getGameStateKey()
+    const key = getGameStateKey(gameName)
     const stateToSave = {
       gameState: parsedState,
       players: stateBody?.players || [
@@ -392,9 +448,9 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
       // Clear the game state
       setGameState(null)
       setTextContent('')
-      
+
       // Clear from localStorage FIRST before reloading
-      const key = getGameStateKey()
+      const key = getGameStateKey(gameName)
       const storage = safeLocalStorage()
       if (storage && key) {
         storage.removeItem(key)
@@ -426,7 +482,7 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
           }
         })
       }, 100)
-      
+
     }
   }
 
@@ -490,7 +546,21 @@ export const GameStatePanel: React.FC<GameStatePanelProps> = ({ isOpen }) => {
             </button>
           </div>
         </div>
-        
+
+        {/* Warning Banner for Default Game Name */}
+        {gameName === 'GAME_NAME' && (
+          <div className={tw`
+            bg-yellow-500/20 border border-yellow-500/50 rounded-md p-3
+            text-yellow-200 text-xs leading-relaxed
+          `}>
+            <div className={tw`font-semibold mb-1`}>⚠️ Default Game Name Detected</div>
+            <div>
+              Please update the <code className={tw`bg-black/30 px-1 py-0.5 rounded`}>name</code> field in{' '}
+              <code className={tw`bg-black/30 px-1 py-0.5 rounded`}>package.json</code> to ensure your game state is stored separately from other games.
+            </div>
+          </div>
+        )}
+
         {/* Content Area - State Editor */}
         <div className={tw`
           flex-1 overflow-hidden flex flex-col min-h-0

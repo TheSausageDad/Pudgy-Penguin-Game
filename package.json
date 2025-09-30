@@ -20,7 +20,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@farcade/game-sdk": "^0.0.13",
+    "@farcade/game-sdk": "^0.2",
     "@tailwindcss/vite": "^4.1.13",
     "@types/node": "^22.18.6",
     "@types/react": "^19.1.15",

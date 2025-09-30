@@ -132,6 +132,20 @@ class SafeLocalStorage {
   }
 
   /**
+   * Gets all keys matching a filter function
+   */
+  getFilteredKeys(filter: (key: string) => boolean): string[] {
+    return this.keys().filter(filter)
+  }
+
+  /**
+   * Removes multiple keys from localStorage
+   */
+  removeItems(keys: string[]): void {
+    keys.forEach(key => this.removeItem(key))
+  }
+
+  /**
    * Gets the number of items in localStorage
    */
   get length(): number {

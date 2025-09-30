@@ -5,36 +5,41 @@
  * 1. A thin client-side shim that mirrors the public surface of
  *    @farcade/game-sdk@0.2.1 (the real production SDK).
  * 2. A dev-only "host" that emulates the Remix/Farcade runtime so our
- *    game can exercise the same handshake flow (game_info, state updates, etc.).
+ *    game can exercise the same handshake flow (ready, state updates, etc.).
  *
  * By splitting the responsibilities this way we keep the convenience of
  * local persistence and multi-instance testing while ensuring the game
  * only interacts with the SDK surface that exists in production.
- * 
+ *
  * PROPER USAGE:
  * =============
- * 
+ *
  * 1. INITIALIZATION FLOW:
- *    - Game calls SDK.singlePlayer.actions.ready() or SDK.multiplayer.actions.ready()
- *    - This returns a Promise<GameInfo> that resolves when the host responds
- *    - Game should await this promise to get initial game state and player info
- *    - Only call ready() ONCE per game instance - the SDK handles duplicate calls
- * 
- * 2. STATE PERSISTENCE:
- *    - Game should ONLY use SDK methods for state (never localStorage directly)
- *    - Use SDK.singlePlayer.actions.saveGameState() or multiplayer equivalent
+ *    - Game calls SDK.multiplayer.actions.ready() (or singlePlayer equivalent)
+ *    - MUST await the Promise<GameInfo> to get player data and initial state
+ *    - Check gameInfo.initialGameState:
+ *      • If null: game not started yet
+ *        - Player 0 (first in players array) initiates with saveGameState()
+ *        - Other players wait for game_state_updated event
+ *      • If not null: game already in progress
+ *        - All players load from initialGameState.gameState
+ *    - Only call ready() ONCE per game instance
+ *
+ * 2. STATE UPDATES:
+ *    - Listen to SDK.on('game_state_updated') for opponent moves
+ *    - Save state with SDK.multiplayer.actions.saveGameState()
+ *    - Never use localStorage directly - always use SDK methods
  *    - The SDK mock persists to localStorage (emulating server storage)
- *    - GameStatePanel provides a dev interface to inspect/modify this state
- * 
+ *
  * 3. COMMON PITFALLS TO AVOID:
- *    - Don't call ready() multiple times - it creates orphaned promises
- *    - Don't call ready() without awaiting the promise - you'll miss game info
- *    - Don't use localStorage directly in game code - always use SDK methods
- *    - Don't assume player IDs - use the meId from game_info response
- * 
+ *    - Don't call ready() without awaiting - you'll miss GameInfo
+ *    - Don't use SDK.on('game_info') - it's not supported, await ready() instead
+ *    - Don't call ready() multiple times
+ *    - Don't use localStorage directly in game code
+ *
  * 4. SINGLE VS MULTIPLAYER:
  *    - Single player: Only 1 player, simpler state management
- *    - Multiplayer: Multiple players, state includes all player data
+ *    - Multiplayer: Multiple players, state shared via saveGameState()
  *    - Package.json "multiplayer" flag determines the mode
  */
 
@@ -87,6 +92,28 @@ const DEFAULT_PLAYERS: Player[] = [
   { id: '2', name: 'Player 2' }
 ]
 
+// Cache for the game name from package.json
+let cachedGameName: string | null = null
+
+// Fetch the game name from package.json
+async function getGameName(): Promise<string> {
+  if (cachedGameName) return cachedGameName
+
+  try {
+    const response = await fetch('/package.json')
+    if (response.ok) {
+      const packageJson = await response.json()
+      cachedGameName = packageJson.name || 'unknown-game'
+      return cachedGameName
+    }
+  } catch (error) {
+    console.warn('Failed to fetch game name from package.json:', error)
+  }
+
+  cachedGameName = 'unknown-game'
+  return cachedGameName
+}
+
 function createDefaultState(): StoredState {
   return {
     gameState: null,
@@ -95,24 +122,24 @@ function createDefaultState(): StoredState {
   }
 }
 
-function getGameStateKey(): string {
-  const path = typeof window !== 'undefined' ? window.location.pathname || '/' : '/'
-  const cleanPath = path.replace(/[^a-zA-Z0-9-]/g, '_').replace(/^_+|_+$/g, '') || 'default'
-  return `remix_game_state_${cleanPath}`
+function getGameStateKey(gameName: string = 'unknown-game'): string {
+  const cleanName = gameName.replace(/[^a-zA-Z0-9-_]/g, '_')
+  return `remix_game_state_${cleanName}`
 }
 
 function generateEnvelopeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function readPersistedState(): StoredState {
+async function readPersistedState(): Promise<StoredState> {
   const storage = safeLocalStorage()
   if (!storage) {
     return createDefaultState()
   }
 
   try {
-    const raw = storage.getItem(getGameStateKey())
+    const gameName = await getGameName()
+    const raw = storage.getItem(getGameStateKey(gameName))
     if (!raw) {
       throw new Error('no state')
     }
@@ -129,10 +156,11 @@ function readPersistedState(): StoredState {
   }
 }
 
-function persistState(state: StoredState): void {
+async function persistState(state: StoredState): Promise<void> {
   const storage = safeLocalStorage()
   if (!storage) return
-  storage.setItem(getGameStateKey(), JSON.stringify(state))
+  const gameName = await getGameName()
+  storage.setItem(getGameStateKey(gameName), JSON.stringify(state))
 }
 
 function getClientInstanceId(ctx: Window = window): string {
@@ -299,20 +327,24 @@ class FarcadeSDKMock {
 
   /**
    * Core ready() method that initiates the SDK handshake.
-   * 
+   *
    * IMPORTANT: This method should only be called ONCE per game instance.
    * The SDK handles duplicate calls by returning the same promise.
-   * 
+   *
    * Flow:
-   * 1. Game calls ready() and receives a Promise<GameInfo>
+   * 1. Game calls ready() and awaits the Promise<GameInfo>
    * 2. SDK sends 'ready' message to host
-   * 3. Host responds with 'game_info' event containing player data and initial state
+   * 3. Host responds with GameInfo containing:
+   *    - players: array of all players
+   *    - player: the current player's info
+   *    - initialGameState: existing game state OR null if game not started
    * 4. SDK resolves the promise with the GameInfo
-   * 5. Game uses this data to initialize (players, initial state, etc.)
-   * 
-   * The real Farcade SDK resolves the ready() promise with the GameInfo payload.
-   * Consumers should await the promise rather than relying on a separate
-   * 'game_info' event, which mirrors the current platform recommendation.
+   * 5. Game checks initialGameState:
+   *    - If null: Player 0 initiates game, others wait
+   *    - If not null: All players load from initialGameState.gameState
+   *
+   * Games MUST await this promise and use the returned data directly.
+   * Do NOT use SDK.on('game_info') - it's not supported.
    */
   private ready = (): Promise<GameInfo> => {
     // Return existing promise if already created (prevents orphaned promises)
@@ -378,9 +410,13 @@ class FarcadeSDKMock {
     if (eventType === 'ready') {
       this.hasHostReady = true
     }
+
+    // game_info is handled exclusively through the ready() promise
+    // Games should await ready() instead of using on('game_info')
     if (eventType === 'game_info' && this.readyPromiseResolve) {
       this.readyPromiseResolve(data as GameInfo)
       this.readyPromiseResolve = null
+      return // Don't emit to listeners
     }
 
     const listeners = this.eventListeners.get(eventType)
@@ -458,7 +494,12 @@ class RemixDevHostController {
 
   constructor(isMultiplayer: boolean) {
     this.isMultiplayer = isMultiplayer
-    this.state = readPersistedState()
+    this.state = createDefaultState() // Initialize with default first
+
+    // Load persisted state asynchronously
+    readPersistedState().then(state => {
+      this.state = state
+    })
 
     window.addEventListener('message', this.handleIncomingMessage)
     window.addEventListener('storage', this.handleStorageBroadcast)
@@ -548,6 +589,14 @@ class RemixDevHostController {
         break
       case 'multiplayer_save_game_state':
         this.handleSaveGameState(data)
+        // Broadcast to GameStatePanel for immediate update
+        window.postMessage({
+          type: 'multiplayer_game_state_broadcast',
+          gameState: data?.gameState ? {
+            id: generateEnvelopeId(),
+            gameState: data.gameState
+          } : null
+        }, '*')
         break
       case 'refute_game_state':
         this.publishDevEvent('game_state_refuted', data)
@@ -591,24 +640,25 @@ class RemixDevHostController {
    * IMPORTANT: Guard against duplicate ready calls from the same client
    * to prevent player duplication and state corruption.
    */
-  private handleReady(sourceWindow: Window | null): void {
+  private async handleReady(sourceWindow: Window | null): Promise<void> {
     // Processing ready handshake
-    
+
     const contextWindow = sourceWindow || window
     const hints = readInstanceHints(contextWindow)
-    
+
     // Guard against duplicate ready calls from same client (prevents player duplication)
     if (this.handledReadyClients.has(hints.clientId)) {
       // Already handled ready for this client
       return
     }
-    
+
     // Mark this client as handled
     this.handledReadyClients.add(hints.clientId)
-    
-    // Re-read persisted state in case it was updated externally (e.g., by loading a saved state)
-    this.state = readPersistedState()
-    
+
+    // Use in-memory state - don't re-read from localStorage
+    // State is only read from localStorage once in constructor
+    // This ensures state changes only come through proper SDK events
+
     const assignments = readPlayerAssignments()
 
     let resolvedPlayerId: string
@@ -676,7 +726,7 @@ class RemixDevHostController {
       this.state.players = [this.state.players[0]]
     }
 
-    persistState(this.state)
+    await persistState(this.state)
 
     if (sourceWindow) {
       const registeredId = this.registerClientWindow(sourceWindow, hints.clientId)
@@ -686,13 +736,12 @@ class RemixDevHostController {
     }
 
     const player = this.state.players.find((p) => p.id === resolvedPlayerId) || this.state.players[0]
-    
+
     // Match the real SDK's GameInfo structure
-    // Real SDK uses 'meId' not 'player' according to the type definitions
+    // Real SDK provides 'player' (not 'meId')
     const gameInfo: any = {
       players: [...this.state.players],
-      meId: resolvedPlayerId, // This is what the real SDK expects
-      player, // Keep for backward compatibility if needed
+      player, // This is what the real SDK provides
       viewContext: 'full_screen',
       initialGameState: this.state.gameState
     }
@@ -721,7 +770,7 @@ class RemixDevHostController {
    * 
    * The game should ONLY save state through SDK methods, never directly to localStorage.
    */
-  private handleSaveGameState(data: { gameState: Record<string, unknown>; alertUserIds?: string[] } | undefined): void {
+  private async handleSaveGameState(data: { gameState: Record<string, unknown>; alertUserIds?: string[] } | undefined): Promise<void> {
     if (!data || typeof data !== 'object') return
 
     const envelope: GameStateEnvelope | null = data.gameState
@@ -748,17 +797,17 @@ class RemixDevHostController {
       this.state.currentPlayerId = typed.turn === 'w' ? '1' : '2'
     }
 
-    persistState(this.state)
+    await persistState(this.state)
 
     this.sendGameEvent('game_state_updated', envelope)
     this.publishDevEvent('game_state_updated', envelope)
     this.broadcastToOtherWindows('game_state_updated', envelope)
   }
 
-  private handleMultiplayerGameOver(data: unknown): void {
+  private async handleMultiplayerGameOver(data: unknown): Promise<void> {
     this.state.gameState = null
     this.state.currentPlayerId = null
-    persistState(this.state)
+    await persistState(this.state)
 
     this.sendGameEvent('multiplayer_game_over', data)
     this.publishDevEvent('multiplayer_game_over', data)
@@ -766,9 +815,9 @@ class RemixDevHostController {
     clearPlayerAssignments()
   }
 
-  resetState(): void {
+  async resetState(): Promise<void> {
     this.state = createDefaultState()
-    persistState(this.state)
+    await persistState(this.state)
     clearPlayerAssignments()
     this.clientWindows.clear()
     this.windowToClientId.clear()
