@@ -494,9 +494,9 @@ class RemixDevHostController {
 
   constructor(isMultiplayer: boolean) {
     this.isMultiplayer = isMultiplayer
-    this.state = createDefaultState() // Initialize with default first
+    this.state = createDefaultState() // Initialize with default
 
-    // Load persisted state asynchronously
+    // Load initial state asynchronously (will be re-read on each ready() call)
     readPersistedState().then(state => {
       this.state = state
     })
@@ -630,13 +630,13 @@ class RemixDevHostController {
   /**
    * Handles the 'ready' message from the game client.
    * This is the host's side of the handshake - it responds with game_info.
-   * 
+   *
    * Flow:
    * 1. Receives 'ready' from game
-   * 2. Assigns or retrieves player ID for this client
-   * 3. Loads any persisted game state
+   * 2. Re-reads persisted state from localStorage (ensures fresh state)
+   * 3. Assigns or retrieves player ID for this client
    * 4. Sends 'game_info' response with player data and initial state
-   * 
+   *
    * IMPORTANT: Guard against duplicate ready calls from the same client
    * to prevent player duplication and state corruption.
    */
@@ -655,9 +655,9 @@ class RemixDevHostController {
     // Mark this client as handled
     this.handledReadyClients.add(hints.clientId)
 
-    // Use in-memory state - don't re-read from localStorage
-    // State is only read from localStorage once in constructor
-    // This ensures state changes only come through proper SDK events
+    // CRITICAL: Always re-read from localStorage to get the latest state
+    // This ensures state loaded from GameStatePanel is picked up
+    this.state = await readPersistedState()
 
     const assignments = readPlayerAssignments()
 
