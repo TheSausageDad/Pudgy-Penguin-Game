@@ -36,7 +36,7 @@ export function getDevEnvironmentInfo(): DevEnvironmentInfo | null {
 }
 
 
-export function initializeRemixSDK(game: Phaser.Game): void {
+export async function initializeRemixSDK(game: Phaser.Game): Promise<void> {
   if (!("FarcadeSDK" in window && window.FarcadeSDK)) {
     return
   }
@@ -44,25 +44,20 @@ export function initializeRemixSDK(game: Phaser.Game): void {
   // Make the game canvas focusable
   game.canvas.setAttribute("tabindex", "-1")
 
-  // Don't call ready() here - let the game scene handle it
-  // The scene needs to await the promise to get the game info
-  
   // Set mute/unmute handler
   window.FarcadeSDK.on("toggle_mute", (data: { isMuted: boolean }) => {
+    console.log('[Remix SDK] toggle_mute event received:', data.isMuted)
     game.sound.mute = data.isMuted
-    // Send toggle_mute event back to parent to update SDK flag
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({
-        type: 'remix_sdk_event',
-        event: { type: 'toggle_mute', data: { isMuted: data.isMuted } }
-      }, '*')
-    }
+    console.log('[Remix SDK] Game sound muted set to:', game.sound.mute)
   })
 
   // Setup play_again handler
   window.FarcadeSDK.on("play_again", () => {
-    // TODO: Restart the game
-    // Your game restart logic is called here
+    // Restart the game by going back to the start scene
+    const currentScene = game.scene.getScenes(true)[0]
+    if (currentScene) {
+      currentScene.scene.start('StartScene')
+    }
 
     // Attempt to bring focus back to the game canvas
     try {
@@ -71,6 +66,31 @@ export function initializeRemixSDK(game: Phaser.Game): void {
       // Could not programmatically focus game canvas
     }
   })
+
+  // Call ready() to signal the SDK that the game is loaded and ready
+  // This is required for the SDK to show UI elements like play again button
+  try {
+    const gameInfo = await window.FarcadeSDK.singlePlayer.actions.ready()
+    console.log('[Remix SDK] Game ready, received game info:', gameInfo)
+    console.log('[Remix SDK] Checking initial mute state...')
+    console.log('[Remix SDK] window.FarcadeSDK.isMuted:', window.FarcadeSDK.isMuted)
+    console.log('[Remix SDK] gameInfo.isMuted:', gameInfo?.isMuted)
+
+    // Check and apply initial mute state from SDK
+    if (window.FarcadeSDK.isMuted !== undefined) {
+      game.sound.mute = window.FarcadeSDK.isMuted
+      console.log('[Remix SDK] Applied initial mute state from SDK.isMuted:', window.FarcadeSDK.isMuted)
+    } else if (gameInfo && typeof gameInfo.isMuted === 'boolean') {
+      game.sound.mute = gameInfo.isMuted
+      console.log('[Remix SDK] Applied initial mute state from gameInfo.isMuted:', gameInfo.isMuted)
+    } else {
+      console.log('[Remix SDK] No initial mute state found, defaulting to unmuted')
+      game.sound.mute = false
+    }
+    console.log('[Remix SDK] Final game.sound.mute value:', game.sound.mute)
+  } catch (error) {
+    console.error('[Remix SDK] Error calling ready():', error)
+  }
 }
 
 // Initialize development features (separate from SDK)

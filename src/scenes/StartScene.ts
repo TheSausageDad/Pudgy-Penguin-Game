@@ -13,6 +13,9 @@ export class StartScene extends Phaser.Scene {
     // Load button images
     this.load.image('play_button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Play%20button-lzfzT3xxwS4Jey7fRJSw74WOPBu0qY.png?AQ2w')
     this.load.image('howtoplay_button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/How%20to%20play-PcDDzkmXDn50tb3za8WV0zGq8UkfTo.png?fz3u')
+
+    // Load game start sound
+    this.load.audio('game_start', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/game%20start-RHdnzRKrjI9adHseJbv8QJP8KT1Ajy.wav?sXuB')
   }
 
   create() {
@@ -27,8 +30,29 @@ export class StartScene extends Phaser.Scene {
 
     // Play Button (with image)
     const playButton = this.createImageButton(width / 2, height * 0.60, 'play_button', () => {
+      // Resume AudioContext if suspended (for browser autoplay policy)
+      if (this.sound.context && this.sound.context.state === 'suspended') {
+        this.sound.context.resume().then(() => {
+          console.log('[Audio] AudioContext resumed on user interaction')
+        }).catch((error) => {
+          console.error('[Audio] Failed to resume AudioContext:', error)
+        })
+      }
+
+      // Play game start sound
+      this.sound.play('game_start', { volume: 0.7 })
+
       // Check if tutorial has been completed
       const tutorialCompleted = localStorage.getItem('pudgy_tutorial_completed')
+
+      // Stop current scene
+      this.scene.stop('StartScene')
+
+      // Make sure PudgyGameScene is fully stopped before starting fresh
+      if (this.scene.get('PudgyGameScene')) {
+        this.scene.stop('PudgyGameScene')
+      }
+
       if (tutorialCompleted === 'true') {
         this.scene.start('PudgyGameScene')
       } else {
@@ -38,6 +62,26 @@ export class StartScene extends Phaser.Scene {
 
     // How to Play Button (with image)
     const howToPlayButton = this.createImageButton(width / 2, height * 0.78, 'howtoplay_button', () => {
+      // Resume AudioContext if suspended (for browser autoplay policy)
+      if (this.sound.context && this.sound.context.state === 'suspended') {
+        this.sound.context.resume().then(() => {
+          console.log('[Audio] AudioContext resumed on user interaction')
+        }).catch((error) => {
+          console.error('[Audio] Failed to resume AudioContext:', error)
+        })
+      }
+
+      // Play game start sound
+      this.sound.play('game_start', { volume: 0.7 })
+
+      // Stop current scene
+      this.scene.stop('StartScene')
+
+      // Make sure tutorial scene is fresh
+      if (this.scene.get('TutorialScene')) {
+        this.scene.stop('TutorialScene')
+      }
+
       this.scene.start('TutorialScene')
     })
   }

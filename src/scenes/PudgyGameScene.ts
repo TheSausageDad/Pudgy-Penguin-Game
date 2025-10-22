@@ -5,7 +5,6 @@ enum ItemType {
   GOLDEN_FISH = 'golden_fish',
   TRASH = 'trash',
   HEART = 'heart',
-  REVIVE = 'revive',
   SHIELD = 'shield',
   BIRD = 'bird',
   FALLING_BIRD = 'falling_bird',
@@ -32,14 +31,15 @@ export class PudgyGameScene extends Phaser.Scene {
   private dKey!: Phaser.Input.Keyboard.Key
   private touchLeft: boolean = false
   private touchRight: boolean = false
+  private activePointers: Map<number, 'left' | 'right'> = new Map()
 
   // Game state
   private score: number = 0
   private lives: number = 3
-  private hasRevive: boolean = false
   private isInvincible: boolean = false
   private invincibilityTimeLeft: number = 0
   private gameTime: number = 0 // in seconds
+  private gameActive: boolean = false // Track if game is actually running
 
   // Frenzy system
   private consecutiveFish: number = 0
@@ -67,7 +67,7 @@ export class PudgyGameScene extends Phaser.Scene {
   private missileWarningTimer: number = 0
   private missileWarningX: number = 0
   private missileSpawnTimer: number = 0
-  private nextMissileSpawn: number = 15 // seconds until first missile
+  private nextMissileSpawn: number = 8 // seconds until first missile
   private warningSignTop!: Phaser.GameObjects.Image
 
   // UI
@@ -77,10 +77,12 @@ export class PudgyGameScene extends Phaser.Scene {
   private frenzyBar!: Phaser.GameObjects.Graphics
   private frenzyMultiplierText!: Phaser.GameObjects.Text
   private goldenMultiplierText!: Phaser.GameObjects.Text
-  private reviveIcon!: Phaser.GameObjects.Image
   private shieldText!: Phaser.GameObjects.Text
   private frenzyPopup!: Phaser.GameObjects.Text
   private background!: Phaser.GameObjects.Image
+
+  // Audio
+  private bgMusic!: Phaser.Sound.BaseSound
 
   // Game bounds
   private playableLeft: number = 50
@@ -92,6 +94,37 @@ export class PudgyGameScene extends Phaser.Scene {
 
   constructor() {
     super({ key: 'PudgyGameScene' })
+  }
+
+  init() {
+    // Reset all game state when scene initializes
+    this.score = 0
+    this.lives = 3
+    this.isInvincible = false
+    this.invincibilityTimeLeft = 0
+    this.gameTime = 0
+    this.gameActive = false
+    this.consecutiveFish = 0
+    this.frenzyProgress = 0
+    this.frenzyMultiplier = 1
+    this.isFrenzyMode = false
+    this.frenzyTimeLeft = 0
+    this.goldenMultiplier = 1
+    this.goldenTimeLeft = 0
+    this.spawnTimer = 0
+    this.currentSpawnInterval = 2
+    this.missileWarningActive = false
+    this.missileWarningTimer = 0
+    this.missileSpawnTimer = 0
+    this.nextMissileSpawn = 8
+    this.playerSpeed = this.basePlayerSpeed
+    this.activeItems = []
+    this.birds = []
+    this.missiles = []
+    this.heartIcons = [] // Clear heart icons array to prevent duplicates
+    this.touchLeft = false
+    this.touchRight = false
+    this.activePointers.clear()
   }
 
   preload() {
@@ -113,9 +146,8 @@ export class PudgyGameScene extends Phaser.Scene {
     // Load trash sprites
     this.load.image('trash_red', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Red%20can-co5Cdw1tnJEPIXbInrcNi5jR5WhHWQ.png?puEM')
     this.load.image('trash_grey', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Greycan-zxFLkUAUwUIy3TLyGltr0SBsgtNG78.png?hZSN')
-
-    // Load revive sprite
-    this.load.image('revive', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Revive-nb5BBApRBW7vXUxZM81ZtJ2v8zNH7p.png?p8xe')
+    this.load.image('trash_bottle', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Broken%20Bottle-PS5kOHT5Mwx5JTrQl3nsF6owBWWUbc.png?pnsl')
+    this.load.image('trash_jug', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Milk%20Jug-urBDET4IOmMNqTPiwQBh6iEcV7McLZ.png?U3zy')
 
     // Load shield sprite
     this.load.image('shield', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Shield-VZ6oLsks0cW74YTVKp4V2cdoTptTAW.png?e3nn')
@@ -128,7 +160,22 @@ export class PudgyGameScene extends Phaser.Scene {
     this.load.image('shark_warning', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Shark%20sign-R84ZKLTd6IKWWbNrQxrIEYOtj21VC5.png?G9nf')
 
     // Load frenzy bar border
-    this.load.image('frenzy_border', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Multi%20Border-oX3r0n1I4iRifgtrMUfRPiXz79cS0w.png?6v2T')
+    this.load.image('frenzy_border', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Multi%20Border-irqjtX3PmU7JlCY0EXj9QGtgkhITE2.png?hbtU')
+
+    // Load audio
+    this.load.audio('bg_music', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/fish%20catch%20audio%20loop-YRM7VDWquwb1cyvh7zmW28Ahd9qjRj.mp3?FEQu')
+
+    // Load sound effects
+    this.load.audio('fish_collect', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Fish%20collect-yg0Z1HOTv71DTXrxF9jtHMW5aILUmn.wav?UOS5')
+    this.load.audio('frenzy_start', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Frenzy%20Mode%20start-LQhhqxPEsKdMKcbocbRaIoLFtCAllH.wav?8VV6')
+    this.load.audio('golden_fish', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Gold%20fish%20sound-WUZ6mItdNu9lal6dwXfaYJ24PUP3IP.wav?NILs')
+    this.load.audio('heart_collect', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Heart%20Sound-179kFBWe3eI6tJmeFHBmCeTcquUzhO.wav?G1g1')
+    this.load.audio('shield_collect', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Shield%20Sound-i5gePhFnpdheifIP11qVHMwRFIV4hM.wav?HiCA')
+    this.load.audio('shark_alert', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Shark%20alert-QoeKVCsScCPwAJkXBRxQwVoa2kP3kh.wav?ZCXZ')
+    this.load.audio('take_damage', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Taking%20Damage-IsyBuna6o0G0NKEUGFSP0MnIE9lyXv.wav?U9B9')
+    this.load.audio('bird_hit', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Fish%20hit%20Bird%20Sound-ugK2vGeolhDM765eeoJNt76fnaJn7F.wav?uN0N')
+    this.load.audio('game_over', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Game%20Over%20Pop-GmDgO08j4siefdH3QrYT3dxU5qFD01.wav?dD6MC')
+    this.load.audio('game_start', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/game%20start-RHdnzRKrjI9adHseJbv8QJP8KT1Ajy.wav?sXuB')
   }
 
   create() {
@@ -143,16 +190,18 @@ export class PudgyGameScene extends Phaser.Scene {
     const scale = Math.max(scaleX, scaleY)
     this.background.setScale(scale)
 
-    // Create bird animation
-    this.anims.create({
-      key: 'bird_fly',
-      frames: [
-        { key: 'bird_down' },
-        { key: 'bird_up' }
-      ],
-      frameRate: 8,
-      repeat: -1
-    })
+    // Create bird animation (only if it doesn't exist)
+    if (!this.anims.exists('bird_fly')) {
+      this.anims.create({
+        key: 'bird_fly',
+        frames: [
+          { key: 'bird_down' },
+          { key: 'bird_up' }
+        ],
+        frameRate: 8,
+        repeat: -1
+      })
+    }
 
     // Create player with placeholder
     this.player = this.add.sprite(width / 2, this.playableBottom - 40, 'player')
@@ -203,22 +252,54 @@ export class PudgyGameScene extends Phaser.Scene {
     this.aKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     this.dKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D)
 
-    // Touch/Mouse
+    // Touch controls - Tap and hold zones for left/right
     const { width } = this.cameras.main
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.x < width / 2) {
-        this.touchLeft = true
-        this.touchRight = false
-      } else {
-        this.touchRight = true
-        this.touchLeft = false
+
+    // Update touch state based on active pointers
+    const updateTouchState = () => {
+      // Count active pointers in each zone
+      let hasLeft = false
+      let hasRight = false
+
+      this.activePointers.forEach((side) => {
+        if (side === 'left') hasLeft = true
+        if (side === 'right') hasRight = true
+      })
+
+      // Update movement flags
+      this.touchLeft = hasLeft
+      this.touchRight = hasRight
+
+      // If both are pressed, most recent wins (last one in the map)
+      if (hasLeft && hasRight) {
+        const sides = Array.from(this.activePointers.values())
+        const lastSide = sides[sides.length - 1]
+        this.touchLeft = lastSide === 'left'
+        this.touchRight = lastSide === 'right'
       }
+    }
+
+    // Pointer down - register which side was touched
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const side = pointer.x < width / 2 ? 'left' : 'right'
+      this.activePointers.set(pointer.id, side)
+      updateTouchState()
     })
 
-    this.input.on('pointerup', () => {
-      this.touchLeft = false
-      this.touchRight = false
+    // Pointer up - remove this pointer
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      this.activePointers.delete(pointer.id)
+      updateTouchState()
     })
+
+    // Pointer leaves game area - remove this pointer
+    this.input.on('pointerout', (pointer: Phaser.Input.Pointer) => {
+      this.activePointers.delete(pointer.id)
+      updateTouchState()
+    })
+
+    // Enable multi-touch for mobile
+    this.input.addPointer(2) // Support up to 3 simultaneous touches (default is 1)
   }
 
   private setupUI() {
@@ -227,16 +308,16 @@ export class PudgyGameScene extends Phaser.Scene {
     // Score
     this.scoreText = this.add.text(20, 20, 'Score: 0', {
       fontFamily: '"Rubik Bubbles"',
-      fontSize: '32px',
+      fontSize: '48px',
       color: '#ffffff',
       stroke: '#000000',
-      strokeThickness: 4
+      strokeThickness: 6
     })
 
     // Lives - create 3 heart icons
     for (let i = 0; i < 3; i++) {
-      const heart = this.add.image(20 + (i * 50), 70, 'heart')
-      heart.setDisplaySize(45, 45)
+      const heart = this.add.image(20 + (i * 70), 90, 'heart')
+      heart.setDisplaySize(65, 65)
       heart.setOrigin(0, 0)
       this.heartIcons.push(heart)
     }
@@ -251,51 +332,50 @@ export class PudgyGameScene extends Phaser.Scene {
     })
     this.livesText.setVisible(false)
 
-    // Frenzy bar border image (proportional scaling) - positioned on right, aligned with score
-    const frenzyBorder = this.add.image(width - 350, 5, 'frenzy_border')
-    frenzyBorder.setOrigin(0.5, 0) // Top center anchor
-    const targetBorderWidth = 400
-    const borderScale = targetBorderWidth / frenzyBorder.width
+    // Frenzy bar border image (portrait orientation on right side)
+    const frenzyBorder = this.add.image(width - 60, 200, 'frenzy_border')
+    frenzyBorder.setOrigin(0.5, 0) // Top-center anchor
+    // No rotation - image is already in portrait orientation
+    const targetBorderHeight = 600 // Height when vertical
+    const borderScale = targetBorderHeight / frenzyBorder.height // Scale based on height
     frenzyBorder.setScale(borderScale)
+
+    // Calculate the scaled border dimensions for proper bar positioning
+    const borderWidth = frenzyBorder.width * borderScale
+    const borderHeight = frenzyBorder.height * borderScale
 
     // Frenzy bar
     this.frenzyBar = this.add.graphics()
 
-    // Frenzy multiplier - positioned to the right of bar, aligned with score
-    this.frenzyMultiplierText = this.add.text(width - 140, 5, '1x', {
+    // Frenzy multiplier - positioned below the bar on right side
+    this.frenzyMultiplierText = this.add.text(width - 60, 630, '1x', {
       fontFamily: '"Rubik Bubbles"',
-      fontSize: '32px',
+      fontSize: '42px',
       color: '#FFD700',
       stroke: '#000000',
       strokeThickness: 4
     })
-    this.frenzyMultiplierText.setOrigin(1, 0)
+    this.frenzyMultiplierText.setOrigin(0.5, 0.5)
 
-    // Golden multiplier (shown when active)
-    this.goldenMultiplierText = this.add.text(width / 2, 180, '', {
+    // Golden multiplier (shown when active) - positioned below hearts
+    this.goldenMultiplierText = this.add.text(20, 175, '', {
       fontFamily: '"Rubik Bubbles"',
       fontSize: '28px',
       color: '#FFD700',
       stroke: '#000000',
       strokeThickness: 3
     })
-    this.goldenMultiplierText.setOrigin(0.5)
+    this.goldenMultiplierText.setOrigin(0, 0)
 
-    // Revive icon (hidden initially)
-    this.reviveIcon = this.add.image(width - 20, 75, 'revive')
-    this.reviveIcon.setDisplaySize(70, 70)
-    this.reviveIcon.setOrigin(1, 0)
-    this.reviveIcon.setVisible(false)
-
-    // Shield timer text (hidden initially)
-    this.shieldText = this.add.text(width / 2, 220, '', {
+    // Shield timer text (hidden initially) - positioned below golden text
+    this.shieldText = this.add.text(20, 215, '', {
       fontFamily: '"Rubik Bubbles"',
       fontSize: '28px',
       color: '#00FFFF',
       stroke: '#000000',
       strokeThickness: 3
     })
-    this.shieldText.setOrigin(0.5)
+    this.shieldText.setOrigin(0, 0)
 
     // Frenzy popup (hidden initially)
     this.frenzyPopup = this.add.text(width / 2, 400, 'FRENZY MODE!!', {
@@ -342,16 +422,44 @@ export class PudgyGameScene extends Phaser.Scene {
 
   private startGame() {
     // Game is now active
+    this.gameActive = true
+
+    // Resume AudioContext if suspended (for browser autoplay policy)
+    if (this.sound.context && this.sound.context.state === 'suspended') {
+      this.sound.context.resume().then(() => {
+        console.log('[Audio] AudioContext resumed')
+        this.startBackgroundMusic()
+      }).catch((error) => {
+        console.error('[Audio] Failed to resume AudioContext:', error)
+        this.startBackgroundMusic()
+      })
+    } else {
+      this.startBackgroundMusic()
+    }
+  }
+
+  private startBackgroundMusic() {
+    // Start background music
+    this.bgMusic = this.sound.add('bg_music', {
+      loop: true,
+      volume: 0.5
+    })
+    this.bgMusic.play()
   }
 
   update(time: number, delta: number) {
     const deltaSeconds = delta / 1000
 
+    // Update player movement (always allow movement)
+    this.updatePlayer(deltaSeconds)
+
+    // Only update game logic if game is active
+    if (!this.gameActive) {
+      return
+    }
+
     // Update game time
     this.gameTime += deltaSeconds
-
-    // Update player movement
-    this.updatePlayer(deltaSeconds)
 
     // Update timers
     this.updateTimers(deltaSeconds)
@@ -374,22 +482,24 @@ export class PudgyGameScene extends Phaser.Scene {
     // Update UI
     this.updateUI()
 
-    // Draw debug hitboxes
-    this.drawDebugHitboxes()
+    // Draw debug hitboxes (disabled)
+    // this.drawDebugHitboxes()
   }
 
   private drawDebugHitboxes() {
     this.debugGraphics.clear()
     this.debugGraphics.lineStyle(2, 0xff0000, 1)
 
-    // Draw player hitbox
+    // Draw player hitbox (rectangle, top-aligned, 50% width, 75% height)
     const playerBounds = this.player.getBounds()
-    const margin = playerBounds.width * 0.15
+    const margin = playerBounds.width * 0.25
+    const squareSize = playerBounds.width - margin * 2
+    const hitboxHeight = squareSize * 0.75 // 25% smaller height
     this.debugGraphics.strokeRect(
       playerBounds.x + margin,
       playerBounds.y + margin,
-      playerBounds.width - margin * 2,
-      playerBounds.height - margin * 2
+      squareSize,
+      hitboxHeight
     )
 
     // Draw item hitboxes with appropriate margins (fixed size, ignores rotation)
@@ -561,14 +671,19 @@ export class PudgyGameScene extends Phaser.Scene {
             )
 
             if (Phaser.Geom.Intersects.RectangleToRectangle(fishBounds, birdBounds)) {
+              // Play bird hit sound
+              this.sound.play('bird_hit', { volume: 0.6 })
+
               // Fish bounces
               item.isSpinning = true
               item.x += (item.x < bird.x ? -50 : 50) // Bounce away
 
-              // Bird falls
+              // Bird falls - match current item fall speed
               bird.itemType = ItemType.FALLING_BIRD
               bird.isSpinning = true
-              bird.velocity = 200 // Fall velocity
+              const maxDifficulty = 90
+              const difficulty = Math.min(1, this.gameTime / maxDifficulty)
+              bird.velocity = Phaser.Math.Linear(200, 550, difficulty)
               this.birds = this.birds.filter(b => b !== bird)
               this.activeItems.push(bird)
             }
@@ -585,13 +700,15 @@ export class PudgyGameScene extends Phaser.Scene {
 
   private checkCollisions() {
     const playerBounds = this.player.getBounds()
-    // Make hitbox more forgiving (70% size - tighter)
-    const margin = playerBounds.width * 0.15
+    // Make hitbox more forgiving (50% width, 75% height)
+    const margin = playerBounds.width * 0.25
+    const squareSize = playerBounds.width - margin * 2
+    const hitboxHeight = squareSize * 0.75 // 25% smaller height
     const forgivingBounds = new Phaser.Geom.Rectangle(
       playerBounds.x + margin,
       playerBounds.y + margin,
-      playerBounds.width - margin * 2,
-      playerBounds.height - margin * 2
+      squareSize,
+      hitboxHeight
     )
 
     this.activeItems.forEach(item => {
@@ -626,31 +743,28 @@ export class PudgyGameScene extends Phaser.Scene {
 
     switch (itemType) {
       case ItemType.BLUE_FISH:
+        this.sound.play('fish_collect', { volume: 0.5 })
         this.collectFish(10)
         break
       case ItemType.RED_FISH:
+        this.sound.play('fish_collect', { volume: 0.5 })
         this.collectFish(15)
         break
       case ItemType.GOLDEN_FISH:
+        this.sound.play('golden_fish', { volume: 0.6 })
         this.collectFish(50)
         this.activateGoldenMultiplier()
         break
       case ItemType.HEART:
+        this.sound.play('heart_collect', { volume: 0.6 })
         if (this.lives < 3) {
           this.lives++
         } else {
           this.addScore(75)
         }
         break
-      case ItemType.REVIVE:
-        if (!this.hasRevive) {
-          this.hasRevive = true
-          this.reviveIcon.setVisible(true)
-        } else {
-          this.addScore(250)
-        }
-        break
       case ItemType.SHIELD:
+        this.sound.play('shield_collect', { volume: 0.6 })
         this.activateShield()
         break
       case ItemType.TRASH:
@@ -682,6 +796,9 @@ export class PudgyGameScene extends Phaser.Scene {
   private hitObstacle() {
     console.log('Hit obstacle! Lives before:', this.lives, 'Score:', this.score)
 
+    // Play damage sound
+    this.sound.play('take_damage', { volume: 0.6 })
+
     // Reset frenzy
     this.consecutiveFish = 0
     this.frenzyProgress = 0
@@ -700,15 +817,8 @@ export class PudgyGameScene extends Phaser.Scene {
 
     // Check game over
     if (this.lives <= 0) {
-      if (this.hasRevive) {
-        console.log('Using revive!')
-        this.hasRevive = false
-        this.lives = 1
-        this.reviveIcon.setVisible(false)
-      } else {
-        console.log('Game Over triggered! Final lives:', this.lives)
-        this.gameOver()
-      }
+      console.log('Game Over triggered! Final lives:', this.lives)
+      this.gameOver()
     }
   }
 
@@ -729,6 +839,9 @@ export class PudgyGameScene extends Phaser.Scene {
     this.consecutiveFish = 0
     this.frenzyProgress = 0
     this.frenzyMultiplier = Math.min(5, this.frenzyMultiplier + 1)
+
+    // Play frenzy start sound
+    this.sound.play('frenzy_start', { volume: 0.7 })
 
     // Increase player speed
     this.playerSpeed = this.basePlayerSpeed * 1.5
@@ -766,6 +879,9 @@ export class PudgyGameScene extends Phaser.Scene {
     this.isFrenzyMode = false
     this.frenzyTimeLeft = 0
     this.playerSpeed = this.basePlayerSpeed
+
+    // Let remaining frenzy fish fall naturally
+    // Normal spawning will resume automatically
   }
 
   private addScore(points: number) {
@@ -775,7 +891,7 @@ export class PudgyGameScene extends Phaser.Scene {
 
   private updateSpawning(delta: number) {
     // Update spawn interval based on game time - faster ramp up
-    const maxDifficulty = 3 * 60 // 3 minutes in seconds
+    const maxDifficulty = 90 // 90 seconds (1.5 minutes)
     const difficulty = Math.min(1, this.gameTime / maxDifficulty)
     this.currentSpawnInterval = Phaser.Math.Linear(2, 0.8, difficulty)
 
@@ -794,12 +910,11 @@ export class PudgyGameScene extends Phaser.Scene {
     const canSpawnGolden = this.score >= 200
     const canSpawnHearts = this.score >= 250
     const canSpawnShield = this.score >= 500
-    const canSpawnRevive = this.score >= 1000
 
-    // Calculate trash percentage based on game time - lower trash spawn
-    const maxDifficulty = 3 * 60 // Match spawn difficulty
+    // Calculate trash percentage based on game time - higher trash spawn for difficulty
+    const maxDifficulty = 90 // 90 seconds (1.5 minutes) - Match spawn difficulty
     const difficulty = Math.min(1, this.gameTime / maxDifficulty)
-    const trashPercentage = Phaser.Math.Linear(0.08, 0.30, difficulty) // Reduced from 15-40% to 8-30%
+    const trashPercentage = Phaser.Math.Linear(0.15, 0.50, difficulty) // Increased from 8-30% to 15-50%
 
     // Spawn 1-3 items per wave
     const itemCount = this.isFrenzyMode ? Phaser.Math.Between(3, 5) : Phaser.Math.Between(1, 3)
@@ -823,12 +938,10 @@ export class PudgyGameScene extends Phaser.Scene {
         const rand = Math.random()
         if (rand < trashPercentage) {
           itemType = ItemType.TRASH
-        } else if (rand < trashPercentage + 0.05 && canSpawnHearts) {
+        } else if (rand < trashPercentage + 0.02 && canSpawnHearts) {
           itemType = ItemType.HEART
-        } else if (rand < trashPercentage + 0.08 && canSpawnShield) {
+        } else if (rand < trashPercentage + 0.04 && canSpawnShield) {
           itemType = ItemType.SHIELD
-        } else if (rand < trashPercentage + 0.10 && canSpawnRevive) {
-          itemType = ItemType.REVIVE
         } else {
           const fishTypes = [ItemType.BLUE_FISH]
           if (canSpawnRed) fishTypes.push(ItemType.RED_FISH)
@@ -862,13 +975,22 @@ export class PudgyGameScene extends Phaser.Scene {
     // For trash, randomly select from available trash sprites
     let spriteKey = itemType
     if (itemType === ItemType.TRASH) {
-      const trashSprites = ['trash_red', 'trash_grey']
+      const trashSprites = ['trash_red', 'trash_grey', 'trash_bottle', 'trash_jug']
       spriteKey = Phaser.Utils.Array.GetRandom(trashSprites)
     }
 
     const item = this.add.sprite(x, y, spriteKey) as FallingItem
     item.itemType = itemType
-    item.velocity = this.isFrenzyMode ? 400 : 200
+
+    // Calculate velocity based on difficulty progression
+    if (this.isFrenzyMode) {
+      item.velocity = 500 // Frenzy mode is always fast
+    } else {
+      // Ramp velocity from 200 to 550 over 90 seconds - much faster at high difficulty!
+      const maxDifficulty = 90
+      const difficulty = Math.min(1, this.gameTime / maxDifficulty)
+      item.velocity = Phaser.Math.Linear(200, 550, difficulty)
+    }
 
     // Smaller size for trash to make hitbox tighter
     if (itemType === ItemType.TRASH) {
@@ -885,7 +1007,13 @@ export class PudgyGameScene extends Phaser.Scene {
     const startFromLeft = Math.random() < 0.5
     const x = startFromLeft ? -50 : width + 50
     const y = 150 // Near top of screen
-    const velocity = startFromLeft ? 100 : -100
+
+    // Calculate velocity based on difficulty progression
+    // Ramp bird velocity from 100 to 250 over 90 seconds - much faster at high difficulty!
+    const maxDifficulty = 90
+    const difficulty = Math.min(1, this.gameTime / maxDifficulty)
+    const baseVelocity = Phaser.Math.Linear(100, 250, difficulty)
+    const velocity = startFromLeft ? baseVelocity : -baseVelocity
 
     const bird = this.add.sprite(x, y, 'bird_down') as FallingItem
     bird.itemType = ItemType.BIRD
@@ -922,17 +1050,45 @@ export class PudgyGameScene extends Phaser.Scene {
 
     // Update frenzy bar
     this.frenzyBar.clear()
-    this.frenzyBar.fillStyle(0xFFD700, 1)
 
-    // During frenzy mode, show time remaining; otherwise show progress
-    let barWidth: number
-    if (this.isFrenzyMode) {
-      barWidth = (this.frenzyTimeLeft / 10) * 380 // 10 seconds max
-    } else {
-      barWidth = (this.frenzyProgress / 20) * 380
+    // Bar positioned inside border - vertical on right side
+    // Border is at width - 60, starts at Y=200, with height of 600
+    // Bar fills from bottom to top
+    const barHeight = (this.isFrenzyMode ? (this.frenzyTimeLeft / 10) : (this.frenzyProgress / 20)) * 370 // Reduced max length
+    const barX = this.cameras.main.width - 89 // Center of border (adjusted for wider bar)
+    const barBottomY = 595 // Bottom of the border
+    const barWidth = 58
+    const cornerRadius = 8
+
+    if (barHeight > 0) {
+      // Draw outer glow
+      this.frenzyBar.fillStyle(0xFF0000, 0.3)
+      this.frenzyBar.fillRoundedRect(barX - 2, barBottomY - barHeight - 2, barWidth + 4, barHeight + 4, cornerRadius + 2)
+
+      // Draw dark background/shadow
+      this.frenzyBar.fillStyle(0x660000, 0.8)
+      this.frenzyBar.fillRoundedRect(barX, barBottomY - barHeight, barWidth, barHeight, cornerRadius)
+
+      // Draw main gradient (simulate gradient with multiple layers)
+      const layers = 5
+      for (let i = 0; i < layers; i++) {
+        const layerHeight = barHeight / layers
+        const layerY = barBottomY - barHeight + (i * layerHeight)
+        const brightness = 0.6 + (i / layers) * 0.4 // Darker at top, brighter at bottom
+        const red = Math.floor(200 + (brightness * 55))
+        const color = (red << 16) | (50 << 8) | 50
+        this.frenzyBar.fillStyle(color, 1)
+        this.frenzyBar.fillRoundedRect(barX, layerY, barWidth, layerHeight + 1, i === 0 ? cornerRadius : 0)
+      }
+
+      // Add highlight on left side
+      this.frenzyBar.fillStyle(0xFF6666, 0.4)
+      this.frenzyBar.fillRoundedRect(barX + 2, barBottomY - barHeight + 2, 8, barHeight - 4, 4)
+
+      // Add inner border
+      this.frenzyBar.lineStyle(2, 0xFF3333, 0.8)
+      this.frenzyBar.strokeRoundedRect(barX + 1, barBottomY - barHeight + 1, barWidth - 2, barHeight - 2, cornerRadius - 1)
     }
-
-    this.frenzyBar.fillRect(this.cameras.main.width - 540, 10, barWidth, 24)
 
     // Update golden multiplier text
     if (this.goldenTimeLeft > 0) {
@@ -955,8 +1111,8 @@ export class PudgyGameScene extends Phaser.Scene {
   }
 
   private updateMissileSystem(delta: number) {
-    // Don't spawn missiles until score >= 300
-    if (this.score < 300) return
+    // Don't spawn missiles until score >= 100
+    if (this.score < 100) return
 
     // Don't spawn sharks during frenzy mode
     if (this.isFrenzyMode) return
@@ -979,11 +1135,11 @@ export class PudgyGameScene extends Phaser.Scene {
         this.warningSignTop.setVisible(false)
 
         // Schedule next missile - ramps up with difficulty
-        // At low score: 15-20 seconds
-        // At high score: 8-12 seconds
+        // At low score: 6-9 seconds
+        // At high score: 3-5 seconds
         const difficulty = Math.min(1, this.score / 2000)
-        const minInterval = Phaser.Math.Linear(15, 8, difficulty)
-        const maxInterval = Phaser.Math.Linear(20, 12, difficulty)
+        const minInterval = Phaser.Math.Linear(6, 3, difficulty)
+        const maxInterval = Phaser.Math.Linear(9, 5, difficulty)
         this.nextMissileSpawn = Phaser.Math.Between(minInterval, maxInterval)
         this.missileSpawnTimer = 0
       }
@@ -997,6 +1153,9 @@ export class PudgyGameScene extends Phaser.Scene {
     this.missileWarningActive = true
     this.missileWarningTimer = 1.5 // 1.5 second warning
 
+    // Play shark alert sound
+    this.sound.play('shark_alert', { volume: 0.7 })
+
     // Random X position in playable area (with margin to keep shark fully inside bounds)
     const sharkMargin = 130 // Half of shark width (250px) to keep it fully in bounds
     this.missileWarningX = Phaser.Math.Between(this.playableLeft + sharkMargin, this.playableRight - sharkMargin)
@@ -1007,7 +1166,12 @@ export class PudgyGameScene extends Phaser.Scene {
 
   private spawnMissile() {
     const startY = -400 // Start above screen (increased for bigger sprite)
-    const velocity = 700 // Fast vertical speed!
+
+    // Calculate velocity based on difficulty progression
+    // Ramp shark velocity from 700 to 1300 over 90 seconds - much faster at high difficulty!
+    const maxDifficulty = 90
+    const difficulty = Math.min(1, this.gameTime / maxDifficulty)
+    const velocity = Phaser.Math.Linear(700, 1300, difficulty)
 
     const missile = this.add.sprite(this.missileWarningX, startY, 'missile') as FallingItem
     missile.itemType = ItemType.MISSILE
@@ -1059,12 +1223,14 @@ export class PudgyGameScene extends Phaser.Scene {
       // Check collision with player
       if (!this.isInvincible) {
         const playerBounds = this.player.getBounds()
-        const margin = playerBounds.width * 0.15
+        const margin = playerBounds.width * 0.25
+        const squareSize = playerBounds.width - margin * 2
+        const hitboxHeight = squareSize * 0.75 // 25% smaller height
         const forgivingBounds = new Phaser.Geom.Rectangle(
           playerBounds.x + margin,
           playerBounds.y + margin,
-          playerBounds.width - margin * 2,
-          playerBounds.height - margin * 2
+          squareSize,
+          hitboxHeight
         )
 
         const missileDisplayWidth = missile.displayWidth
@@ -1096,12 +1262,120 @@ export class PudgyGameScene extends Phaser.Scene {
   }
 
   private gameOver() {
-    // TODO: Integrate with Remix SDK game over
     console.log('Game Over! Final Score:', this.score)
 
-    // For now, restart
+    // Stop the game immediately to prevent any further spawning or updates
+    this.gameActive = false
+
+    // Stop background music
+    if (this.bgMusic) {
+      this.bgMusic.stop()
+    }
+
+    // Play game over sound
+    this.sound.play('game_over', { volume: 0.7 })
+
+    // Immediately clear all active items
+    this.activeItems.forEach(item => {
+      if (item && item.active) {
+        item.destroy()
+      }
+    })
+    this.activeItems = []
+
+    this.birds.forEach(bird => {
+      if (bird && bird.active) {
+        bird.destroy()
+      }
+    })
+    this.birds = []
+
+    this.missiles.forEach(missile => {
+      if (missile && missile.active) {
+        missile.destroy()
+      }
+    })
+    this.missiles = []
+
+    // Hide warning signs
+    if (this.warningSignTop) {
+      this.warningSignTop.setVisible(false)
+    }
+
+    // Integrate with Remix SDK
+    if (window.FarcadeSDK) {
+      try {
+        // Report final score to the SDK
+        window.FarcadeSDK.singlePlayer.actions.gameOver({ score: this.score })
+      } catch (error) {
+        console.error('Error reporting game over to SDK:', error)
+      }
+    }
+
+    // Return to start scene after a brief delay
     this.time.delayedCall(2000, () => {
+      // Properly stop this scene before starting the next one
+      this.scene.stop('PudgyGameScene')
       this.scene.start('StartScene')
     })
+  }
+
+  shutdown() {
+    console.log('Shutdown called - cleaning up scene')
+
+    // Stop the game
+    this.gameActive = false
+
+    // Stop and clean up background music
+    if (this.bgMusic) {
+      this.bgMusic.stop()
+      this.bgMusic.destroy()
+    }
+
+    // Stop waddle tween
+    if (this.waddleTween) {
+      this.waddleTween.stop()
+    }
+
+    // Remove input event listeners to prevent memory leaks
+    this.input.off('pointerdown')
+    this.input.off('pointerup')
+    this.input.off('pointerout')
+
+    // Clear all active items
+    this.activeItems.forEach(item => {
+      if (item && item.active) {
+        item.destroy()
+      }
+    })
+    this.activeItems = []
+
+    // Clear all birds
+    this.birds.forEach(bird => {
+      if (bird && bird.active) {
+        bird.destroy()
+      }
+    })
+    this.birds = []
+
+    // Clear all missiles
+    this.missiles.forEach(missile => {
+      if (missile && missile.active) {
+        missile.destroy()
+      }
+    })
+    this.missiles = []
+
+    // Clear item pool
+    if (this.itemPool) {
+      this.itemPool.clear(true, true)
+    }
+
+    // Hide warning signs
+    if (this.warningSignTop) {
+      this.warningSignTop.setVisible(false)
+    }
+
+    console.log('Shutdown complete')
   }
 }
