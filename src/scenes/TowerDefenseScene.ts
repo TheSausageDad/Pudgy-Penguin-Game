@@ -3,6 +3,7 @@ import { Enemy } from '../objects/Enemy'
 import { MapConfig } from '../config/MapConfigs'
 import { getAllTowerConfigs, getTowerConfig } from '../config/TowerConfigs'
 import { getEnemyConfig, getWaveEnemies } from '../config/EnemyConfigs'
+import { SPRITE_CONFIGS } from '../utils/spriteConfig'
 
 export class TowerDefenseScene extends Phaser.Scene {
   private mapId!: number
@@ -17,8 +18,8 @@ export class TowerDefenseScene extends Phaser.Scene {
 
   // Collections
   private towers: Tower[] = []
-  private enemies: Phaser.GameObjects.Group!
-  private projectiles: Phaser.GameObjects.Group!
+  private enemies!: Phaser.GameObjects.Group
+  private projectiles!: Phaser.GameObjects.Group
 
   // UI
   private livesText!: Phaser.GameObjects.Text
@@ -42,6 +43,10 @@ export class TowerDefenseScene extends Phaser.Scene {
   private towerPageContainers: Phaser.GameObjects.Container[] = []
   private justClickedTower: boolean = false
 
+  // Lazy loading tracking
+  private loadedSprites: Set<string> = new Set()
+  private loadingSprites: Set<string> = new Set()
+
   constructor() {
     super({ key: 'TowerDefenseScene' })
   }
@@ -59,23 +64,292 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.towerPageContainers = []
   }
 
+  preload() {
+    // With lazy loading, we don't load sprites here
+    // They'll be loaded on-demand when towers are selected
+    console.log('[TowerDefenseScene] Using lazy loading - sprites will load on demand')
+  }
+
+  /**
+   * Lazy load a sprite sheet on demand
+   * @param spriteKey The key of the sprite to load
+   * @param config The sprite configuration
+   * @returns Promise that resolves when sprite is loaded
+   */
+  private async lazyLoadSprite(spriteKey: string, config: any): Promise<void> {
+    // Check if already loaded
+    if (this.loadedSprites.has(spriteKey)) {
+      return Promise.resolve()
+    }
+
+    // Check if currently loading
+    if (this.loadingSprites.has(spriteKey)) {
+      // Wait for the existing load to complete
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (this.loadedSprites.has(spriteKey)) {
+            clearInterval(checkInterval)
+            resolve()
+          }
+        }, 100)
+      })
+    }
+
+    // Mark as loading
+    this.loadingSprites.add(spriteKey)
+
+    return new Promise((resolve, reject) => {
+      // Load the sprite sheet
+      this.load.spritesheet(config.key, config.path, config.config)
+
+      // Handle load complete
+      this.load.once('complete', () => {
+        // Set texture filtering
+        const texture = this.textures.get(config.key)
+        if (texture) {
+          texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+        }
+
+        // Mark as loaded
+        this.loadedSprites.add(spriteKey)
+        this.loadingSprites.delete(spriteKey)
+
+        console.log(`[LazyLoad] Loaded sprite: ${spriteKey}`)
+        resolve()
+      })
+
+      // Handle load error
+      this.load.once('loaderror', (file: any) => {
+        if (file.key === spriteKey) {
+          console.error(`[LazyLoad] Failed to load sprite: ${spriteKey}`)
+          this.loadingSprites.delete(spriteKey)
+          reject(new Error(`Failed to load sprite: ${spriteKey}`))
+        }
+      })
+
+      // Start loading
+      this.load.start()
+    })
+  }
+
+  /**
+   * Get sprite config for a tower type and ensure it's loaded
+   */
+  private async ensureTowerSpriteLoaded(towerType: number): Promise<void> {
+    const spriteConfigs: Record<number, any> = {
+      1: SPRITE_CONFIGS.FOCUSED_FALCON,
+      2: SPRITE_CONFIGS.AMBITIOUS_ANGEL,
+      3: SPRITE_CONFIGS.MOTIVATED_MONSTER,
+      4: SPRITE_CONFIGS.THOUGHTFUL_HARPIK,
+      5: SPRITE_CONFIGS.EMPATHY_ELEPHANT,
+      6: SPRITE_CONFIGS.ADAPTABLE_ALIEN,
+      7: SPRITE_CONFIGS.FEARLESS_FAIRY,
+      8: SPRITE_CONFIGS.NOTORIOUS_NINJA,
+      9: SPRITE_CONFIGS.FLEX_N_FOX,
+      10: SPRITE_CONFIGS.DRIVEN_DRAGON,
+      11: SPRITE_CONFIGS.BALANCED_BEETLE,
+      12: SPRITE_CONFIGS.ADVENTUROUS_ASTRONAUT,
+      13: SPRITE_CONFIGS.CREATIVE_CRAB,
+      14: SPRITE_CONFIGS.COMPETITIVE_CLOWN,
+      15: SPRITE_CONFIGS.CYNICAL_CAT,
+      16: SPRITE_CONFIGS.RARE_ROBOT
+    }
+
+    const config = spriteConfigs[towerType]
+    if (!config) {
+      return Promise.resolve()
+    }
+
+    await this.lazyLoadSprite(config.key, config)
+
+    // Create animations if they don't exist
+    const animPrefixes: Record<number, string> = {
+      1: 'falcon', 2: 'angel', 3: 'monster', 4: 'harpik',
+      5: 'elephant', 6: 'alien', 7: 'fairy', 8: 'ninja',
+      9: 'fox', 10: 'dragon', 11: 'beetle', 12: 'astronaut',
+      13: 'crab', 14: 'clown', 15: 'cat', 16: 'robot'
+    }
+
+    const animPrefix = animPrefixes[towerType]
+    if (animPrefix && !this.anims.exists(`${animPrefix}-idle-front`)) {
+      // Dragon uses 3-frame layout, others use standard 6-frame layout
+      if (towerType === 10) {
+        this.createSimple3FrameAnimations(config.key, animPrefix)
+      } else {
+        this.createCharacterAnimations(config.key, animPrefix)
+      }
+    }
+  }
+
+  private createCharacterAnimations(spriteKey: string, animPrefix: string) {
+    // Standard sprite sheet layout:
+    // Frame 0: idle-front, Frame 1: throw-front
+    // Frame 2: idle-right, Frame 3: throw-right
+    // Frame 4: idle-back, Frame 5: throw-back
+
+    // Front animations
+    if (!this.anims.exists(`${animPrefix}-idle-front`)) {
+      this.anims.create({
+        key: `${animPrefix}-idle-front`,
+        frames: [{ key: spriteKey, frame: 0 }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    if (!this.anims.exists(`${animPrefix}-throw-front`)) {
+      this.anims.create({
+        key: `${animPrefix}-throw-front`,
+        frames: [
+          { key: spriteKey, frame: 1, duration: 200 },
+          { key: spriteKey, frame: 0, duration: 100 }
+        ],
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+
+    // Right animations
+    if (!this.anims.exists(`${animPrefix}-idle-right`)) {
+      this.anims.create({
+        key: `${animPrefix}-idle-right`,
+        frames: [{ key: spriteKey, frame: 2 }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    if (!this.anims.exists(`${animPrefix}-throw-right`)) {
+      this.anims.create({
+        key: `${animPrefix}-throw-right`,
+        frames: [
+          { key: spriteKey, frame: 3, duration: 200 },
+          { key: spriteKey, frame: 2, duration: 100 }
+        ],
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+
+    // Back animations
+    if (!this.anims.exists(`${animPrefix}-idle-back`)) {
+      this.anims.create({
+        key: `${animPrefix}-idle-back`,
+        frames: [{ key: spriteKey, frame: 4 }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    if (!this.anims.exists(`${animPrefix}-throw-back`)) {
+      this.anims.create({
+        key: `${animPrefix}-throw-back`,
+        frames: [
+          { key: spriteKey, frame: 5, duration: 200 },
+          { key: spriteKey, frame: 4, duration: 100 }
+        ],
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+  }
+
+  private createSimple3FrameAnimations(spriteKey: string, animPrefix: string) {
+    // Simple 3-frame layout (no idle/throw variations):
+    // Frame 0: front
+    // Frame 1: right
+    // Frame 2: back
+
+    // Front animations (use same frame for both idle and throw)
+    if (!this.anims.exists(`${animPrefix}-idle-front`)) {
+      this.anims.create({
+        key: `${animPrefix}-idle-front`,
+        frames: [{ key: spriteKey, frame: 0 }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    if (!this.anims.exists(`${animPrefix}-throw-front`)) {
+      this.anims.create({
+        key: `${animPrefix}-throw-front`,
+        frames: [{ key: spriteKey, frame: 0 }],
+        frameRate: 1,
+        repeat: 0
+      })
+    }
+
+    // Right animations
+    if (!this.anims.exists(`${animPrefix}-idle-right`)) {
+      this.anims.create({
+        key: `${animPrefix}-idle-right`,
+        frames: [{ key: spriteKey, frame: 1 }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    if (!this.anims.exists(`${animPrefix}-throw-right`)) {
+      this.anims.create({
+        key: `${animPrefix}-throw-right`,
+        frames: [{ key: spriteKey, frame: 1 }],
+        frameRate: 1,
+        repeat: 0
+      })
+    }
+
+    // Back animations
+    if (!this.anims.exists(`${animPrefix}-idle-back`)) {
+      this.anims.create({
+        key: `${animPrefix}-idle-back`,
+        frames: [{ key: spriteKey, frame: 2 }],
+        frameRate: 1,
+        repeat: -1
+      })
+    }
+    if (!this.anims.exists(`${animPrefix}-throw-back`)) {
+      this.anims.create({
+        key: `${animPrefix}-throw-back`,
+        frames: [{ key: spriteKey, frame: 2 }],
+        frameRate: 1,
+        repeat: 0
+      })
+    }
+  }
+
   create() {
     const { width, height } = this.cameras.main
 
+    // Animations will be created lazily when sprites are loaded
     // Load map configuration
     this.mapConfig = this.getMapConfig(this.mapId)
 
-    // Create background with gradient effect
+    // Create layered background with depth
+    // Base layer
     const bg = this.add.rectangle(width / 2, height / 2, width, height, this.mapConfig.backgroundColor)
+    bg.setDepth(-100)
 
-    // Add texture pattern (simple grid)
+    // Add subtle gradient overlay for depth
+    const gradientGraphics = this.add.graphics()
+    gradientGraphics.setDepth(-99)
+    gradientGraphics.fillStyle(0x000000, 0.1)
+    gradientGraphics.fillRect(0, height * 0.6, width, height * 0.4)
+
+    // Add organic texture pattern (grass/ground)
     const bgGraphics = this.add.graphics()
-    bgGraphics.lineStyle(1, 0x000000, 0.05)
-    for (let x = 0; x < width; x += 40) {
-      bgGraphics.lineBetween(x, 0, x, height)
-    }
-    for (let y = 0; y < height; y += 40) {
-      bgGraphics.lineBetween(0, y, width, y)
+    bgGraphics.setDepth(-98)
+
+    // Draw subtle grid for terrain
+    bgGraphics.lineStyle(1, 0x000000, 0.03)
+    const baseColorObj = Phaser.Display.Color.IntegerToColor(this.mapConfig.backgroundColor)
+    for (let x = 0; x < width; x += 60) {
+      const offset = (x / 60) % 2 === 0 ? 0 : 30
+      for (let y = offset; y < height; y += 60) {
+        // Small patches of slightly different color
+        const variance = 10
+        const newColor = Phaser.Display.Color.GetColor(
+          Math.max(0, Math.min(255, baseColorObj.red + (Math.random() - 0.5) * variance)),
+          Math.max(0, Math.min(255, baseColorObj.green + (Math.random() - 0.5) * variance)),
+          Math.max(0, Math.min(255, baseColorObj.blue + (Math.random() - 0.5) * variance))
+        )
+        bgGraphics.fillStyle(newColor, 0.15)
+        bgGraphics.fillCircle(x, y, 20 + Math.random() * 15)
+      }
     }
 
     // Add some decorative elements based on map theme
@@ -391,32 +665,75 @@ export class TowerDefenseScene extends Phaser.Scene {
     // Initialize all tiles as placeable
     this.placementGrid = Array(rows).fill(null).map(() => Array(cols).fill(true))
 
-    // Mark path tiles as non-placeable
-    this.path.forEach(point => {
-      const gridX = Math.floor(point.x / this.gridSize)
-      const gridY = Math.floor(point.y / this.gridSize)
-      if (gridY >= 0 && gridY < rows && gridX >= 0 && gridX < cols) {
-        this.placementGrid[gridY][gridX] = false
+    // Mark path tiles and buffer zone as non-placeable
+    // We'll trace along the path and mark tiles in a wider area
+    if (this.path.length > 1) {
+      for (let i = 0; i < this.path.length - 1; i++) {
+        const start = this.path[i]
+        const end = this.path[i + 1]
+        const distance = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y)
+        const steps = Math.ceil(distance / (this.gridSize / 2))
+
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps
+          const x = start.x + (end.x - start.x) * t
+          const y = start.y + (end.y - start.y) * t
+
+          // Mark the path tile and surrounding buffer zone
+          const centerGridX = Math.floor(x / this.gridSize)
+          const centerGridY = Math.floor(y / this.gridSize)
+
+          // Create a buffer zone around the path (prevents placement right at edge)
+          const bufferRadius = 1.2 // tiles on each side
+          const bufferRadiusInt = Math.ceil(bufferRadius)
+          for (let dy = -bufferRadiusInt; dy <= bufferRadiusInt; dy++) {
+            for (let dx = -bufferRadiusInt; dx <= bufferRadiusInt; dx++) {
+              const gridX = centerGridX + dx
+              const gridY = centerGridY + dy
+
+              // Calculate distance from center to determine if in buffer
+              const distFromCenter = Math.sqrt(dx * dx + dy * dy)
+              if (distFromCenter <= bufferRadius) {
+                if (gridY >= 0 && gridY < rows && gridX >= 0 && gridX < cols) {
+                  this.placementGrid[gridY][gridX] = false
+                }
+              }
+            }
+          }
+        }
       }
-    })
+    }
   }
 
   private drawPath() {
     const graphics = this.add.graphics()
+    graphics.setDepth(-90)
+    const pathWidth = this.gridSize
+
+    // Draw outer border (darker edge)
+    graphics.lineStyle(pathWidth + 20, 0x3d2817, 1)
+    if (this.path.length > 0) {
+      graphics.beginPath()
+      graphics.moveTo(this.path[0].x, this.path[0].y)
+      for (let i = 1; i < this.path.length; i++) {
+        graphics.lineTo(this.path[i].x, this.path[i].y)
+      }
+      graphics.strokePath()
+    }
 
     // Draw path shadow
-    graphics.lineStyle(this.gridSize + 6, 0x000000, 0.2)
+    graphics.lineStyle(pathWidth + 10, 0x000000, 0.3)
     if (this.path.length > 0) {
       graphics.beginPath()
-      graphics.moveTo(this.path[0].x, this.path[0].y + 3)
+      graphics.moveTo(this.path[0].x, this.path[0].y + 2)
       for (let i = 1; i < this.path.length; i++) {
-        graphics.lineTo(this.path[i].x, this.path[i].y + 3)
+        graphics.lineTo(this.path[i].x, this.path[i].y + 2)
       }
       graphics.strokePath()
     }
 
-    // Draw main path with gradient effect
-    graphics.lineStyle(this.gridSize, 0x8B4513, 1)
+    // Draw main path base (dirt/ground color)
+    graphics.lineStyle(pathWidth, 0x8B7355, 1)
     if (this.path.length > 0) {
       graphics.beginPath()
       graphics.moveTo(this.path[0].x, this.path[0].y)
@@ -426,8 +743,8 @@ export class TowerDefenseScene extends Phaser.Scene {
       graphics.strokePath()
     }
 
-    // Draw path highlights
-    graphics.lineStyle(this.gridSize - 10, 0xA0826D, 0.6)
+    // Draw path texture with slight variation
+    graphics.lineStyle(pathWidth - 5, 0x9B8365, 0.7)
     if (this.path.length > 0) {
       graphics.beginPath()
       graphics.moveTo(this.path[0].x, this.path[0].y)
@@ -435,13 +752,51 @@ export class TowerDefenseScene extends Phaser.Scene {
         graphics.lineTo(this.path[i].x, this.path[i].y)
       }
       graphics.strokePath()
+    }
+
+    // Draw center highlight/worn path
+    graphics.lineStyle(pathWidth - 20, 0xA0826D, 0.5)
+    if (this.path.length > 0) {
+      graphics.beginPath()
+      graphics.moveTo(this.path[0].x, this.path[0].y)
+      for (let i = 1; i < this.path.length; i++) {
+        graphics.lineTo(this.path[i].x, this.path[i].y)
+      }
+      graphics.strokePath()
+    }
+
+    // Add decorative stones/pebbles along the path
+    if (this.path.length > 1) {
+      for (let i = 0; i < this.path.length - 1; i++) {
+        const start = this.path[i]
+        const end = this.path[i + 1]
+        const distance = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y)
+        const steps = Math.floor(distance / 25)
+
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps
+          const x = start.x + (end.x - start.x) * t
+          const y = start.y + (end.y - start.y) * t
+
+          // Random pebbles on sides of path
+          if (Math.random() > 0.7) {
+            const offsetX = (Math.random() - 0.5) * (pathWidth * 0.7)
+            const offsetY = (Math.random() - 0.5) * (pathWidth * 0.7)
+            const size = 2 + Math.random() * 3
+            const pebble = this.add.circle(x + offsetX, y + offsetY, size, 0x6B5A4D, 0.6)
+            pebble.setDepth(-89)
+          }
+        }
+      }
     }
 
     // Draw start marker with glow
     if (this.path.length > 0) {
       const start = this.path[0]
       const startGlow = this.add.circle(start.x, start.y, 40, 0x00ff00, 0.2)
+      startGlow.setDepth(-88)
       const startCircle = this.add.circle(start.x, start.y, 30, 0x00ff00, 0.6)
+      startCircle.setDepth(-88)
       startCircle.setStrokeStyle(3, 0xffffff, 0.8)
 
       const startText = this.add.text(start.x, start.y, 'START', {
@@ -451,6 +806,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         stroke: '#000000',
         strokeThickness: 3
       }).setOrigin(0.5)
+      startText.setDepth(-87)
 
       // Pulse animation
       this.tweens.add({
@@ -466,7 +822,9 @@ export class TowerDefenseScene extends Phaser.Scene {
     if (this.path.length > 1) {
       const end = this.path[this.path.length - 1]
       const endGlow = this.add.circle(end.x, end.y, 40, 0xff0000, 0.2)
+      endGlow.setDepth(-88)
       const endCircle = this.add.circle(end.x, end.y, 30, 0xff0000, 0.6)
+      endCircle.setDepth(-88)
       endCircle.setStrokeStyle(3, 0xffffff, 0.8)
 
       const endText = this.add.text(end.x, end.y, 'END', {
@@ -476,6 +834,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         stroke: '#000000',
         strokeThickness: 3
       }).setOrigin(0.5)
+      endText.setDepth(-87)
 
       // Pulse animation
       this.tweens.add({
@@ -491,12 +850,110 @@ export class TowerDefenseScene extends Phaser.Scene {
   private addBackgroundDecorations() {
     const { width, height } = this.cameras.main
 
-    // Add random decorative circles based on map theme
-    for (let i = 0; i < 15; i++) {
+    // Get map theme colors - convert to RGB
+    const baseColor = this.mapConfig.backgroundColor
+    const baseColorObj = Phaser.Display.Color.IntegerToColor(baseColor)
+    const darkColor = Phaser.Display.Color.GetColor(
+      Math.max(0, baseColorObj.red - 30),
+      Math.max(0, baseColorObj.green - 30),
+      Math.max(0, baseColorObj.blue - 30)
+    )
+    const lighterColor = Phaser.Display.Color.GetColor(
+      Math.min(255, baseColorObj.red + 30),
+      Math.min(255, baseColorObj.green + 30),
+      Math.min(255, baseColorObj.blue + 30)
+    )
+
+    // Add themed decorations based on map
+    // Trees/bushes
+    for (let i = 0; i < 20; i++) {
       const x = Math.random() * width
       const y = Math.random() * height
-      const size = 5 + Math.random() * 15
-      const decoration = this.add.circle(x, y, size, 0xffffff, 0.05)
+
+      // Avoid path area (rough check)
+      let tooCloseToPath = false
+      if (this.path && this.path.length > 0) {
+        for (const point of this.path) {
+          if (Phaser.Math.Distance.Between(x, y, point.x, point.y) < 80) {
+            tooCloseToPath = true
+            break
+          }
+        }
+      }
+
+      if (!tooCloseToPath) {
+        // Create small bush/tree
+        const size = 15 + Math.random() * 25
+
+        // Shadow
+        const shadow = this.add.ellipse(x + 3, y + size * 0.3, size * 1.2, size * 0.4, 0x000000, 0.2)
+        shadow.setDepth(-97)
+
+        // Bush base
+        const bushBase = this.add.circle(x, y, size, darkColor, 0.4)
+        bushBase.setDepth(-97)
+
+        // Bush highlight
+        const bushHighlight = this.add.circle(x - size * 0.2, y - size * 0.2, size * 0.7, lighterColor, 0.3)
+        bushHighlight.setDepth(-97)
+      }
+    }
+
+    // Add rocks
+    for (let i = 0; i < 30; i++) {
+      const x = Math.random() * width
+      const y = Math.random() * height
+
+      // Avoid path area
+      let tooCloseToPath = false
+      if (this.path && this.path.length > 0) {
+        for (const point of this.path) {
+          if (Phaser.Math.Distance.Between(x, y, point.x, point.y) < 60) {
+            tooCloseToPath = true
+            break
+          }
+        }
+      }
+
+      if (!tooCloseToPath) {
+        const size = 3 + Math.random() * 8
+        const rockColor = 0x808080
+
+        // Rock shadow
+        const rockShadow = this.add.circle(x + 1, y + 1, size, 0x000000, 0.2)
+        rockShadow.setDepth(-96)
+
+        // Rock
+        const rock = this.add.circle(x, y, size, rockColor, 0.4)
+        rock.setDepth(-96)
+
+        // Rock highlight
+        const rockHighlight = this.add.circle(x - size * 0.3, y - size * 0.3, size * 0.4, 0xA0A0A0, 0.5)
+        rockHighlight.setDepth(-96)
+      }
+    }
+
+    // Add grass tufts (small detail)
+    for (let i = 0; i < 40; i++) {
+      const x = Math.random() * width
+      const y = Math.random() * height
+
+      const grassColor = lighterColor
+      const tuftSize = 2 + Math.random() * 3
+
+      // Simple grass tuft (3 small lines)
+      for (let g = 0; g < 3; g++) {
+        const angle = (g - 1) * 0.3
+        const line = this.add.line(
+          x, y,
+          0, 0,
+          Math.cos(angle) * tuftSize, -Math.sin(angle) * tuftSize,
+          grassColor,
+          0.3
+        )
+        line.setLineWidth(1)
+        line.setDepth(-95)
+      }
     }
   }
 
@@ -978,6 +1435,7 @@ export class TowerDefenseScene extends Phaser.Scene {
       color,
       0.3
     )
+    this.hoverTile.setDepth(50)
   }
 
   private canPlaceTower(gridX: number, gridY: number): boolean {
@@ -986,7 +1444,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     return this.placementGrid[gridY][gridX]
   }
 
-  private placeTower(pointer: Phaser.Input.Pointer) {
+  private async placeTower(pointer: Phaser.Input.Pointer) {
     const gridX = Math.floor(pointer.x / this.gridSize)
     const gridY = Math.floor(pointer.y / this.gridSize)
 
@@ -1002,6 +1460,27 @@ export class TowerDefenseScene extends Phaser.Scene {
       console.log('Not enough coins!')
       return
     }
+
+    // Show loading indicator
+    const loadingText = this.add.text(
+      pointer.x,
+      pointer.y - 40,
+      'Loading...',
+      {
+        fontSize: '16px',
+        color: '#ffffff',
+        backgroundColor: '#000000',
+        padding: { x: 8, y: 4 }
+      }
+    )
+    loadingText.setDepth(1000)
+    loadingText.setOrigin(0.5)
+
+    // Lazy load the sprite for this tower type before creating it
+    await this.ensureTowerSpriteLoaded(this.selectedTowerType)
+
+    // Remove loading indicator
+    loadingText.destroy()
 
     // Deduct cost
     this.coins -= towerConfig.cost
@@ -1193,16 +1672,14 @@ export class TowerDefenseScene extends Phaser.Scene {
         name: 'Meadow Spiral',
         backgroundColor: 0x7EC850,
         path: [
-          new Phaser.Math.Vector2(30, height * 0.35),
-          new Phaser.Math.Vector2(width * 0.35, height * 0.35),
-          new Phaser.Math.Vector2(width * 0.35, height * 0.18),
-          new Phaser.Math.Vector2(width * 0.75, height * 0.18),
-          new Phaser.Math.Vector2(width * 0.75, height * 0.58),
-          new Phaser.Math.Vector2(width * 0.15, height * 0.58),
-          new Phaser.Math.Vector2(width * 0.15, height * 0.28),
-          new Phaser.Math.Vector2(width * 0.55, height * 0.28),
-          new Phaser.Math.Vector2(width * 0.55, height * 0.48),
-          new Phaser.Math.Vector2(width - 30, height * 0.48)
+          new Phaser.Math.Vector2(30, height * 0.42),
+          new Phaser.Math.Vector2(width * 0.28, height * 0.42),
+          new Phaser.Math.Vector2(width * 0.28, height * 0.22),
+          new Phaser.Math.Vector2(width * 0.72, height * 0.22),
+          new Phaser.Math.Vector2(width * 0.72, height * 0.62),
+          new Phaser.Math.Vector2(width * 0.48, height * 0.62),
+          new Phaser.Math.Vector2(width * 0.48, height * 0.42),
+          new Phaser.Math.Vector2(width - 30, height * 0.42)
         ]
       },
       // EASY MAP 2: Figure-8 - Path crosses itself

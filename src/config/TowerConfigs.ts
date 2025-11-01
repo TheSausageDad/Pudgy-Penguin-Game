@@ -61,7 +61,7 @@ export const TOWER_CONFIGS: TowerStats[] = [
   },
   {
     type: 4,
-    name: 'Dialed In Dog',
+    name: 'Thoughtful Harpik',
     cost: 110,
     damage: 6,
     range: 140,
@@ -151,7 +151,7 @@ export const TOWER_CONFIGS: TowerStats[] = [
   },
   {
     type: 8,
-    name: 'Patient Panda',
+    name: 'Notorious Ninja',
     cost: 280,
     damage: 40,
     range: 110,
@@ -172,7 +172,7 @@ export const TOWER_CONFIGS: TowerStats[] = [
   // ADVANCED TOWERS (9-12)
   {
     type: 9,
-    name: 'Brave Bison',
+    name: "Flex N' Fox",
     cost: 350,
     damage: 25,
     range: 160,
@@ -312,30 +312,30 @@ export const TOWER_CONFIGS: TowerStats[] = [
   },
   {
     type: 15,
-    name: 'Genuine Giraffe',
+    name: 'Cynical Cat',
     cost: 600,
     damage: 35,
     range: 200,
     fireRate: 1.6,
-    color: 0x000000,
+    color: 0xFF8800,
     upgrades: {
       pathA: [
-        { name: 'Honest Strike', cost: 700, damageBonus: 50, special: 'true_damage', rangeBonus: 40 },
-        { name: 'Pure Truth', cost: 1400, damageBonus: 120, special: 'ignore_all_defense', rangeBonus: 90 }
+        { name: 'Skeptical Strike', cost: 700, damageBonus: 50, special: 'true_damage', rangeBonus: 40 },
+        { name: 'Harsh Reality', cost: 1400, damageBonus: 120, special: 'ignore_all_defense', rangeBonus: 90 }
       ],
       pathB: [
-        { name: 'Authentic Sight', cost: 680, damageBonus: 40, special: 'see_weakness', fireRateBonus: 0.8 },
-        { name: 'Real Power', cost: 1360, damageBonus: 95, special: 'expose_all', fireRateBonus: 1.8 }
+        { name: 'Critical Eye', cost: 680, damageBonus: 40, special: 'see_weakness', fireRateBonus: 0.8 },
+        { name: 'Brutal Truth', cost: 1360, damageBonus: 95, special: 'expose_all', fireRateBonus: 1.8 }
       ],
       pathC: [
-        { name: 'Genuine Reach', cost: 720, rangeBonus: 100, damageBonus: 45 },
-        { name: 'True Connection', cost: 1440, rangeBonus: 220, damageBonus: 105, special: 'sincere_damage' }
+        { name: 'Sarcastic Reach', cost: 720, rangeBonus: 100, damageBonus: 45 },
+        { name: 'Cutting Remarks', cost: 1440, rangeBonus: 220, damageBonus: 105, special: 'sincere_damage' }
       ]
     }
   },
   {
     type: 16,
-    name: 'Helpful Hippo',
+    name: 'Rare Robot',
     cost: 800,
     damage: 80,
     range: 160,

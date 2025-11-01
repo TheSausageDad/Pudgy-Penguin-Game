@@ -15,7 +15,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
   private path: Phaser.Math.Vector2[]
   private pathIndex: number = 0
-  private enemyGraphic: Phaser.GameObjects.Shape
+  private enemyGraphic!: Phaser.GameObjects.Shape
   private healthBar: Phaser.GameObjects.Graphics
 
   constructor(
@@ -31,6 +31,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.path = path
 
     scene.add.existing(this)
+    this.setDepth(25) // Enemies above towers/background but below UI
 
     // Create enemy visual based on strength
     this.createEnemyVisual(scene)

@@ -78,10 +78,10 @@ export class LevelSelectionScene extends Phaser.Scene {
     // Map number
     const numberText = this.add.text(0, -20, `MAP ${map.id}`, {
       fontSize: '18px',
-      color: '#ffffff',
-      alpha: 0.8
+      color: '#ffffff'
     })
     numberText.setOrigin(0.5)
+    numberText.setAlpha(0.8)
 
     container.add([bg, difficultyBadge, difficultyText, nameText, numberText])
     container.setSize(width, height)

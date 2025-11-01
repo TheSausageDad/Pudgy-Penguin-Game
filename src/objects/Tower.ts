@@ -22,6 +22,26 @@ export interface TowerUpgrade {
   special?: string
 }
 
+// Mapping of tower types to their sprite keys and animation prefixes
+const TOWER_SPRITE_CONFIG: Record<number, { spriteKey: string; animPrefix: string; scale: number } | null> = {
+  1: { spriteKey: 'focused-falcon', animPrefix: 'falcon', scale: 0.23 },
+  2: { spriteKey: 'ambitious-angel', animPrefix: 'angel', scale: 0.23 },
+  3: { spriteKey: 'motivated-monster', animPrefix: 'monster', scale: 0.23 },
+  4: { spriteKey: 'thoughtful-harpik', animPrefix: 'harpik', scale: 0.23 },
+  5: { spriteKey: 'empathy-elephant', animPrefix: 'elephant', scale: 0.23 },
+  6: { spriteKey: 'adaptable-alien', animPrefix: 'alien', scale: 0.23 },
+  7: { spriteKey: 'fearless-fairy', animPrefix: 'fairy', scale: 0.23 },
+  8: { spriteKey: 'notorious-ninja', animPrefix: 'ninja', scale: 0.23 },
+  9: { spriteKey: 'flex-n-fox', animPrefix: 'fox', scale: 0.23 },
+  10: { spriteKey: 'driven-dragon', animPrefix: 'dragon', scale: 0.23 }, // Dragon has 1080px wide frames - same scale as others
+  11: { spriteKey: 'balanced-beetle', animPrefix: 'beetle', scale: 0.23 },
+  12: { spriteKey: 'adventurous-astronaut', animPrefix: 'astronaut', scale: 0.23 },
+  13: { spriteKey: 'creative-crab', animPrefix: 'crab', scale: 0.23 },
+  14: { spriteKey: 'competitive-clown', animPrefix: 'clown', scale: 0.23 },
+  15: { spriteKey: 'cynical-cat', animPrefix: 'cat', scale: 0.23 },
+  16: { spriteKey: 'rare-robot', animPrefix: 'robot', scale: 0.23 }
+}
+
 export class Tower extends Phaser.GameObjects.Container {
   public stats: TowerStats
   public level: number = 0
@@ -29,11 +49,17 @@ export class Tower extends Phaser.GameObjects.Container {
 
   private lastFireTime: number = 0
   private rangeCircle: Phaser.GameObjects.Arc
-  private towerGraphic: Phaser.GameObjects.Shape
+  private towerGraphic!: Phaser.GameObjects.Shape | Phaser.GameObjects.Sprite
   private target: any = null
   private levelText: Phaser.GameObjects.Text | null = null
   private bodyContainer: Phaser.GameObjects.Container | null = null
   private upgradeEffects: Phaser.GameObjects.GameObject[] = []
+  private characterSprite: Phaser.GameObjects.Sprite | null = null
+  private monsterSprite: Phaser.GameObjects.Sprite | null = null
+  private elephantSprite: Phaser.GameObjects.Sprite | null = null
+  private fairySprite: Phaser.GameObjects.Sprite | null = null
+  private catSprite: Phaser.GameObjects.Sprite | null = null
+  private currentDirection: 'front' | 'back' | 'left' | 'right' = 'front'
 
   // Character body parts for visual upgrades
   private characterParts: {
@@ -55,6 +81,7 @@ export class Tower extends Phaser.GameObjects.Container {
 
     this.stats = stats
     scene.add.existing(this)
+    this.setDepth(20) // Towers above background/path but below UI
 
     // Create unique visual based on tower type
     this.createTowerVisual(scene)
@@ -101,30 +128,79 @@ export class Tower extends Phaser.GameObjects.Container {
     )
   }
 
+  // Helper method to create sprite-based tower
+  private createSpriteBasedTower(scene: Phaser.Scene, spriteKey: string, animPrefix: string, scale: number, mainColor: number) {
+    // Create body container for consistency
+    this.bodyContainer = scene.add.container(0, 0)
+    this.add(this.bodyContainer)
+
+    // Create sprite (frames are 540x450, so scale down)
+    this.characterSprite = scene.add.sprite(0, -5, spriteKey, 0)
+    this.characterSprite.setScale(scale)
+    this.characterSprite.setOrigin(0.5, 0.5) // Center origin to show full character
+    this.characterSprite.setTexture(spriteKey, 0)
+    this.characterSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+    this.bodyContainer.add(this.characterSprite)
+
+    // Set towerGraphic for interaction
+    this.towerGraphic = this.characterSprite as any
+
+    // Make the sprite interactive
+    this.characterSprite.setInteractive()
+
+    // Play idle animation if it exists
+    const idleAnim = `${animPrefix}-idle-front`
+    if (scene.anims.exists(idleAnim)) {
+      this.characterSprite.play(idleAnim)
+    }
+
+    this.addGlow(scene, mainColor, 30)
+
+    // Also store in legacy sprite properties for backward compatibility
+    if (animPrefix === 'monster') this.monsterSprite = this.characterSprite
+    if (animPrefix === 'elephant') this.elephantSprite = this.characterSprite
+    if (animPrefix === 'fairy') this.fairySprite = this.characterSprite
+    if (animPrefix === 'cat') this.catSprite = this.characterSprite
+  }
+
   private createTowerVisual(scene: Phaser.Scene) {
     // Base shadow
     const shadow = scene.add.ellipse(0, 5, 45, 20, 0x000000, 0.3)
     this.add(shadow)
 
-    // Create character-specific visuals
-    switch (this.stats.type) {
-      case 1: this.createFalcon(scene); break
-      case 2: this.createAngel(scene); break
-      case 3: this.createMonster(scene); break
-      case 4: this.createDog(scene); break
-      case 5: this.createElephant(scene); break
-      case 6: this.createAlien(scene); break
-      case 7: this.createFairy(scene); break
-      case 8: this.createPanda(scene); break
-      case 9: this.createBison(scene); break
-      case 10: this.createDragon(scene); break
-      case 11: this.createBeetle(scene); break
-      case 12: this.createAstronaut(scene); break
-      case 13: this.createCrab(scene); break
-      case 14: this.createClown(scene); break
-      case 15: this.createGiraffe(scene); break
-      case 16: this.createHippo(scene); break
-      default: this.createDefaultTower(scene); break
+    // Check if this tower type has a sprite configuration
+    const spriteConfig = TOWER_SPRITE_CONFIG[this.stats.type]
+
+    if (spriteConfig) {
+      // Use sprite-based tower
+      this.createSpriteBasedTower(
+        scene,
+        spriteConfig.spriteKey,
+        spriteConfig.animPrefix,
+        spriteConfig.scale,
+        this.stats.color
+      )
+    } else {
+      // Fall back to procedural graphics for towers without sprites
+      switch (this.stats.type) {
+        case 1: this.createFalcon(scene); break
+        case 2: this.createAngel(scene); break
+        case 3: this.createMonster(scene); break
+        case 4: this.createDog(scene); break
+        case 5: this.createElephant(scene); break
+        case 6: this.createAlien(scene); break
+        case 7: this.createFairy(scene); break
+        case 8: this.createPanda(scene); break
+        case 9: this.createBison(scene); break
+        case 10: this.createDragon(scene); break
+        case 11: this.createBeetle(scene); break
+        case 12: this.createAstronaut(scene); break
+        case 13: this.createCrab(scene); break
+        case 14: this.createClown(scene); break
+        case 15: this.createCat(scene); break
+        case 16: this.createHippo(scene); break
+        default: this.createDefaultTower(scene); break
+      }
     }
   }
 
@@ -863,379 +939,32 @@ export class Tower extends Phaser.GameObjects.Container {
 
   // 3. Motivated Monster - Monster with horns
   private createMonster(scene: Phaser.Scene) {
-    // Create rotating body container
+    // Use sprite sheet instead of procedural graphics
+    const mainColor = 0x5FD363 // Green
+
+    // Create body container for consistency with other towers
     this.bodyContainer = scene.add.container(0, 0)
     this.add(this.bodyContainer)
 
-    const mainColor = 0x5FD363 // Green
-    const darkColor = this.getDarkerColor(mainColor, 50)
-    const lightColor = this.getLighterColor(mainColor, 50)
-    const furColor = 0x4CAF50 // Medium green for fur
-    const clawColor = 0x37474F // Dark gray for claws
-    const tongueColor = 0xFF1744 // Red tongue
-    const teethColor = 0xF5F5DC // Beige teeth
+    // Create sprite (frames are 540x450, so scale down)
+    this.monsterSprite = scene.add.sprite(0, -5, 'motivated-monster', 0)
+    this.monsterSprite.setScale(0.23) // Scale down from 450px height to ~103px - larger for better visibility
+    this.monsterSprite.setOrigin(0.5, 0.5) // Center origin to show full character including feet
+    // Set texture to use nearest-neighbor filtering to prevent frame bleeding
+    this.monsterSprite.setTexture('motivated-monster', 0)
+    this.monsterSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+    this.bodyContainer.add(this.monsterSprite)
 
-    // =========================
-    // TAIL (behind body) - Furry tail
-    // =========================
-    const tailParts: Phaser.GameObjects.Shape[] = []
+    // Set towerGraphic for interaction
+    this.towerGraphic = this.monsterSprite as any
 
-    // Tail segments with fur texture
-    for (let i = 0; i < 6; i++) {
-      const xPos = 8 + i * 3
-      const yPos = 2 + i * 2
-      const size = 8 - i * 1.2
+    // Make the sprite interactive
+    this.monsterSprite.setInteractive()
 
-      // Tail shadow
-      const tailShadow = scene.add.ellipse(xPos + 2, yPos + 1, size + 2, size + 2, 0x000000, 0.3)
-      this.bodyContainer.add(tailShadow)
-
-      // Tail segment
-      const tailSegment = scene.add.circle(xPos, yPos, size, darkColor)
-      this.bodyContainer.add(tailSegment)
-
-      // Fur texture on tail - overlapping circles
-      for (let f = 0; f < 4; f++) {
-        const angle = (f / 4) * Math.PI * 2
-        const furX = xPos + Math.cos(angle) * (size * 0.6)
-        const furY = yPos + Math.sin(angle) * (size * 0.6)
-        const fur = scene.add.circle(furX, furY, size * 0.4, furColor, 0.6)
-        this.bodyContainer.add(fur)
-      }
-
-      tailParts.push(tailSegment)
+    // Play idle animation if it exists
+    if (scene.anims.exists('monster-idle-front')) {
+      this.monsterSprite.play('monster-idle-front')
     }
-
-    // Tail tuft
-    for (let i = 0; i < 5; i++) {
-      const angle = (i - 2) * 0.3
-      const tuft = scene.add.ellipse(23 + i * 2, 14, 4, 8, mainColor, 0.8)
-      tuft.setRotation(angle + 0.5)
-      this.bodyContainer.add(tuft)
-    }
-
-    // =========================
-    // BACK LEGS (behind body)
-    // =========================
-    // Back Left Leg
-    const backLeftThigh = scene.add.ellipse(-8, 5, 7, 12, darkColor)
-    backLeftThigh.setRotation(-0.3)
-    this.bodyContainer.add(backLeftThigh)
-
-    const backLeftCalf = scene.add.ellipse(-10, 12, 6, 10, this.getDarkerColor(darkColor, 20))
-    backLeftCalf.setRotation(-0.5)
-    this.bodyContainer.add(backLeftCalf)
-
-    // Paw
-    const backLeftPaw = scene.add.ellipse(-11, 18, 8, 6, darkColor)
-    this.bodyContainer.add(backLeftPaw)
-
-    // Claws
-    for (let i = 0; i < 4; i++) {
-      const claw = scene.add.ellipse(-13 + i * 2, 20, 1.5, 4, clawColor)
-      claw.setRotation(0.2)
-      this.bodyContainer.add(claw)
-    }
-
-    // Back Right Leg
-    const backRightThigh = scene.add.ellipse(8, 5, 7, 12, darkColor)
-    backRightThigh.setRotation(0.3)
-    this.bodyContainer.add(backRightThigh)
-
-    const backRightCalf = scene.add.ellipse(10, 12, 6, 10, this.getDarkerColor(darkColor, 20))
-    backRightCalf.setRotation(0.5)
-    this.bodyContainer.add(backRightCalf)
-
-    const backRightPaw = scene.add.ellipse(11, 18, 8, 6, darkColor)
-    this.bodyContainer.add(backRightPaw)
-
-    for (let i = 0; i < 4; i++) {
-      const claw = scene.add.ellipse(9 + i * 2, 20, 1.5, 4, clawColor)
-      claw.setRotation(-0.2)
-      this.bodyContainer.add(claw)
-    }
-
-    // =========================
-    // BODY - Muscular beast body with fur texture
-    // =========================
-    const bodyShadowDeep = scene.add.ellipse(3, 0, 28, 24, 0x000000, 0.3)
-    this.bodyContainer.add(bodyShadowDeep)
-
-    const bodyBase = scene.add.ellipse(1, -2, 27, 23, darkColor, 0.9)
-    this.bodyContainer.add(bodyBase)
-
-    const body = scene.add.ellipse(0, -3, 26, 22, mainColor)
-    body.setStrokeStyle(2, darkColor, 0.8)
-    this.bodyContainer.add(body)
-    this.towerGraphic = body
-    this.characterParts.body = body
-
-    // Fur texture - overlapping circles across body
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 4; col++) {
-        const furX = -10 + col * 6
-        const furY = -10 + row * 6
-        const furPatch = scene.add.circle(furX, furY, 4, furColor, 0.5)
-        this.bodyContainer.add(furPatch)
-      }
-    }
-
-    // Body highlights
-    const bodyHighlight = scene.add.ellipse(-5, -8, 12, 10, lightColor, 0.5)
-    this.bodyContainer.add(bodyHighlight)
-
-    const bodySpecular = scene.add.circle(-7, -10, 5, 0xFFFFFF, 0.4)
-    this.bodyContainer.add(bodySpecular)
-
-    // =========================
-    // FRONT LEGS (in front of body)
-    // =========================
-    // Front Left Leg
-    const frontLeftUpper = scene.add.ellipse(-9, 0, 6, 11, mainColor)
-    frontLeftUpper.setRotation(-0.2)
-    this.bodyContainer.add(frontLeftUpper)
-
-    const frontLeftLower = scene.add.ellipse(-11, 8, 5, 9, darkColor)
-    frontLeftLower.setRotation(-0.3)
-    this.bodyContainer.add(frontLeftLower)
-
-    const frontLeftPaw = scene.add.ellipse(-12, 15, 7, 5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(frontLeftPaw)
-
-    // Front paw claws
-    for (let i = 0; i < 4; i++) {
-      const claw = scene.add.ellipse(-14 + i * 2, 17, 1.5, 4, clawColor)
-      this.bodyContainer.add(claw)
-    }
-
-    // Front Right Leg
-    const frontRightUpper = scene.add.ellipse(9, 0, 6, 11, mainColor)
-    frontRightUpper.setRotation(0.2)
-    this.bodyContainer.add(frontRightUpper)
-
-    const frontRightLower = scene.add.ellipse(11, 8, 5, 9, darkColor)
-    frontRightLower.setRotation(0.3)
-    this.bodyContainer.add(frontRightLower)
-
-    const frontRightPaw = scene.add.ellipse(12, 15, 7, 5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(frontRightPaw)
-
-    for (let i = 0; i < 4; i++) {
-      const claw = scene.add.ellipse(10 + i * 2, 17, 1.5, 4, clawColor)
-      this.bodyContainer.add(claw)
-    }
-
-    // =========================
-    // NECK
-    // =========================
-    const neckShadow = scene.add.ellipse(2, -12, 16, 10, 0x000000, 0.3)
-    this.bodyContainer.add(neckShadow)
-
-    const neck = scene.add.ellipse(0, -13, 15, 9, mainColor)
-    this.bodyContainer.add(neck)
-
-    // Neck fur
-    for (let i = 0; i < 3; i++) {
-      const furPatch = scene.add.circle(-4 + i * 4, -13, 3, furColor, 0.6)
-      this.bodyContainer.add(furPatch)
-    }
-
-    // =========================
-    // HEAD - Menacing beast head
-    // =========================
-    const headShadowDeep = scene.add.ellipse(3, -19, 20, 18, 0x000000, 0.3)
-    this.bodyContainer.add(headShadowDeep)
-
-    const headDark = scene.add.ellipse(1, -21, 19, 17, darkColor)
-    this.bodyContainer.add(headDark)
-
-    const head = scene.add.ellipse(0, -22, 18, 16, mainColor)
-    head.setStrokeStyle(2, darkColor, 0.8)
-    this.bodyContainer.add(head)
-    this.characterParts.head = head
-
-    const headHighlight = scene.add.ellipse(-4, -25, 9, 8, lightColor, 0.5)
-    this.bodyContainer.add(headHighlight)
-
-    // =========================
-    // EARS - Pointed beast ears
-    // =========================
-    // Left Ear
-    const leftEarShadow = scene.add.triangle(-7, -28, -3, 0, 3, 0, 0, -8, 0x000000, 0.3)
-    this.bodyContainer.add(leftEarShadow)
-
-    const leftEar = scene.add.triangle(-8, -30, -3, 0, 3, 0, 0, -8, darkColor)
-    leftEar.setStrokeStyle(1, this.getDarkerColor(darkColor, 30))
-    this.bodyContainer.add(leftEar)
-
-    const leftEarInner = scene.add.triangle(-8, -30, -2, 0, 2, 0, 0, -5, 0xFF69B4, 0.6)
-    this.bodyContainer.add(leftEarInner)
-
-    // Right Ear
-    const rightEarShadow = scene.add.triangle(7, -28, -3, 0, 3, 0, 0, -8, 0x000000, 0.3)
-    this.bodyContainer.add(rightEarShadow)
-
-    const rightEar = scene.add.triangle(8, -30, -3, 0, 3, 0, 0, -8, darkColor)
-    rightEar.setStrokeStyle(1, this.getDarkerColor(darkColor, 30))
-    this.bodyContainer.add(rightEar)
-
-    const rightEarInner = scene.add.triangle(8, -30, -2, 0, 2, 0, 0, -5, 0xFF69B4, 0.6)
-    this.bodyContainer.add(rightEarInner)
-
-    // =========================
-    // HORNS - Large curved horns
-    // =========================
-    const hornColor = 0x424242
-
-    // Left Horn - curved segments
-    for (let i = 0; i < 4; i++) {
-      const xPos = -9 - i * 2
-      const yPos = -30 + i * 1.5
-      const hornSegment = scene.add.ellipse(xPos, yPos, 4 - i * 0.5, 6 - i * 0.8, hornColor)
-      hornSegment.setRotation(-0.3 - i * 0.2)
-      this.bodyContainer.add(hornSegment)
-
-      const hornHighlight = scene.add.ellipse(xPos - 1, yPos - 1, 2, 3, this.getLighterColor(hornColor, 40), 0.6)
-      hornHighlight.setRotation(-0.3 - i * 0.2)
-      this.bodyContainer.add(hornHighlight)
-    }
-
-    // Right Horn
-    for (let i = 0; i < 4; i++) {
-      const xPos = 9 + i * 2
-      const yPos = -30 + i * 1.5
-      const hornSegment = scene.add.ellipse(xPos, yPos, 4 - i * 0.5, 6 - i * 0.8, hornColor)
-      hornSegment.setRotation(0.3 + i * 0.2)
-      this.bodyContainer.add(hornSegment)
-
-      const hornHighlight = scene.add.ellipse(xPos + 1, yPos - 1, 2, 3, this.getLighterColor(hornColor, 40), 0.6)
-      hornHighlight.setRotation(0.3 + i * 0.2)
-      this.bodyContainer.add(hornHighlight)
-    }
-
-    // =========================
-    // SNOUT/MUZZLE
-    // =========================
-    const snoutShadow = scene.add.ellipse(2, -18, 11, 9, 0x000000, 0.3)
-    this.bodyContainer.add(snoutShadow)
-
-    const snout = scene.add.ellipse(0, -19, 10, 8, this.getLighterColor(mainColor, 20))
-    this.bodyContainer.add(snout)
-
-    // Nostrils
-    const nostrilL = scene.add.ellipse(-2, -18, 2, 3, 0x000000)
-    this.bodyContainer.add(nostrilL)
-
-    const nostrilR = scene.add.ellipse(2, -18, 2, 3, 0x000000)
-    this.bodyContainer.add(nostrilR)
-
-    // =========================
-    // MOUTH - Open with teeth and tongue
-    // =========================
-    const mouthShadow = scene.add.ellipse(2, -15, 13, 7, 0x000000, 0.4)
-    this.bodyContainer.add(mouthShadow)
-
-    const mouthOpen = scene.add.ellipse(0, -16, 12, 6, 0x1A1A1A)
-    this.bodyContainer.add(mouthOpen)
-
-    // Tongue
-    const tongueShadow = scene.add.ellipse(2, -14, 7, 5, 0x000000, 0.3)
-    this.bodyContainer.add(tongueShadow)
-
-    const tongue = scene.add.ellipse(0, -15, 6, 4, tongueColor)
-    this.bodyContainer.add(tongue)
-
-    const tongueHighlight = scene.add.ellipse(-1, -15.5, 3, 2, this.getLighterColor(tongueColor, 40), 0.7)
-    this.bodyContainer.add(tongueHighlight)
-
-    // Upper Teeth
-    for (let i = 0; i < 5; i++) {
-      const toothX = -5 + i * 2.5
-      const tooth = scene.add.triangle(toothX, -18, -1, 0, 1, 0, 0, 3, teethColor)
-      this.bodyContainer.add(tooth)
-    }
-
-    // Lower Teeth (fangs)
-    const fangL = scene.add.triangle(-4, -16, -1.5, 0, 1.5, 0, 0, -5, teethColor)
-    this.bodyContainer.add(fangL)
-
-    const fangR = scene.add.triangle(4, -16, -1.5, 0, 1.5, 0, 0, -5, teethColor)
-    this.bodyContainer.add(fangR)
-
-    // =========================
-    // EYES - Fierce glowing eyes
-    // =========================
-    const eyeColor = 0xFFD700 // Gold
-
-    // Left Eye
-    const eyeLGlow = scene.add.circle(-5, -22, 5, eyeColor, 0.3)
-    this.bodyContainer.add(eyeLGlow)
-
-    const eyeLWhite = scene.add.ellipse(-5, -22, 4.5, 5, 0xFFFFFF)
-    this.bodyContainer.add(eyeLWhite)
-
-    const eyeLIris = scene.add.circle(-5, -22, 3, eyeColor)
-    this.bodyContainer.add(eyeLIris)
-
-    const eyeLPupil = scene.add.ellipse(-4.5, -22, 2, 2.5, 0x000000)
-    this.bodyContainer.add(eyeLPupil)
-
-    const eyeLHighlight = scene.add.circle(-4, -23, 1.2, 0xFFFFFF)
-    this.bodyContainer.add(eyeLHighlight)
-
-    // Right Eye
-    const eyeRGlow = scene.add.circle(5, -22, 5, eyeColor, 0.3)
-    this.bodyContainer.add(eyeRGlow)
-
-    const eyeRWhite = scene.add.ellipse(5, -22, 4.5, 5, 0xFFFFFF)
-    this.bodyContainer.add(eyeRWhite)
-
-    const eyeRIris = scene.add.circle(5, -22, 3, eyeColor)
-    this.bodyContainer.add(eyeRIris)
-
-    const eyeRPupil = scene.add.ellipse(5.5, -22, 2, 2.5, 0x000000)
-    this.bodyContainer.add(eyeRPupil)
-
-    const eyeRHighlight = scene.add.circle(6, -23, 1.2, 0xFFFFFF)
-    this.bodyContainer.add(eyeRHighlight)
-
-    this.characterParts.eyes = [eyeLPupil, eyeRPupil]
-
-    // =========================
-    // ANIMATIONS
-    // =========================
-    // Breathing
-    scene.tweens.add({
-      targets: this.bodyContainer,
-      y: this.bodyContainer.y + 2,
-      scaleX: { from: 1, to: 1.03 },
-      scaleY: { from: 1, to: 1.02 },
-      duration: 1200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Tail wagging
-    scene.tweens.add({
-      targets: tailParts,
-      rotation: { from: -0.1, to: 0.1 },
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Eye glow pulse
-    scene.tweens.add({
-      targets: [eyeLGlow, eyeRGlow],
-      alpha: { from: 0.3, to: 0.6 },
-      scale: { from: 1, to: 1.2 },
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
 
     this.addGlow(scene, mainColor, 30)
   }
@@ -1631,365 +1360,32 @@ export class Tower extends Phaser.GameObjects.Container {
 
   // 5. Empathy Elephant - Elephant with trunk and big ears
   private createElephant(scene: Phaser.Scene) {
-    // Create rotating body container
+    // Use sprite sheet instead of procedural graphics
+    const mainColor = 0x42A5F5 // Blue
+
+    // Create body container for consistency with other towers
     this.bodyContainer = scene.add.container(0, 0)
     this.add(this.bodyContainer)
 
-    const mainColor = 0x42A5F5 // Blue
-    const darkColor = this.getDarkerColor(mainColor, 50)
-    const lightColor = this.getLighterColor(mainColor, 50)
-    const tuskColor = 0xF5F5DC // Ivory
-    const toeNailColor = 0x616161 // Dark gray
+    // Create sprite (frames are 540x450, so scale down)
+    this.elephantSprite = scene.add.sprite(0, -5, 'empathy-elephant', 0)
+    this.elephantSprite.setScale(0.23) // Scale down from 450px height to ~103px - larger for better visibility
+    this.elephantSprite.setOrigin(0.5, 0.5) // Center origin to show full character including feet
+    // Set texture to use nearest-neighbor filtering to prevent frame bleeding
+    this.elephantSprite.setTexture('empathy-elephant', 0)
+    this.elephantSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+    this.bodyContainer.add(this.elephantSprite)
 
-    // =========================
-    // TAIL (behind body)
-    // =========================
-    const tailParts: Phaser.GameObjects.Shape[] = []
+    // Set towerGraphic for interaction
+    this.towerGraphic = this.elephantSprite as any
 
-    // Tail segments
-    for (let i = 0; i < 4; i++) {
-      const xPos = 12 + i * 2.5
-      const yPos = 3 + i * 1
-      const width = 3 - i * 0.5
-      const height = 8 - i * 1.5
+    // Make the sprite interactive
+    this.elephantSprite.setInteractive()
 
-      const tailSegment = scene.add.ellipse(xPos, yPos, width, height, darkColor)
-      this.bodyContainer.add(tailSegment)
-      tailParts.push(tailSegment)
+    // Play idle animation if it exists
+    if (scene.anims.exists('elephant-idle-front')) {
+      this.elephantSprite.play('elephant-idle-front')
     }
-
-    // Tail tuft
-    for (let i = 0; i < 4; i++) {
-      const tuft = scene.add.ellipse(21 + i, 6 + i * 0.5, 2, 5, this.getDarkerColor(darkColor, 30), 0.8)
-      tuft.setRotation((i - 1.5) * 0.3)
-      this.bodyContainer.add(tuft)
-    }
-
-    // =========================
-    // BACK LEGS (behind body)
-    // =========================
-    // Back Left Leg
-    const backLeftUpper = scene.add.ellipse(-8, 4, 8, 13, mainColor)
-    this.bodyContainer.add(backLeftUpper)
-
-    const backLeftLower = scene.add.ellipse(-8, 13, 9, 10, darkColor)
-    this.bodyContainer.add(backLeftLower)
-
-    const backLeftFoot = scene.add.ellipse(-8, 19, 10, 5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(backLeftFoot)
-
-    // Toes on back left foot
-    for (let i = 0; i < 3; i++) {
-      const toeNail = scene.add.ellipse(-10 + i * 3, 20, 2, 1.5, toeNailColor)
-      this.bodyContainer.add(toeNail)
-    }
-
-    // Back Right Leg
-    const backRightUpper = scene.add.ellipse(8, 4, 8, 13, mainColor)
-    this.bodyContainer.add(backRightUpper)
-
-    const backRightLower = scene.add.ellipse(8, 13, 9, 10, darkColor)
-    this.bodyContainer.add(backRightLower)
-
-    const backRightFoot = scene.add.ellipse(8, 19, 10, 5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(backRightFoot)
-
-    for (let i = 0; i < 3; i++) {
-      const toeNail = scene.add.ellipse(6 + i * 3, 20, 2, 1.5, toeNailColor)
-      this.bodyContainer.add(toeNail)
-    }
-
-    // =========================
-    // BODY - Large elephant body with textured skin
-    // =========================
-    const bodyShadowDeep = scene.add.ellipse(3, 0, 30, 26, 0x000000, 0.3)
-    this.bodyContainer.add(bodyShadowDeep)
-
-    const bodyBase = scene.add.ellipse(1, -2, 29, 25, darkColor, 0.9)
-    this.bodyContainer.add(bodyBase)
-
-    const body = scene.add.ellipse(0, -3, 28, 24, mainColor)
-    body.setStrokeStyle(2, darkColor, 0.8)
-    this.bodyContainer.add(body)
-    this.towerGraphic = body
-    this.characterParts.body = body
-
-    // Skin texture - wrinkles and creases
-    for (let i = 0; i < 5; i++) {
-      const wrinkle = scene.add.ellipse(-8 + i * 4, -8 + i * 2, 12 - i, 3, darkColor, 0.3)
-      wrinkle.setRotation(0.1)
-      this.bodyContainer.add(wrinkle)
-    }
-
-    const bodyHighlight = scene.add.ellipse(-6, -9, 14, 12, lightColor, 0.5)
-    this.bodyContainer.add(bodyHighlight)
-
-    const bodySpecular = scene.add.circle(-8, -11, 5, 0xFFFFFF, 0.4)
-    this.bodyContainer.add(bodySpecular)
-
-    // =========================
-    // FRONT LEGS (in front of body)
-    // =========================
-    // Front Left Leg
-    const frontLeftUpper = scene.add.ellipse(-9, 2, 8, 12, mainColor)
-    this.bodyContainer.add(frontLeftUpper)
-
-    const frontLeftLower = scene.add.ellipse(-9, 11, 9, 9, darkColor)
-    this.bodyContainer.add(frontLeftLower)
-
-    const frontLeftFoot = scene.add.ellipse(-9, 18, 10, 5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(frontLeftFoot)
-
-    for (let i = 0; i < 3; i++) {
-      const toeNail = scene.add.ellipse(-11 + i * 3, 19, 2, 1.5, toeNailColor)
-      this.bodyContainer.add(toeNail)
-    }
-
-    // Front Right Leg
-    const frontRightUpper = scene.add.ellipse(9, 2, 8, 12, mainColor)
-    this.bodyContainer.add(frontRightUpper)
-
-    const frontRightLower = scene.add.ellipse(9, 11, 9, 9, darkColor)
-    this.bodyContainer.add(frontRightLower)
-
-    const frontRightFoot = scene.add.ellipse(9, 18, 10, 5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(frontRightFoot)
-
-    for (let i = 0; i < 3; i++) {
-      const toeNail = scene.add.ellipse(7 + i * 3, 19, 2, 1.5, toeNailColor)
-      this.bodyContainer.add(toeNail)
-    }
-
-    // =========================
-    // HEAD - Large elephant head
-    // =========================
-    const headShadowDeep = scene.add.circle(3, -16, 15, 0x000000, 0.3)
-    this.bodyContainer.add(headShadowDeep)
-
-    const headDark = scene.add.circle(1, -18, 14.5, darkColor)
-    this.bodyContainer.add(headDark)
-
-    const head = scene.add.circle(0, -19, 14, mainColor)
-    head.setStrokeStyle(2, darkColor, 0.8)
-    this.bodyContainer.add(head)
-    this.characterParts.head = head
-
-    const headHighlight = scene.add.circle(-4, -22, 7, lightColor, 0.5)
-    this.bodyContainer.add(headHighlight)
-
-    // =========================
-    // EARS - Large fan-shaped ears
-    // =========================
-    // Left Ear
-    const leftEarShadow = scene.add.ellipse(-17, -16, 16, 23, 0x000000, 0.25)
-    this.bodyContainer.add(leftEarShadow)
-
-    const leftEarDark = scene.add.ellipse(-18, -17, 15.5, 22.5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(leftEarDark)
-
-    const leftEar = scene.add.ellipse(-19, -18, 15, 22, darkColor)
-    leftEar.setStrokeStyle(2, this.getDarkerColor(darkColor, 30))
-    this.bodyContainer.add(leftEar)
-
-    const leftEarInner = scene.add.ellipse(-19, -18, 10, 15, 0xE91E63, 0.4)
-    this.bodyContainer.add(leftEarInner)
-
-    const leftEarHighlight = scene.add.ellipse(-21, -21, 8, 12, this.getLighterColor(darkColor, 30), 0.6)
-    this.bodyContainer.add(leftEarHighlight)
-
-    // Right Ear
-    const rightEarShadow = scene.add.ellipse(17, -16, 16, 23, 0x000000, 0.25)
-    this.bodyContainer.add(rightEarShadow)
-
-    const rightEarDark = scene.add.ellipse(18, -17, 15.5, 22.5, this.getDarkerColor(darkColor, 20))
-    this.bodyContainer.add(rightEarDark)
-
-    const rightEar = scene.add.ellipse(19, -18, 15, 22, darkColor)
-    rightEar.setStrokeStyle(2, this.getDarkerColor(darkColor, 30))
-    this.bodyContainer.add(rightEar)
-
-    const rightEarInner = scene.add.ellipse(19, -18, 10, 15, 0xE91E63, 0.4)
-    this.bodyContainer.add(rightEarInner)
-
-    const rightEarHighlight = scene.add.ellipse(21, -21, 8, 12, this.getLighterColor(darkColor, 30), 0.6)
-    this.bodyContainer.add(rightEarHighlight)
-
-    // =========================
-    // TRUNK - Segmented with wrinkles
-    // =========================
-    const trunkSegments: Phaser.GameObjects.Shape[] = []
-
-    // Trunk starts at head and extends downward
-    for (let i = 0; i < 8; i++) {
-      const yPos = -13 + i * 2.5
-      const xPos = i * 0.5
-      const width = 7 - i * 0.3
-      const height = 5 - i * 0.2
-
-      // Wrinkle ring
-      const wrinkleRing = scene.add.ellipse(xPos + 1, yPos, width + 1, 2, darkColor, 0.5)
-      this.bodyContainer.add(wrinkleRing)
-
-      // Trunk segment
-      const segmentShadow = scene.add.ellipse(xPos + 1, yPos + 1, width + 1, height + 1, 0x000000, 0.2)
-      this.bodyContainer.add(segmentShadow)
-
-      const segment = scene.add.ellipse(xPos, yPos, width, height, mainColor)
-      segment.setStrokeStyle(1, darkColor, 0.6)
-      this.bodyContainer.add(segment)
-      trunkSegments.push(segment)
-
-      const segmentHighlight = scene.add.ellipse(xPos - 1, yPos - 0.5, width - 2, height - 1, lightColor, 0.4)
-      this.bodyContainer.add(segmentHighlight)
-    }
-
-    // Trunk tip with nostrils
-    const trunkTipShadow = scene.add.ellipse(5, 6, 6, 5, 0x000000, 0.3)
-    this.bodyContainer.add(trunkTipShadow)
-
-    const trunkTip = scene.add.ellipse(4, 5, 5.5, 4.5, mainColor)
-    trunkTip.setStrokeStyle(1, darkColor)
-    this.bodyContainer.add(trunkTip)
-    trunkSegments.push(trunkTip)
-
-    // Nostrils at trunk tip
-    const nostrilL = scene.add.ellipse(3, 5, 1.5, 2, 0x000000)
-    this.bodyContainer.add(nostrilL)
-
-    const nostrilR = scene.add.ellipse(5, 5, 1.5, 2, 0x000000)
-    this.bodyContainer.add(nostrilR)
-
-    // =========================
-    // TUSKS - Curved ivory tusks
-    // =========================
-    // Left Tusk
-    for (let i = 0; i < 3; i++) {
-      const xPos = -8 - i * 2
-      const yPos = -12 + i * 3
-      const tuskSegment = scene.add.ellipse(xPos, yPos, 3 - i * 0.3, 8 - i * 1, tuskColor)
-      tuskSegment.setRotation(-0.5 - i * 0.1)
-      tuskSegment.setStrokeStyle(1, this.getDarkerColor(tuskColor, 40), 0.8)
-      this.bodyContainer.add(tuskSegment)
-
-      const tuskHighlight = scene.add.ellipse(xPos - 0.5, yPos - 1, 1.5, 4, 0xFFFFFF, 0.6)
-      tuskHighlight.setRotation(-0.5 - i * 0.1)
-      this.bodyContainer.add(tuskHighlight)
-    }
-
-    // Right Tusk
-    for (let i = 0; i < 3; i++) {
-      const xPos = 8 + i * 2
-      const yPos = -12 + i * 3
-      const tuskSegment = scene.add.ellipse(xPos, yPos, 3 - i * 0.3, 8 - i * 1, tuskColor)
-      tuskSegment.setRotation(0.5 + i * 0.1)
-      tuskSegment.setStrokeStyle(1, this.getDarkerColor(tuskColor, 40), 0.8)
-      this.bodyContainer.add(tuskSegment)
-
-      const tuskHighlight = scene.add.ellipse(xPos + 0.5, yPos - 1, 1.5, 4, 0xFFFFFF, 0.6)
-      tuskHighlight.setRotation(0.5 + i * 0.1)
-      this.bodyContainer.add(tuskHighlight)
-    }
-
-    this.characterParts.accessories = [...trunkSegments, leftEar, rightEar]
-
-    // =========================
-    // EYES - Wise, gentle eyes
-    // =========================
-    // Left Eye
-    const eyeLWhite = scene.add.ellipse(-6, -21, 4, 4.5, 0xFFFFFF)
-    this.bodyContainer.add(eyeLWhite)
-
-    const eyeLIris = scene.add.circle(-6, -21, 2.5, 0x8B4513)
-    this.bodyContainer.add(eyeLIris)
-
-    const eyeLPupil = scene.add.circle(-5.5, -21, 1.5, 0x000000)
-    this.bodyContainer.add(eyeLPupil)
-
-    const eyeLHighlight = scene.add.circle(-5, -21.5, 0.8, 0xFFFFFF)
-    this.bodyContainer.add(eyeLHighlight)
-
-    // Eyelashes
-    for (let i = 0; i < 3; i++) {
-      const lash = scene.add.rectangle(-7 + i, -23, 0.5, 2, 0x000000, 0.8)
-      lash.setRotation(-0.3 + i * 0.3)
-      this.bodyContainer.add(lash)
-    }
-
-    // Right Eye
-    const eyeRWhite = scene.add.ellipse(6, -21, 4, 4.5, 0xFFFFFF)
-    this.bodyContainer.add(eyeRWhite)
-
-    const eyeRIris = scene.add.circle(6, -21, 2.5, 0x8B4513)
-    this.bodyContainer.add(eyeRIris)
-
-    const eyeRPupil = scene.add.circle(6.5, -21, 1.5, 0x000000)
-    this.bodyContainer.add(eyeRPupil)
-
-    const eyeRHighlight = scene.add.circle(7, -21.5, 0.8, 0xFFFFFF)
-    this.bodyContainer.add(eyeRHighlight)
-
-    for (let i = 0; i < 3; i++) {
-      const lash = scene.add.rectangle(5 + i, -23, 0.5, 2, 0x000000, 0.8)
-      lash.setRotation(-0.3 + i * 0.3)
-      this.bodyContainer.add(lash)
-    }
-
-    this.characterParts.eyes = [eyeLPupil, eyeRPupil]
-
-    // =========================
-    // ANIMATIONS
-    // =========================
-    // Breathing
-    scene.tweens.add({
-      targets: this.bodyContainer,
-      y: this.bodyContainer.y + 2,
-      scaleY: 1.02,
-      duration: 2000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Trunk swaying
-    scene.tweens.add({
-      targets: trunkSegments,
-      x: '+=3',
-      rotation: '+=0.05',
-      duration: 2200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Ear flapping
-    scene.tweens.add({
-      targets: [leftEar, leftEarInner, leftEarHighlight],
-      scaleX: { from: 1, to: 1.05 },
-      duration: 2500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    scene.tweens.add({
-      targets: [rightEar, rightEarInner, rightEarHighlight],
-      scaleX: { from: 1, to: 1.05 },
-      duration: 2500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-      delay: 300
-    })
-
-    // Tail swishing
-    scene.tweens.add({
-      targets: tailParts,
-      rotation: { from: -0.1, to: 0.1 },
-      duration: 1800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
 
     this.addGlow(scene, mainColor, 32)
   }
@@ -2003,8 +1399,73 @@ export class Tower extends Phaser.GameObjects.Container {
     const mainColor = 0xF06292
     const darkColor = this.getDarkerColor(mainColor, 50)
     const lightColor = this.getLighterColor(mainColor, 50)
+    const skinColor = 0xE91E63
+    const fingerColor = this.getDarkerColor(skinColor, 20)
 
-    // BODY - Multi-layered 3D effect
+    // =========================
+    // LEGS & FEET (behind body)
+    // =========================
+    // Left leg
+    const leftLegShadow = scene.add.ellipse(-6, 6, 6, 13, 0x000000, 0.3)
+    this.bodyContainer.add(leftLegShadow)
+    const leftLeg = scene.add.ellipse(-7, 5, 5, 12, mainColor)
+    leftLeg.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(leftLeg)
+    const leftLegHighlight = scene.add.ellipse(-8, 3, 3, 8, lightColor, 0.5)
+    this.bodyContainer.add(leftLegHighlight)
+
+    // Left foot - alien-style with 3 toes
+    const leftFootShadow = scene.add.ellipse(-7, 13, 6, 4, 0x000000, 0.3)
+    this.bodyContainer.add(leftFootShadow)
+    const leftFoot = scene.add.ellipse(-7, 12, 5, 3, skinColor)
+    leftFoot.setStrokeStyle(1, fingerColor, 0.8)
+    this.bodyContainer.add(leftFoot)
+
+    // Left toes with suction cups
+    for (let i = 0; i < 3; i++) {
+      const toeX = -9 + i * 2
+      const toeShadow = scene.add.circle(toeX + 1, 14, 1.5, 0x000000, 0.3)
+      this.bodyContainer.add(toeShadow)
+      const toe = scene.add.circle(toeX, 13, 1.3, fingerColor)
+      toe.setStrokeStyle(1, this.getDarkerColor(fingerColor, 30), 0.8)
+      this.bodyContainer.add(toe)
+      // Suction cup detail
+      const sucCup = scene.add.circle(toeX, 13, 0.7, this.getLighterColor(fingerColor, 30), 0.6)
+      this.bodyContainer.add(sucCup)
+    }
+
+    // Right leg
+    const rightLegShadow = scene.add.ellipse(6, 6, 6, 13, 0x000000, 0.3)
+    this.bodyContainer.add(rightLegShadow)
+    const rightLeg = scene.add.ellipse(7, 5, 5, 12, mainColor)
+    rightLeg.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(rightLeg)
+    const rightLegHighlight = scene.add.ellipse(8, 3, 3, 8, lightColor, 0.5)
+    this.bodyContainer.add(rightLegHighlight)
+
+    // Right foot
+    const rightFootShadow = scene.add.ellipse(7, 13, 6, 4, 0x000000, 0.3)
+    this.bodyContainer.add(rightFootShadow)
+    const rightFoot = scene.add.ellipse(7, 12, 5, 3, skinColor)
+    rightFoot.setStrokeStyle(1, fingerColor, 0.8)
+    this.bodyContainer.add(rightFoot)
+
+    // Right toes with suction cups
+    for (let i = 0; i < 3; i++) {
+      const toeX = 5 + i * 2
+      const toeShadow = scene.add.circle(toeX + 1, 14, 1.5, 0x000000, 0.3)
+      this.bodyContainer.add(toeShadow)
+      const toe = scene.add.circle(toeX, 13, 1.3, fingerColor)
+      toe.setStrokeStyle(1, this.getDarkerColor(fingerColor, 30), 0.8)
+      this.bodyContainer.add(toe)
+      // Suction cup detail
+      const sucCup = scene.add.circle(toeX, 13, 0.7, this.getLighterColor(fingerColor, 30), 0.6)
+      this.bodyContainer.add(sucCup)
+    }
+
+    // =========================
+    // BODY - Multi-layered 3D effect with texture patterns
+    // =========================
     const bodyShadowDeep = scene.add.circle(3, -3, 14, 0x000000, 0.3)
     this.bodyContainer.add(bodyShadowDeep)
 
@@ -2025,6 +1486,21 @@ export class Tower extends Phaser.GameObjects.Container {
 
     const bodySpecular = scene.add.circle(-4, -9, 3, 0xFFFFFF, 0.7)
     this.bodyContainer.add(bodySpecular)
+
+    // Alien body texture - bio-luminescent spots
+    const spotColor = 0xFF1EFF
+    const bioSpots = [
+      { x: -4, y: -5 }, { x: 2, y: -3 }, { x: -2, y: 0 },
+      { x: 4, y: -7 }, { x: -5, y: 2 }, { x: 3, y: -11 }
+    ]
+    bioSpots.forEach(spot => {
+      const spotGlow = scene.add.circle(spot.x, spot.y, 2.5, spotColor, 0.2)
+      this.bodyContainer.add(spotGlow)
+      const spotDot = scene.add.circle(spot.x, spot.y, 1.5, spotColor, 0.5)
+      this.bodyContainer.add(spotDot)
+      const spotCore = scene.add.circle(spot.x - 0.5, spot.y - 0.5, 0.8, this.getLighterColor(spotColor, 60), 0.8)
+      this.bodyContainer.add(spotCore)
+    })
 
     // HEAD - Large head with brain-like texture (multiple small bumps)
     const headShadowDeep = scene.add.ellipse(3, -18, 19, 17, 0x000000, 0.3)
@@ -2054,7 +1530,7 @@ export class Tower extends Phaser.GameObjects.Container {
     ]
     bumpPositions.forEach(pos => {
       const bump = scene.add.circle(pos.x, pos.y, 2, this.getDarkerColor(mainColor, 30), 0.4)
-      this.bodyContainer.add(bump)
+      this.bodyContainer?.add(bump)
     })
 
     // EYES - Big almond eyes with 4 layers and glow
@@ -2107,6 +1583,91 @@ export class Tower extends Phaser.GameObjects.Container {
     this.bodyContainer.add(eyeRGlow)
 
     this.characterParts.eyes = [eyeL, eyeR]
+
+    // =========================
+    // ARMS & HANDS (with 4 fingers each - alien style)
+    // =========================
+    // Left arm
+    const leftArmShadow = scene.add.rectangle(-11, -10, 3.5, 12, 0x000000, 0.3)
+    leftArmShadow.setRotation(-0.4)
+    this.bodyContainer.add(leftArmShadow)
+    const leftArm = scene.add.rectangle(-12, -11, 3, 11, mainColor)
+    leftArm.setRotation(-0.4)
+    leftArm.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(leftArm)
+    const leftArmHighlight = scene.add.rectangle(-12.5, -12, 1.5, 9, lightColor, 0.6)
+    leftArmHighlight.setRotation(-0.4)
+    this.bodyContainer.add(leftArmHighlight)
+
+    // Left hand
+    const leftHandShadow = scene.add.circle(-15, -4, 3, 0x000000, 0.3)
+    this.bodyContainer.add(leftHandShadow)
+    const leftHand = scene.add.circle(-16, -5, 2.5, skinColor)
+    leftHand.setStrokeStyle(1, fingerColor, 0.8)
+    this.bodyContainer.add(leftHand)
+    const leftHandHighlight = scene.add.circle(-16.5, -5.5, 1.2, this.getLighterColor(skinColor, 40), 0.7)
+    this.bodyContainer.add(leftHandHighlight)
+
+    // Left fingers - 4 long alien fingers
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = -0.6 - i * 0.15
+      const fingerX = -18 - i * 0.5
+      const fingerY = -5 + i * 1.5
+
+      const fingerShadow = scene.add.rectangle(fingerX + 1, fingerY + 1, 1, 4, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 0.9, 4, fingerColor)
+      finger.setRotation(fingerAngle)
+      this.bodyContainer.add(finger)
+
+      // Suction cup on finger tip
+      const fingerTip = scene.add.circle(fingerX - Math.sin(fingerAngle) * 2, fingerY + Math.cos(fingerAngle) * 2, 0.8, this.getLighterColor(fingerColor, 30))
+      fingerTip.setStrokeStyle(1, this.getDarkerColor(fingerColor, 30), 0.8)
+      this.bodyContainer.add(fingerTip)
+    }
+
+    // Right arm
+    const rightArmShadow = scene.add.rectangle(11, -10, 3.5, 12, 0x000000, 0.3)
+    rightArmShadow.setRotation(0.4)
+    this.bodyContainer.add(rightArmShadow)
+    const rightArm = scene.add.rectangle(12, -11, 3, 11, mainColor)
+    rightArm.setRotation(0.4)
+    rightArm.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(rightArm)
+    const rightArmHighlight = scene.add.rectangle(12.5, -12, 1.5, 9, lightColor, 0.6)
+    rightArmHighlight.setRotation(0.4)
+    this.bodyContainer.add(rightArmHighlight)
+
+    // Right hand
+    const rightHandShadow = scene.add.circle(15, -4, 3, 0x000000, 0.3)
+    this.bodyContainer.add(rightHandShadow)
+    const rightHand = scene.add.circle(16, -5, 2.5, skinColor)
+    rightHand.setStrokeStyle(1, fingerColor, 0.8)
+    this.bodyContainer.add(rightHand)
+    const rightHandHighlight = scene.add.circle(16.5, -5.5, 1.2, this.getLighterColor(skinColor, 40), 0.7)
+    this.bodyContainer.add(rightHandHighlight)
+
+    // Right fingers - 4 long alien fingers
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = 0.6 + i * 0.15
+      const fingerX = 18 + i * 0.5
+      const fingerY = -5 + i * 1.5
+
+      const fingerShadow = scene.add.rectangle(fingerX + 1, fingerY + 1, 1, 4, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 0.9, 4, fingerColor)
+      finger.setRotation(fingerAngle)
+      this.bodyContainer.add(finger)
+
+      // Suction cup on finger tip
+      const fingerTip = scene.add.circle(fingerX + Math.sin(fingerAngle) * 2, fingerY + Math.cos(fingerAngle) * 2, 0.8, this.getLighterColor(fingerColor, 30))
+      fingerTip.setStrokeStyle(1, this.getDarkerColor(fingerColor, 30), 0.8)
+      this.bodyContainer.add(fingerTip)
+    }
 
     // ANTENNAE - Multi-layered with pulsing balls
     const antennaColor = 0xFF1EFF
@@ -2204,244 +1765,38 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   // 7. Fearless Fairy - Fairy with wings and wand
+  // 7. Fearless Fairy - Fairy with wings and wand
   private createFairy(scene: Phaser.Scene) {
-    // Create rotating body container
+    // Use sprite sheet instead of procedural graphics
+    const mainColor = 0xFFEE58 // Yellow
+
+    // Create body container for consistency with other towers
     this.bodyContainer = scene.add.container(0, 0)
     this.add(this.bodyContainer)
 
-    const mainColor = 0xFFEE58
-    const darkColor = this.getDarkerColor(mainColor, 50)
-    const lightColor = this.getLighterColor(mainColor, 50)
-    const wingColor = 0xFFD600
+    // Create sprite (frames are 540x450, so scale down)
+    this.fairySprite = scene.add.sprite(0, -5, 'fearless-fairy', 0)
+    this.fairySprite.setScale(0.23) // Scale down from 450px height to ~103px - larger for better visibility
+    this.fairySprite.setOrigin(0.5, 0.5) // Center origin
+    // Set texture to use nearest-neighbor filtering to prevent frame bleeding
+    this.fairySprite.setTexture('fearless-fairy', 0)
+    this.fairySprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+    this.bodyContainer.add(this.fairySprite)
 
-    // BODY - Delicate small body with magical glow
-    const bodyShadowDeep = scene.add.circle(3, -6, 10, 0x000000, 0.25)
-    this.bodyContainer.add(bodyShadowDeep)
+    // Set towerGraphic for interaction
+    this.towerGraphic = this.fairySprite as any
 
-    const bodyBase1 = scene.add.circle(1, -7, 9.5, darkColor, 0.9)
-    this.bodyContainer.add(bodyBase1)
+    // Make the sprite interactive
+    this.fairySprite.setInteractive()
 
-    const body = scene.add.circle(0, -8, 10, mainColor)
-    body.setStrokeStyle(3, 0x000000, 0.8)
-    this.bodyContainer.add(body)
-    this.towerGraphic = body
-    this.characterParts.body = body
-
-    const bodyHighlight1 = scene.add.circle(-2, -10, 6, lightColor, 0.6)
-    this.bodyContainer.add(bodyHighlight1)
-
-    const bodyHighlight2 = scene.add.circle(-3, -11, 4, this.getLighterColor(mainColor, 70), 0.7)
-    this.bodyContainer.add(bodyHighlight2)
-
-    const bodySpecular = scene.add.circle(-3.5, -11.5, 2, 0xFFFFFF, 0.8)
-    this.bodyContainer.add(bodySpecular)
-
-    // Magical glow around body
-    const magicGlow = scene.add.circle(0, -8, 14, mainColor, 0.15)
-    this.bodyContainer.add(magicGlow)
-
-    // HEAD - Delicate
-    const headShadowDeep = scene.add.circle(2, -19, 7, 0x000000, 0.25)
-    this.bodyContainer.add(headShadowDeep)
-
-    const headDark = scene.add.circle(1, -19.5, 6.5, this.getDarkerColor(0xFFE082, 40))
-    this.bodyContainer.add(headDark)
-
-    const head = scene.add.circle(0, -20, 7, 0xFFE082)
-    head.setStrokeStyle(3, 0x000000, 0.8)
-    this.bodyContainer.add(head)
-    this.characterParts.head = head
-
-    const headHighlight1 = scene.add.circle(-1.5, -22, 4, this.getLighterColor(0xFFE082, 50), 0.6)
-    this.bodyContainer.add(headHighlight1)
-
-    const headSpecular = scene.add.circle(-2, -22.5, 2, 0xFFFFFF, 0.8)
-    this.bodyContainer.add(headSpecular)
-
-    // EYES - Sparkling
-    const eyeL = scene.add.circle(-2, -20, 1.5, 0x000000)
-    this.bodyContainer.add(eyeL)
-
-    const eyeR = scene.add.circle(2, -20, 1.5, 0x000000)
-    this.bodyContainer.add(eyeR)
-
-    const eyeLHighlight = scene.add.circle(-1.5, -20.5, 0.7, 0xFFFFFF)
-    this.bodyContainer.add(eyeLHighlight)
-
-    const eyeRHighlight = scene.add.circle(2.5, -20.5, 0.7, 0xFFFFFF)
-    this.bodyContainer.add(eyeRHighlight)
-
-    this.characterParts.eyes = [eyeL, eyeR]
-
-    // WINGS - Translucent with 4-5 layers and shimmer
-    const wingArray: Phaser.GameObjects.Shape[] = []
-
-    // Left Wing - Multi-layered translucent
-    const wingLShadow = scene.add.ellipse(-10, -12, 10, 17, 0x000000, 0.15)
-    wingLShadow.setRotation(-0.2)
-    this.bodyContainer.add(wingLShadow)
-
-    const wingLBase = scene.add.ellipse(-12, -14, 11, 18, this.getDarkerColor(wingColor, 40), 0.3)
-    wingLBase.setRotation(-0.2)
-    this.bodyContainer.add(wingLBase)
-
-    const wingL1 = scene.add.ellipse(-12, -14, 10, 17, 0xFFFFFF, 0.7)
-    wingL1.setStrokeStyle(3, wingColor, 0.9)
-    wingL1.setRotation(-0.2)
-    this.bodyContainer.add(wingL1)
-    wingArray.push(wingL1)
-
-    const wingL2 = scene.add.ellipse(-13, -15, 8, 14, this.getLighterColor(wingColor, 60), 0.5)
-    wingL2.setRotation(-0.2)
-    this.bodyContainer.add(wingL2)
-
-    const wingL3 = scene.add.ellipse(-14, -16, 6, 11, 0xFFFFFF, 0.6)
-    wingL3.setRotation(-0.2)
-    this.bodyContainer.add(wingL3)
-
-    const wingLShimmer = scene.add.ellipse(-15, -17, 4, 8, this.getLighterColor(wingColor, 80), 0.7)
-    wingLShimmer.setRotation(-0.2)
-    this.bodyContainer.add(wingLShimmer)
-    wingArray.push(wingLShimmer)
-
-    // Right Wing - Mirror of left
-    const wingRShadow = scene.add.ellipse(10, -12, 10, 17, 0x000000, 0.15)
-    wingRShadow.setRotation(0.2)
-    this.bodyContainer.add(wingRShadow)
-
-    const wingRBase = scene.add.ellipse(12, -14, 11, 18, this.getDarkerColor(wingColor, 40), 0.3)
-    wingRBase.setRotation(0.2)
-    this.bodyContainer.add(wingRBase)
-
-    const wingR1 = scene.add.ellipse(12, -14, 10, 17, 0xFFFFFF, 0.7)
-    wingR1.setStrokeStyle(3, wingColor, 0.9)
-    wingR1.setRotation(0.2)
-    this.bodyContainer.add(wingR1)
-    wingArray.push(wingR1)
-
-    const wingR2 = scene.add.ellipse(13, -15, 8, 14, this.getLighterColor(wingColor, 60), 0.5)
-    wingR2.setRotation(0.2)
-    this.bodyContainer.add(wingR2)
-
-    const wingR3 = scene.add.ellipse(14, -16, 6, 11, 0xFFFFFF, 0.6)
-    wingR3.setRotation(0.2)
-    this.bodyContainer.add(wingR3)
-
-    const wingRShimmer = scene.add.ellipse(15, -17, 4, 8, this.getLighterColor(wingColor, 80), 0.7)
-    wingRShimmer.setRotation(0.2)
-    this.bodyContainer.add(wingRShimmer)
-    wingArray.push(wingRShimmer)
-
-    this.characterParts.wings = [wingL1, wingR1]
-
-    // WAND - Magic wand with particle trail effect
-    const wandShadow = scene.add.rectangle(13, -9, 3, 14, 0x000000, 0.3)
-    wandShadow.setRotation(0.4)
-    this.bodyContainer.add(wandShadow)
-
-    const wandBase = scene.add.rectangle(14, -10, 3, 14, this.getDarkerColor(0x8D6E63, 30))
-    wandBase.setRotation(0.4)
-    this.bodyContainer.add(wandBase)
-
-    const wand = scene.add.rectangle(14, -10, 3, 14, 0x8D6E63)
-    wand.setRotation(0.4)
-    wand.setStrokeStyle(2, 0x000000, 0.8)
-    this.bodyContainer.add(wand)
-    this.characterParts.weapon = wand
-
-    const wandHighlight = scene.add.rectangle(13.5, -10, 1.5, 14, 0xA1887F, 0.7)
-    wandHighlight.setRotation(0.4)
-    this.bodyContainer.add(wandHighlight)
-
-    // Star with multi-layers
-    const starShadow = scene.add.star(17, -15, 5, 4, 8, 0x000000, 0.3)
-    this.bodyContainer.add(starShadow)
-
-    const starBase = scene.add.star(18, -16, 5, 5, 9, this.getDarkerColor(0xFFFF00, 40))
-    this.bodyContainer.add(starBase)
-
-    const star = scene.add.star(18, -16, 5, 4, 8, 0xFFFF00)
-    star.setStrokeStyle(2, wingColor, 1)
-    this.bodyContainer.add(star)
-
-    const starHighlight = scene.add.star(18, -16, 5, 2, 4, 0xFFFFFF, 0.8)
-    this.bodyContainer.add(starHighlight)
-
-    // Magic particles
-    const particles: Phaser.GameObjects.Shape[] = []
-    for (let i = 0; i < 3; i++) {
-      const particle = scene.add.circle(18 + i * 3, -16 - i * 2, 1.5, 0xFFFF00, 0.7)
-      this.bodyContainer.add(particle)
-      particles.push(particle)
+    // Play idle animation if it exists
+    if (scene.anims.exists('fairy-idle-front')) {
+      this.fairySprite.play('fairy-idle-front')
     }
 
-    // IDLE ANIMATIONS - Flutter/hover
-    scene.tweens.add({
-      targets: this.bodyContainer,
-      y: this.bodyContainer.y + 3,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Wing flutter
-    scene.tweens.add({
-      targets: [wingL1, wingL2, wingL3, wingLShimmer],
-      rotation: '-=0.3',
-      duration: 400,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    scene.tweens.add({
-      targets: [wingR1, wingR2, wingR3, wingRShimmer],
-      rotation: '+=0.3',
-      duration: 400,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Star sparkle
-    scene.tweens.add({
-      targets: [star, starHighlight],
-      scaleX: 1.3,
-      scaleY: 1.3,
-      rotation: '+=3.14',
-      duration: 500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Magic glow pulse
-    scene.tweens.add({
-      targets: magicGlow,
-      alpha: 0.3,
-      scaleX: 1.2,
-      scaleY: 1.2,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    })
-
-    // Particle trail
-    scene.tweens.add({
-      targets: particles,
-      alpha: 0.2,
-      y: '-=5',
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-      delay: scene.tweens.stagger(200)
-    })
-
-    this.addGlow(scene, 0xFFEE58, 28)
+    this.addGlow(scene, mainColor, 28)
   }
+
 
   // 8. Patient Panda - Panda with round face and ears
   private createPanda(scene: Phaser.Scene) {
@@ -2582,6 +1937,297 @@ export class Tower extends Phaser.GameObjects.Container {
 
     const bellySpecular = scene.add.circle(-2, -4, 2, this.getLighterColor(bellyColor, 70), 0.7)
     this.bodyContainer.add(bellySpecular)
+
+    // =========================
+    // LEGS & FEET (with claws)
+    // =========================
+    const legColor = 0x000000
+    const clawColor = 0x1A1A1A
+
+    // Back Left Leg
+    const backLeftLegShadow = scene.add.ellipse(-7, 3, 6.5, 11, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftLegShadow)
+
+    const backLeftLeg = scene.add.ellipse(-8, 2, 6, 10, legColor)
+    backLeftLeg.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backLeftLeg)
+
+    const backLeftLegHighlight = scene.add.ellipse(-9, 0, 3, 6, 0x333333, 0.4)
+    this.bodyContainer.add(backLeftLegHighlight)
+
+    // Back Left Foot
+    const backLeftFootShadow = scene.add.ellipse(-7, 9, 7.5, 5, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftFootShadow)
+
+    const backLeftFoot = scene.add.ellipse(-8, 8, 7, 4.5, legColor)
+    backLeftFoot.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backLeftFoot)
+
+    // Back Left Foot Pad
+    const backLeftPad = scene.add.ellipse(-8, 8.5, 4, 2.5, 0xE91E63, 0.7)
+    this.bodyContainer.add(backLeftPad)
+
+    // Back Left Claws (3 claws)
+    for (let i = 0; i < 3; i++) {
+      const clawX = -10 + i * 2
+      const clawY = 9.5
+
+      const clawShadow = scene.add.ellipse(clawX + 0.5, clawY + 0.5, 1.2, 2, 0x000000, 0.4)
+      this.bodyContainer.add(clawShadow)
+
+      const claw = scene.add.ellipse(clawX, clawY, 1, 1.8, clawColor)
+      claw.setStrokeStyle(1, 0x000000, 0.6)
+      this.bodyContainer.add(claw)
+
+      const clawHighlight = scene.add.circle(clawX - 0.2, clawY - 0.3, 0.4, 0x666666, 0.8)
+      this.bodyContainer.add(clawHighlight)
+    }
+
+    // Back Right Leg
+    const backRightLegShadow = scene.add.ellipse(7, 3, 6.5, 11, 0x000000, 0.3)
+    this.bodyContainer.add(backRightLegShadow)
+
+    const backRightLeg = scene.add.ellipse(8, 2, 6, 10, legColor)
+    backRightLeg.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backRightLeg)
+
+    const backRightLegHighlight = scene.add.ellipse(9, 0, 3, 6, 0x333333, 0.4)
+    this.bodyContainer.add(backRightLegHighlight)
+
+    // Back Right Foot
+    const backRightFootShadow = scene.add.ellipse(7, 9, 7.5, 5, 0x000000, 0.3)
+    this.bodyContainer.add(backRightFootShadow)
+
+    const backRightFoot = scene.add.ellipse(8, 8, 7, 4.5, legColor)
+    backRightFoot.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backRightFoot)
+
+    // Back Right Foot Pad
+    const backRightPad = scene.add.ellipse(8, 8.5, 4, 2.5, 0xE91E63, 0.7)
+    this.bodyContainer.add(backRightPad)
+
+    // Back Right Claws (3 claws)
+    for (let i = 0; i < 3; i++) {
+      const clawX = 6 + i * 2
+      const clawY = 9.5
+
+      const clawShadow = scene.add.ellipse(clawX + 0.5, clawY + 0.5, 1.2, 2, 0x000000, 0.4)
+      this.bodyContainer.add(clawShadow)
+
+      const claw = scene.add.ellipse(clawX, clawY, 1, 1.8, clawColor)
+      claw.setStrokeStyle(1, 0x000000, 0.6)
+      this.bodyContainer.add(claw)
+
+      const clawHighlight = scene.add.circle(clawX - 0.2, clawY - 0.3, 0.4, 0x666666, 0.8)
+      this.bodyContainer.add(clawHighlight)
+    }
+
+    // =========================
+    // ARMS & HANDS (with claws)
+    // =========================
+    const armColor = 0x000000
+    const handColor = 0x000000
+
+    // Left Arm
+    const leftArmShadow = scene.add.ellipse(-13, -8, 6, 10, 0x000000, 0.3)
+    leftArmShadow.setRotation(-0.3)
+    this.bodyContainer.add(leftArmShadow)
+
+    const leftArm = scene.add.ellipse(-14, -9, 5.5, 9.5, armColor)
+    leftArm.setRotation(-0.3)
+    leftArm.setStrokeStyle(2, this.getDarkerColor(armColor, 30), 0.8)
+    this.bodyContainer.add(leftArm)
+
+    const leftArmHighlight = scene.add.ellipse(-15, -10, 3, 6, 0x333333, 0.4)
+    leftArmHighlight.setRotation(-0.3)
+    this.bodyContainer.add(leftArmHighlight)
+
+    // Left Hand
+    const leftHandShadow = scene.add.circle(-17, -3, 3.5, 0x000000, 0.3)
+    this.bodyContainer.add(leftHandShadow)
+
+    const leftHand = scene.add.circle(-18, -4, 3, handColor)
+    leftHand.setStrokeStyle(2, this.getDarkerColor(handColor, 30), 0.8)
+    this.bodyContainer.add(leftHand)
+
+    const leftHandHighlight = scene.add.circle(-19, -5, 1.5, 0x333333, 0.5)
+    this.bodyContainer.add(leftHandHighlight)
+
+    // Left Hand Pad
+    const leftPalm = scene.add.circle(-18, -3.5, 1.5, 0xE91E63, 0.7)
+    this.bodyContainer.add(leftPalm)
+
+    // Left Fingers (4 fingers with claws)
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = -0.8 + i * 0.35
+      const fingerLength = 3.5
+      const fingerX = -20 - Math.sin(fingerAngle) * 2
+      const fingerY = -4.5 + Math.cos(fingerAngle) * 2
+
+      // Finger base
+      const fingerShadow = scene.add.rectangle(fingerX + 0.5, fingerY + 0.5, 1.5, fingerLength, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 1.3, fingerLength, handColor)
+      finger.setRotation(fingerAngle)
+      finger.setStrokeStyle(1, this.getDarkerColor(handColor, 30), 0.6)
+      this.bodyContainer.add(finger)
+
+      const fingerHighlight = scene.add.rectangle(fingerX - 0.3, fingerY, 0.6, fingerLength - 0.5, 0x333333, 0.4)
+      fingerHighlight.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerHighlight)
+
+      // Claw at fingertip
+      const clawTipX = fingerX - Math.sin(fingerAngle) * (fingerLength / 2 + 0.5)
+      const clawTipY = fingerY + Math.cos(fingerAngle) * (fingerLength / 2 + 0.5)
+
+      const fingerClaw = scene.add.ellipse(clawTipX, clawTipY, 0.8, 1.5, clawColor)
+      fingerClaw.setRotation(fingerAngle)
+      fingerClaw.setStrokeStyle(0.5, 0x000000, 0.8)
+      this.bodyContainer.add(fingerClaw)
+    }
+
+    // Right Arm
+    const rightArmShadow = scene.add.ellipse(13, -8, 6, 10, 0x000000, 0.3)
+    rightArmShadow.setRotation(0.3)
+    this.bodyContainer.add(rightArmShadow)
+
+    const rightArm = scene.add.ellipse(14, -9, 5.5, 9.5, armColor)
+    rightArm.setRotation(0.3)
+    rightArm.setStrokeStyle(2, this.getDarkerColor(armColor, 30), 0.8)
+    this.bodyContainer.add(rightArm)
+
+    const rightArmHighlight = scene.add.ellipse(15, -10, 3, 6, 0x333333, 0.4)
+    rightArmHighlight.setRotation(0.3)
+    this.bodyContainer.add(rightArmHighlight)
+
+    // Right Hand
+    const rightHandShadow = scene.add.circle(17, -3, 3.5, 0x000000, 0.3)
+    this.bodyContainer.add(rightHandShadow)
+
+    const rightHand = scene.add.circle(18, -4, 3, handColor)
+    rightHand.setStrokeStyle(2, this.getDarkerColor(handColor, 30), 0.8)
+    this.bodyContainer.add(rightHand)
+
+    const rightHandHighlight = scene.add.circle(19, -5, 1.5, 0x333333, 0.5)
+    this.bodyContainer.add(rightHandHighlight)
+
+    // Right Hand Pad
+    const rightPalm = scene.add.circle(18, -3.5, 1.5, 0xE91E63, 0.7)
+    this.bodyContainer.add(rightPalm)
+
+    // Right Fingers (4 fingers with claws)
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = 0.8 - i * 0.35
+      const fingerLength = 3.5
+      const fingerX = 20 + Math.sin(fingerAngle) * 2
+      const fingerY = -4.5 + Math.cos(fingerAngle) * 2
+
+      // Finger base
+      const fingerShadow = scene.add.rectangle(fingerX + 0.5, fingerY + 0.5, 1.5, fingerLength, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 1.3, fingerLength, handColor)
+      finger.setRotation(fingerAngle)
+      finger.setStrokeStyle(1, this.getDarkerColor(handColor, 30), 0.6)
+      this.bodyContainer.add(finger)
+
+      const fingerHighlight = scene.add.rectangle(fingerX + 0.3, fingerY, 0.6, fingerLength - 0.5, 0x333333, 0.4)
+      fingerHighlight.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerHighlight)
+
+      // Claw at fingertip
+      const clawTipX = fingerX + Math.sin(fingerAngle) * (fingerLength / 2 + 0.5)
+      const clawTipY = fingerY + Math.cos(fingerAngle) * (fingerLength / 2 + 0.5)
+
+      const fingerClaw = scene.add.ellipse(clawTipX, clawTipY, 0.8, 1.5, clawColor)
+      fingerClaw.setRotation(fingerAngle)
+      fingerClaw.setStrokeStyle(0.5, 0x000000, 0.8)
+      this.bodyContainer.add(fingerClaw)
+    }
+
+    // =========================
+    // FRONT LEGS & FEET (in front of body)
+    // =========================
+    // Front Left Leg
+    const frontLeftLegShadow = scene.add.ellipse(-6, 1, 6.5, 12, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftLegShadow)
+
+    const frontLeftLeg = scene.add.ellipse(-7, 0, 6, 11.5, legColor)
+    frontLeftLeg.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontLeftLeg)
+
+    const frontLeftLegHighlight = scene.add.ellipse(-8, -2, 3, 7, 0x333333, 0.4)
+    this.bodyContainer.add(frontLeftLegHighlight)
+
+    // Front Left Foot
+    const frontLeftFootShadow = scene.add.ellipse(-6, 8, 7.5, 5, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftFootShadow)
+
+    const frontLeftFoot = scene.add.ellipse(-7, 7, 7, 4.5, legColor)
+    frontLeftFoot.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontLeftFoot)
+
+    // Front Left Foot Pad
+    const frontLeftPad = scene.add.ellipse(-7, 7.5, 4, 2.5, 0xE91E63, 0.7)
+    this.bodyContainer.add(frontLeftPad)
+
+    // Front Left Claws (3 claws)
+    for (let i = 0; i < 3; i++) {
+      const clawX = -9 + i * 2
+      const clawY = 8.5
+
+      const clawShadow = scene.add.ellipse(clawX + 0.5, clawY + 0.5, 1.2, 2, 0x000000, 0.4)
+      this.bodyContainer.add(clawShadow)
+
+      const claw = scene.add.ellipse(clawX, clawY, 1, 1.8, clawColor)
+      claw.setStrokeStyle(1, 0x000000, 0.6)
+      this.bodyContainer.add(claw)
+
+      const clawHighlight = scene.add.circle(clawX - 0.2, clawY - 0.3, 0.4, 0x666666, 0.8)
+      this.bodyContainer.add(clawHighlight)
+    }
+
+    // Front Right Leg
+    const frontRightLegShadow = scene.add.ellipse(6, 1, 6.5, 12, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightLegShadow)
+
+    const frontRightLeg = scene.add.ellipse(7, 0, 6, 11.5, legColor)
+    frontRightLeg.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontRightLeg)
+
+    const frontRightLegHighlight = scene.add.ellipse(8, -2, 3, 7, 0x333333, 0.4)
+    this.bodyContainer.add(frontRightLegHighlight)
+
+    // Front Right Foot
+    const frontRightFootShadow = scene.add.ellipse(6, 8, 7.5, 5, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightFootShadow)
+
+    const frontRightFoot = scene.add.ellipse(7, 7, 7, 4.5, legColor)
+    frontRightFoot.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontRightFoot)
+
+    // Front Right Foot Pad
+    const frontRightPad = scene.add.ellipse(7, 7.5, 4, 2.5, 0xE91E63, 0.7)
+    this.bodyContainer.add(frontRightPad)
+
+    // Front Right Claws (3 claws)
+    for (let i = 0; i < 3; i++) {
+      const clawX = 5 + i * 2
+      const clawY = 8.5
+
+      const clawShadow = scene.add.ellipse(clawX + 0.5, clawY + 0.5, 1.2, 2, 0x000000, 0.4)
+      this.bodyContainer.add(clawShadow)
+
+      const claw = scene.add.ellipse(clawX, clawY, 1, 1.8, clawColor)
+      claw.setStrokeStyle(1, 0x000000, 0.6)
+      this.bodyContainer.add(claw)
+
+      const clawHighlight = scene.add.circle(clawX - 0.2, clawY - 0.3, 0.4, 0x666666, 0.8)
+      this.bodyContainer.add(clawHighlight)
+    }
 
     this.characterParts.accessories = [earL, earR, belly]
 
@@ -2766,8 +2412,156 @@ export class Tower extends Phaser.GameObjects.Container {
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
-      delay: scene.tweens.stagger(100)
+      delay: 100
     })
+
+    // =========================
+    // LEGS & HOOVES - Powerful muscular legs
+    // =========================
+    const legColor = this.getDarkerColor(mainColor, 30)
+    const hoofColor = 0x1A1A1A
+
+    // Back Left Leg
+    const backLeftUpperShadow = scene.add.ellipse(-8, 3, 8.5, 13, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftUpperShadow)
+
+    const backLeftUpper = scene.add.ellipse(-9, 2, 8, 12, mainColor)
+    backLeftUpper.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(backLeftUpper)
+
+    const backLeftUpperHighlight = scene.add.ellipse(-10, 0, 4, 8, lightColor, 0.5)
+    this.bodyContainer.add(backLeftUpperHighlight)
+
+    const backLeftLowerShadow = scene.add.ellipse(-8, 11, 7.5, 10, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftLowerShadow)
+
+    const backLeftLower = scene.add.ellipse(-9, 10, 7, 9, legColor)
+    backLeftLower.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backLeftLower)
+
+    // Back Left Hoof - Split hoof detail
+    const backLeftHoofShadow = scene.add.ellipse(-8, 17, 8, 5, 0x000000, 0.4)
+    this.bodyContainer.add(backLeftHoofShadow)
+
+    const backLeftHoof = scene.add.ellipse(-9, 16, 7.5, 4.5, hoofColor)
+    backLeftHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(backLeftHoof)
+
+    // Hoof split
+    const backLeftHoofSplit = scene.add.rectangle(-9, 16.5, 0.8, 4, 0x000000, 0.8)
+    this.bodyContainer.add(backLeftHoofSplit)
+
+    const backLeftHoofHighlight = scene.add.ellipse(-10, 15, 3, 2, 0x333333, 0.6)
+    this.bodyContainer.add(backLeftHoofHighlight)
+
+    // Back Right Leg
+    const backRightUpperShadow = scene.add.ellipse(8, 3, 8.5, 13, 0x000000, 0.3)
+    this.bodyContainer.add(backRightUpperShadow)
+
+    const backRightUpper = scene.add.ellipse(9, 2, 8, 12, mainColor)
+    backRightUpper.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(backRightUpper)
+
+    const backRightUpperHighlight = scene.add.ellipse(10, 0, 4, 8, lightColor, 0.5)
+    this.bodyContainer.add(backRightUpperHighlight)
+
+    const backRightLowerShadow = scene.add.ellipse(8, 11, 7.5, 10, 0x000000, 0.3)
+    this.bodyContainer.add(backRightLowerShadow)
+
+    const backRightLower = scene.add.ellipse(9, 10, 7, 9, legColor)
+    backRightLower.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backRightLower)
+
+    // Back Right Hoof
+    const backRightHoofShadow = scene.add.ellipse(8, 17, 8, 5, 0x000000, 0.4)
+    this.bodyContainer.add(backRightHoofShadow)
+
+    const backRightHoof = scene.add.ellipse(9, 16, 7.5, 4.5, hoofColor)
+    backRightHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(backRightHoof)
+
+    // Hoof split
+    const backRightHoofSplit = scene.add.rectangle(9, 16.5, 0.8, 4, 0x000000, 0.8)
+    this.bodyContainer.add(backRightHoofSplit)
+
+    const backRightHoofHighlight = scene.add.ellipse(10, 15, 3, 2, 0x333333, 0.6)
+    this.bodyContainer.add(backRightHoofHighlight)
+
+    // Front Left Leg
+    const frontLeftUpperShadow = scene.add.ellipse(-7, 1, 8.5, 14, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftUpperShadow)
+
+    const frontLeftUpper = scene.add.ellipse(-8, 0, 8, 13, mainColor)
+    frontLeftUpper.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(frontLeftUpper)
+
+    const frontLeftUpperHighlight = scene.add.ellipse(-9, -2, 4, 9, lightColor, 0.5)
+    this.bodyContainer.add(frontLeftUpperHighlight)
+
+    const frontLeftLowerShadow = scene.add.ellipse(-7, 10, 7.5, 9, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftLowerShadow)
+
+    const frontLeftLower = scene.add.ellipse(-8, 9, 7, 8, legColor)
+    frontLeftLower.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontLeftLower)
+
+    // Front Left Hoof
+    const frontLeftHoofShadow = scene.add.ellipse(-7, 16, 8, 5, 0x000000, 0.4)
+    this.bodyContainer.add(frontLeftHoofShadow)
+
+    const frontLeftHoof = scene.add.ellipse(-8, 15, 7.5, 4.5, hoofColor)
+    frontLeftHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(frontLeftHoof)
+
+    // Hoof split
+    const frontLeftHoofSplit = scene.add.rectangle(-8, 15.5, 0.8, 4, 0x000000, 0.8)
+    this.bodyContainer.add(frontLeftHoofSplit)
+
+    const frontLeftHoofHighlight = scene.add.ellipse(-9, 14, 3, 2, 0x333333, 0.6)
+    this.bodyContainer.add(frontLeftHoofHighlight)
+
+    // Front Right Leg
+    const frontRightUpperShadow = scene.add.ellipse(7, 1, 8.5, 14, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightUpperShadow)
+
+    const frontRightUpper = scene.add.ellipse(8, 0, 8, 13, mainColor)
+    frontRightUpper.setStrokeStyle(2, darkColor, 0.8)
+    this.bodyContainer.add(frontRightUpper)
+
+    const frontRightUpperHighlight = scene.add.ellipse(9, -2, 4, 9, lightColor, 0.5)
+    this.bodyContainer.add(frontRightUpperHighlight)
+
+    const frontRightLowerShadow = scene.add.ellipse(7, 10, 7.5, 9, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightLowerShadow)
+
+    const frontRightLower = scene.add.ellipse(8, 9, 7, 8, legColor)
+    frontRightLower.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontRightLower)
+
+    // Front Right Hoof
+    const frontRightHoofShadow = scene.add.ellipse(7, 16, 8, 5, 0x000000, 0.4)
+    this.bodyContainer.add(frontRightHoofShadow)
+
+    const frontRightHoof = scene.add.ellipse(8, 15, 7.5, 4.5, hoofColor)
+    frontRightHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(frontRightHoof)
+
+    // Hoof split
+    const frontRightHoofSplit = scene.add.rectangle(8, 15.5, 0.8, 4, 0x000000, 0.8)
+    this.bodyContainer.add(frontRightHoofSplit)
+
+    const frontRightHoofHighlight = scene.add.ellipse(9, 14, 3, 2, 0x333333, 0.6)
+    this.bodyContainer.add(frontRightHoofHighlight)
+
+    // =========================
+    // FUR TEXTURE - Additional shaggy fur details
+    // =========================
+    for (let i = 0; i < 6; i++) {
+      const furX = -10 + i * 4
+      const furY = -8 + (i % 2) * 2
+      const furTuft = scene.add.circle(furX, furY, 2, maneColor, 0.4)
+      this.bodyContainer.add(furTuft)
+    }
 
     this.addGlow(scene, 0xFFA726, 30)
   }
@@ -3037,6 +2831,239 @@ export class Tower extends Phaser.GameObjects.Container {
       ease: 'Sine.easeInOut'
     })
 
+    // =========================
+    // LEGS & CLAWS - Powerful dragon legs with talons
+    // =========================
+    const legColor = this.getDarkerColor(bodyColor, 20)
+    const clawColor = 0x1A1A1A
+
+    // Back Left Leg
+    const backLeftUpperShadow = scene.add.ellipse(-10, 3, 8, 12, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftUpperShadow)
+
+    const backLeftUpper = scene.add.ellipse(-11, 2, 7.5, 11, bodyColor)
+    backLeftUpper.setStrokeStyle(2, bodyDark, 0.8)
+    this.bodyContainer.add(backLeftUpper)
+
+    const backLeftUpperHighlight = scene.add.ellipse(-12, 0, 4, 7, this.getLighterColor(bodyColor, 40), 0.5)
+    this.bodyContainer.add(backLeftUpperHighlight)
+
+    // Back Left Knee joint
+    const backLeftKneeShadow = scene.add.circle(-10, 9, 4.5, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftKneeShadow)
+
+    const backLeftKnee = scene.add.circle(-11, 8, 4, legColor)
+    backLeftKnee.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backLeftKnee)
+
+    // Back Left Lower Leg
+    const backLeftLowerShadow = scene.add.ellipse(-10, 13, 6.5, 9, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftLowerShadow)
+
+    const backLeftLower = scene.add.ellipse(-11, 12, 6, 8, legColor)
+    backLeftLower.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backLeftLower)
+
+    // Back Left Foot with talons
+    const backLeftFootShadow = scene.add.ellipse(-10, 18, 7, 4, 0x000000, 0.4)
+    this.bodyContainer.add(backLeftFootShadow)
+
+    const backLeftFoot = scene.add.ellipse(-11, 17, 6.5, 3.5, this.getDarkerColor(legColor, 20))
+    backLeftFoot.setStrokeStyle(2, this.getDarkerColor(legColor, 40), 0.8)
+    this.bodyContainer.add(backLeftFoot)
+
+    // Back Left Talons - 3 forward claws
+    for (let i = 0; i < 3; i++) {
+      const talonX = -13 + i * 2
+      const talonY = 18.5
+      const talonAngle = -0.3 + i * 0.3
+
+      const talonShadow = scene.add.rectangle(talonX + 0.5, talonY + 0.5, 1, 3, 0x000000, 0.4)
+      talonShadow.setRotation(talonAngle)
+      this.bodyContainer.add(talonShadow)
+
+      const talon = scene.add.rectangle(talonX, talonY, 0.9, 2.8, clawColor)
+      talon.setRotation(talonAngle)
+      talon.setStrokeStyle(1, 0x000000, 0.8)
+      this.bodyContainer.add(talon)
+
+      const talonSharp = scene.add.circle(talonX - Math.sin(talonAngle) * 1.4, talonY + Math.cos(talonAngle) * 1.4, 0.6, clawColor)
+      this.bodyContainer.add(talonSharp)
+    }
+
+    // Back Right Leg
+    const backRightUpperShadow = scene.add.ellipse(10, 3, 8, 12, 0x000000, 0.3)
+    this.bodyContainer.add(backRightUpperShadow)
+
+    const backRightUpper = scene.add.ellipse(11, 2, 7.5, 11, bodyColor)
+    backRightUpper.setStrokeStyle(2, bodyDark, 0.8)
+    this.bodyContainer.add(backRightUpper)
+
+    const backRightUpperHighlight = scene.add.ellipse(12, 0, 4, 7, this.getLighterColor(bodyColor, 40), 0.5)
+    this.bodyContainer.add(backRightUpperHighlight)
+
+    // Back Right Knee joint
+    const backRightKneeShadow = scene.add.circle(10, 9, 4.5, 0x000000, 0.3)
+    this.bodyContainer.add(backRightKneeShadow)
+
+    const backRightKnee = scene.add.circle(11, 8, 4, legColor)
+    backRightKnee.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backRightKnee)
+
+    // Back Right Lower Leg
+    const backRightLowerShadow = scene.add.ellipse(10, 13, 6.5, 9, 0x000000, 0.3)
+    this.bodyContainer.add(backRightLowerShadow)
+
+    const backRightLower = scene.add.ellipse(11, 12, 6, 8, legColor)
+    backRightLower.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(backRightLower)
+
+    // Back Right Foot with talons
+    const backRightFootShadow = scene.add.ellipse(10, 18, 7, 4, 0x000000, 0.4)
+    this.bodyContainer.add(backRightFootShadow)
+
+    const backRightFoot = scene.add.ellipse(11, 17, 6.5, 3.5, this.getDarkerColor(legColor, 20))
+    backRightFoot.setStrokeStyle(2, this.getDarkerColor(legColor, 40), 0.8)
+    this.bodyContainer.add(backRightFoot)
+
+    // Back Right Talons
+    for (let i = 0; i < 3; i++) {
+      const talonX = 9 + i * 2
+      const talonY = 18.5
+      const talonAngle = -0.3 + i * 0.3
+
+      const talonShadow = scene.add.rectangle(talonX + 0.5, talonY + 0.5, 1, 3, 0x000000, 0.4)
+      talonShadow.setRotation(talonAngle)
+      this.bodyContainer.add(talonShadow)
+
+      const talon = scene.add.rectangle(talonX, talonY, 0.9, 2.8, clawColor)
+      talon.setRotation(talonAngle)
+      talon.setStrokeStyle(1, 0x000000, 0.8)
+      this.bodyContainer.add(talon)
+
+      const talonSharp = scene.add.circle(talonX - Math.sin(talonAngle) * 1.4, talonY + Math.cos(talonAngle) * 1.4, 0.6, clawColor)
+      this.bodyContainer.add(talonSharp)
+    }
+
+    // =========================
+    // FRONT ARMS & CLAWS
+    // =========================
+    // Front Left Arm
+    const frontLeftArmShadow = scene.add.ellipse(-13, -5, 7, 11, 0x000000, 0.3)
+    frontLeftArmShadow.setRotation(-0.4)
+    this.bodyContainer.add(frontLeftArmShadow)
+
+    const frontLeftArm = scene.add.ellipse(-14, -6, 6.5, 10, bodyColor)
+    frontLeftArm.setRotation(-0.4)
+    frontLeftArm.setStrokeStyle(2, bodyDark, 0.8)
+    this.bodyContainer.add(frontLeftArm)
+
+    const frontLeftArmHighlight = scene.add.ellipse(-15, -8, 3.5, 6, this.getLighterColor(bodyColor, 40), 0.5)
+    frontLeftArmHighlight.setRotation(-0.4)
+    this.bodyContainer.add(frontLeftArmHighlight)
+
+    // Front Left Forearm
+    const frontLeftForearmShadow = scene.add.ellipse(-17, 0, 5.5, 8, 0x000000, 0.3)
+    frontLeftForearmShadow.setRotation(-0.5)
+    this.bodyContainer.add(frontLeftForearmShadow)
+
+    const frontLeftForearm = scene.add.ellipse(-18, -1, 5, 7, legColor)
+    frontLeftForearm.setRotation(-0.5)
+    frontLeftForearm.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontLeftForearm)
+
+    // Front Left Hand
+    const frontLeftHandShadow = scene.add.circle(-20, 3, 3.5, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftHandShadow)
+
+    const frontLeftHand = scene.add.circle(-21, 2, 3, this.getDarkerColor(legColor, 20))
+    frontLeftHand.setStrokeStyle(2, this.getDarkerColor(legColor, 40), 0.8)
+    this.bodyContainer.add(frontLeftHand)
+
+    // Front Left Claws - 4 sharp dragon claws
+    for (let i = 0; i < 4; i++) {
+      const clawAngle = -0.9 + i * 0.4
+      const clawX = -23 - Math.sin(clawAngle) * 1.5
+      const clawY = 2.5 + Math.cos(clawAngle) * 1.5
+
+      const clawShadow = scene.add.rectangle(clawX + 0.5, clawY + 0.5, 1, 3.5, 0x000000, 0.4)
+      clawShadow.setRotation(clawAngle)
+      this.bodyContainer.add(clawShadow)
+
+      const claw = scene.add.rectangle(clawX, clawY, 0.9, 3.2, clawColor)
+      claw.setRotation(clawAngle)
+      claw.setStrokeStyle(1, 0x000000, 0.9)
+      this.bodyContainer.add(claw)
+
+      const clawTip = scene.add.circle(clawX - Math.sin(clawAngle) * 1.6, clawY + Math.cos(clawAngle) * 1.6, 0.7, clawColor)
+      this.bodyContainer.add(clawTip)
+    }
+
+    // Front Right Arm
+    const frontRightArmShadow = scene.add.ellipse(13, -5, 7, 11, 0x000000, 0.3)
+    frontRightArmShadow.setRotation(0.4)
+    this.bodyContainer.add(frontRightArmShadow)
+
+    const frontRightArm = scene.add.ellipse(14, -6, 6.5, 10, bodyColor)
+    frontRightArm.setRotation(0.4)
+    frontRightArm.setStrokeStyle(2, bodyDark, 0.8)
+    this.bodyContainer.add(frontRightArm)
+
+    const frontRightArmHighlight = scene.add.ellipse(15, -8, 3.5, 6, this.getLighterColor(bodyColor, 40), 0.5)
+    frontRightArmHighlight.setRotation(0.4)
+    this.bodyContainer.add(frontRightArmHighlight)
+
+    // Front Right Forearm
+    const frontRightForearmShadow = scene.add.ellipse(17, 0, 5.5, 8, 0x000000, 0.3)
+    frontRightForearmShadow.setRotation(0.5)
+    this.bodyContainer.add(frontRightForearmShadow)
+
+    const frontRightForearm = scene.add.ellipse(18, -1, 5, 7, legColor)
+    frontRightForearm.setRotation(0.5)
+    frontRightForearm.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(frontRightForearm)
+
+    // Front Right Hand
+    const frontRightHandShadow = scene.add.circle(20, 3, 3.5, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightHandShadow)
+
+    const frontRightHand = scene.add.circle(21, 2, 3, this.getDarkerColor(legColor, 20))
+    frontRightHand.setStrokeStyle(2, this.getDarkerColor(legColor, 40), 0.8)
+    this.bodyContainer.add(frontRightHand)
+
+    // Front Right Claws
+    for (let i = 0; i < 4; i++) {
+      const clawAngle = 0.9 - i * 0.4
+      const clawX = 23 + Math.sin(clawAngle) * 1.5
+      const clawY = 2.5 + Math.cos(clawAngle) * 1.5
+
+      const clawShadow = scene.add.rectangle(clawX + 0.5, clawY + 0.5, 1, 3.5, 0x000000, 0.4)
+      clawShadow.setRotation(clawAngle)
+      this.bodyContainer.add(clawShadow)
+
+      const claw = scene.add.rectangle(clawX, clawY, 0.9, 3.2, clawColor)
+      claw.setRotation(clawAngle)
+      claw.setStrokeStyle(1, 0x000000, 0.9)
+      this.bodyContainer.add(claw)
+
+      const clawTip = scene.add.circle(clawX + Math.sin(clawAngle) * 1.6, clawY + Math.cos(clawAngle) * 1.6, 0.7, clawColor)
+      this.bodyContainer.add(clawTip)
+    }
+
+    // =========================
+    // SCALE TEXTURE - Additional scale details on limbs
+    // =========================
+    const scalePositions = [
+      [-11, 5], [-11, 10], [11, 5], [11, 10],  // Legs
+      [-15, -3], [-19, 1], [15, -3], [19, 1]   // Arms
+    ]
+
+    scalePositions.forEach(([x, y]) => {
+      const scale = scene.add.circle(x, y, 2, bodyDark, 0.4)
+      scale.setStrokeStyle(1, this.getDarkerColor(bodyDark, 30), 0.6)
+      this.bodyContainer.add(scale)
+    })
+
     this.addGlow(scene, 0xFF5722, 35)
   }
 
@@ -3141,42 +3168,172 @@ export class Tower extends Phaser.GameObjects.Container {
 
     this.characterParts.accessories = [antL, antR, pattern]
 
-    // LEGS - Segmented legs (3 circles per leg)
+    // LEGS - Segmented legs (3 pairs, highly detailed with multiple segments and clawed feet)
     const legColor = antColor
+    const legDark = this.getDarkerColor(legColor, 30)
+    const clawColor = 0x1A1A1A
     const legs: Phaser.GameObjects.Shape[] = []
 
     for (let i = 0; i < 3; i++) {
       const yPos = -14 + i * 6
 
-      // Left leg with segments
-      const legLJoint1 = scene.add.circle(-10, yPos, 2, legColor)
-      legLJoint1.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legLJoint1)
+      // =========================
+      // LEFT LEG - Multi-segmented with detail
+      // =========================
 
-      const legLSeg = scene.add.rectangle(-14, yPos, 10, 3, legColor)
-      legLSeg.setRotation(-0.5)
-      legLSeg.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legLSeg)
-      legs.push(legLSeg)
+      // Coxa (hip joint) - attached to body
+      const legLCoxaShadow = scene.add.circle(-9, yPos, 2.5, 0x000000, 0.3)
+      this.bodyContainer.add(legLCoxaShadow)
 
-      const legLJoint2 = scene.add.circle(-18, yPos + 2, 2, legColor)
-      legLJoint2.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legLJoint2)
+      const legLCoxa = scene.add.circle(-10, yPos, 2.2, legColor)
+      legLCoxa.setStrokeStyle(1.5, 0x000000, 0.8)
+      this.bodyContainer.add(legLCoxa)
 
-      // Right leg with segments
-      const legRJoint1 = scene.add.circle(10, yPos, 2, legColor)
-      legRJoint1.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legRJoint1)
+      const legLCoxaHighlight = scene.add.circle(-10.5, yPos - 0.5, 1, this.getLighterColor(legColor, 40), 0.7)
+      this.bodyContainer.add(legLCoxaHighlight)
 
-      const legRSeg = scene.add.rectangle(14, yPos, 10, 3, legColor)
-      legRSeg.setRotation(0.5)
-      legRSeg.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legRSeg)
-      legs.push(legRSeg)
+      // Femur (upper leg segment)
+      const legLFemurShadow = scene.add.rectangle(-13, yPos, 7, 3.5, 0x000000, 0.3)
+      legLFemurShadow.setRotation(-0.4)
+      this.bodyContainer.add(legLFemurShadow)
 
-      const legRJoint2 = scene.add.circle(18, yPos + 2, 2, legColor)
-      legRJoint2.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legRJoint2)
+      const legLFemur = scene.add.rectangle(-13.5, yPos + 0.5, 6.5, 3, legColor)
+      legLFemur.setRotation(-0.5)
+      legLFemur.setStrokeStyle(1.5, legDark, 0.8)
+      this.bodyContainer.add(legLFemur)
+      legs.push(legLFemur)
+
+      const legLFemurHighlight = scene.add.rectangle(-14, yPos + 0.3, 2, 2.5, this.getLighterColor(legColor, 30), 0.6)
+      legLFemurHighlight.setRotation(-0.5)
+      this.bodyContainer.add(legLFemurHighlight)
+
+      // Knee joint
+      const legLKneeShadow = scene.add.circle(-17, yPos + 2, 2.5, 0x000000, 0.3)
+      this.bodyContainer.add(legLKneeShadow)
+
+      const legLKnee = scene.add.circle(-17.5, yPos + 2, 2.2, legDark)
+      legLKnee.setStrokeStyle(1.5, 0x000000, 0.8)
+      this.bodyContainer.add(legLKnee)
+
+      const legLKneeHighlight = scene.add.circle(-18, yPos + 1.5, 1, this.getLighterColor(legColor, 40), 0.7)
+      this.bodyContainer.add(legLKneeHighlight)
+
+      // Tibia (lower leg segment)
+      const legLTibiaShadow = scene.add.rectangle(-20, yPos + 4, 6, 2.5, 0x000000, 0.3)
+      legLTibiaShadow.setRotation(-0.6)
+      this.bodyContainer.add(legLTibiaShadow)
+
+      const legLTibia = scene.add.rectangle(-20.5, yPos + 4.5, 5.5, 2.3, legDark)
+      legLTibia.setRotation(-0.6)
+      legLTibia.setStrokeStyle(1.5, this.getDarkerColor(legDark, 30), 0.8)
+      this.bodyContainer.add(legLTibia)
+
+      const legLTibiaHighlight = scene.add.rectangle(-21, yPos + 4.3, 1.5, 2, this.getLighterColor(legColor, 20), 0.6)
+      legLTibiaHighlight.setRotation(-0.6)
+      this.bodyContainer.add(legLTibiaHighlight)
+
+      // Foot (tarsus) - small segmented foot
+      const legLFootShadow = scene.add.ellipse(-23, yPos + 6, 3, 2, 0x000000, 0.3)
+      this.bodyContainer.add(legLFootShadow)
+
+      const legLFoot = scene.add.ellipse(-23.5, yPos + 6, 2.8, 1.8, this.getDarkerColor(legDark, 20))
+      legLFoot.setStrokeStyle(1, this.getDarkerColor(legDark, 40), 0.8)
+      this.bodyContainer.add(legLFoot)
+
+      // Foot claws - 2 small claws
+      for (let c = 0; c < 2; c++) {
+        const clawX = -25 + c * 1.5
+        const clawY = yPos + 6.5
+        const clawAngle = -0.4 + c * 0.8
+
+        const clawShadow = scene.add.rectangle(clawX + 0.3, clawY + 0.3, 0.7, 1.5, 0x000000, 0.4)
+        clawShadow.setRotation(clawAngle)
+        this.bodyContainer.add(clawShadow)
+
+        const claw = scene.add.rectangle(clawX, clawY, 0.6, 1.3, clawColor)
+        claw.setRotation(clawAngle)
+        claw.setStrokeStyle(0.5, 0x000000, 0.9)
+        this.bodyContainer.add(claw)
+      }
+
+      // =========================
+      // RIGHT LEG - Mirror of left
+      // =========================
+
+      // Coxa (hip joint)
+      const legRCoxaShadow = scene.add.circle(9, yPos, 2.5, 0x000000, 0.3)
+      this.bodyContainer.add(legRCoxaShadow)
+
+      const legRCoxa = scene.add.circle(10, yPos, 2.2, legColor)
+      legRCoxa.setStrokeStyle(1.5, 0x000000, 0.8)
+      this.bodyContainer.add(legRCoxa)
+
+      const legRCoxaHighlight = scene.add.circle(10.5, yPos - 0.5, 1, this.getLighterColor(legColor, 40), 0.7)
+      this.bodyContainer.add(legRCoxaHighlight)
+
+      // Femur (upper leg segment)
+      const legRFemurShadow = scene.add.rectangle(13, yPos, 7, 3.5, 0x000000, 0.3)
+      legRFemurShadow.setRotation(0.4)
+      this.bodyContainer.add(legRFemurShadow)
+
+      const legRFemur = scene.add.rectangle(13.5, yPos + 0.5, 6.5, 3, legColor)
+      legRFemur.setRotation(0.5)
+      legRFemur.setStrokeStyle(1.5, legDark, 0.8)
+      this.bodyContainer.add(legRFemur)
+      legs.push(legRFemur)
+
+      const legRFemurHighlight = scene.add.rectangle(14, yPos + 0.3, 2, 2.5, this.getLighterColor(legColor, 30), 0.6)
+      legRFemurHighlight.setRotation(0.5)
+      this.bodyContainer.add(legRFemurHighlight)
+
+      // Knee joint
+      const legRKneeShadow = scene.add.circle(17, yPos + 2, 2.5, 0x000000, 0.3)
+      this.bodyContainer.add(legRKneeShadow)
+
+      const legRKnee = scene.add.circle(17.5, yPos + 2, 2.2, legDark)
+      legRKnee.setStrokeStyle(1.5, 0x000000, 0.8)
+      this.bodyContainer.add(legRKnee)
+
+      const legRKneeHighlight = scene.add.circle(18, yPos + 1.5, 1, this.getLighterColor(legColor, 40), 0.7)
+      this.bodyContainer.add(legRKneeHighlight)
+
+      // Tibia (lower leg segment)
+      const legRTibiaShadow = scene.add.rectangle(20, yPos + 4, 6, 2.5, 0x000000, 0.3)
+      legRTibiaShadow.setRotation(0.6)
+      this.bodyContainer.add(legRTibiaShadow)
+
+      const legRTibia = scene.add.rectangle(20.5, yPos + 4.5, 5.5, 2.3, legDark)
+      legRTibia.setRotation(0.6)
+      legRTibia.setStrokeStyle(1.5, this.getDarkerColor(legDark, 30), 0.8)
+      this.bodyContainer.add(legRTibia)
+
+      const legRTibiaHighlight = scene.add.rectangle(21, yPos + 4.3, 1.5, 2, this.getLighterColor(legColor, 20), 0.6)
+      legRTibiaHighlight.setRotation(0.6)
+      this.bodyContainer.add(legRTibiaHighlight)
+
+      // Foot (tarsus)
+      const legRFootShadow = scene.add.ellipse(23, yPos + 6, 3, 2, 0x000000, 0.3)
+      this.bodyContainer.add(legRFootShadow)
+
+      const legRFoot = scene.add.ellipse(23.5, yPos + 6, 2.8, 1.8, this.getDarkerColor(legDark, 20))
+      legRFoot.setStrokeStyle(1, this.getDarkerColor(legDark, 40), 0.8)
+      this.bodyContainer.add(legRFoot)
+
+      // Foot claws
+      for (let c = 0; c < 2; c++) {
+        const clawX = 23.5 + c * 1.5
+        const clawY = yPos + 6.5
+        const clawAngle = -0.4 + c * 0.8
+
+        const clawShadow = scene.add.rectangle(clawX + 0.3, clawY + 0.3, 0.7, 1.5, 0x000000, 0.4)
+        clawShadow.setRotation(clawAngle)
+        this.bodyContainer.add(clawShadow)
+
+        const claw = scene.add.rectangle(clawX, clawY, 0.6, 1.3, clawColor)
+        claw.setRotation(clawAngle)
+        claw.setStrokeStyle(0.5, 0x000000, 0.9)
+        this.bodyContainer.add(claw)
+      }
     }
 
     // IDLE ANIMATION - Subtle breathing
@@ -3210,7 +3367,7 @@ export class Tower extends Phaser.GameObjects.Container {
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
-      delay: scene.tweens.stagger(150)
+      delay: 150
     })
 
     this.addGlow(scene, 0x9CCC65, 29)
@@ -3338,6 +3495,212 @@ export class Tower extends Phaser.GameObjects.Container {
 
     const armRHighlight = scene.add.rectangle(13, -8, 4, 8, this.getLighterColor(suitColor, 40), 0.5)
     this.bodyContainer.add(armRHighlight)
+
+    // =========================
+    // GLOVES & FINGERS - Detailed space gloves
+    // =========================
+    const gloveColor = 0xFFFFFF
+    const gloveDark = this.getDarkerColor(gloveColor, 40)
+    const fingerColor = this.getDarkerColor(gloveColor, 20)
+
+    // Left Glove
+    const leftGloveShadow = scene.add.circle(-11, 3, 4, 0x000000, 0.3)
+    this.bodyContainer.add(leftGloveShadow)
+
+    const leftGlove = scene.add.circle(-12, 2, 3.5, gloveColor)
+    leftGlove.setStrokeStyle(2, gloveDark, 0.8)
+    this.bodyContainer.add(leftGlove)
+
+    const leftGloveHighlight = scene.add.circle(-13, 1, 1.8, this.getLighterColor(gloveColor, 30), 0.6)
+    this.bodyContainer.add(leftGloveHighlight)
+
+    // Wrist cuff
+    const leftCuff = scene.add.rectangle(-12, 0, 6, 2, this.getDarkerColor(suitColor, 20))
+    leftCuff.setStrokeStyle(1, 0x000000, 0.7)
+    this.bodyContainer.add(leftCuff)
+
+    // Left Fingers (4 fingers with padding)
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = -0.7 + i * 0.35
+      const fingerLength = 3
+      const fingerX = -14 - Math.sin(fingerAngle) * 2
+      const fingerY = 2.5 + Math.cos(fingerAngle) * 2
+
+      // Finger shadow
+      const fingerShadow = scene.add.rectangle(fingerX + 0.5, fingerY + 0.5, 1.3, fingerLength, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      // Finger base
+      const finger = scene.add.rectangle(fingerX, fingerY, 1.2, fingerLength, fingerColor)
+      finger.setRotation(fingerAngle)
+      finger.setStrokeStyle(1, gloveDark, 0.7)
+      this.bodyContainer.add(finger)
+
+      // Finger highlight
+      const fingerHighlight = scene.add.rectangle(fingerX - 0.3, fingerY, 0.5, fingerLength - 0.5, gloveColor, 0.6)
+      fingerHighlight.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerHighlight)
+
+      // Finger padding segments
+      for (let s = 0; s < 2; s++) {
+        const segY = fingerY - fingerLength / 2 + s * (fingerLength / 2)
+        const seg = scene.add.rectangle(fingerX, segY, 1.1, 0.5, gloveDark, 0.5)
+        seg.setRotation(fingerAngle)
+        this.bodyContainer.add(seg)
+      }
+    }
+
+    // Thumb
+    const thumbAngle = -1.2
+    const thumbX = -15
+    const thumbY = 1
+
+    const thumbShadow = scene.add.rectangle(thumbX + 0.5, thumbY + 0.5, 1.3, 2.5, 0x000000, 0.3)
+    thumbShadow.setRotation(thumbAngle)
+    this.bodyContainer.add(thumbShadow)
+
+    const thumb = scene.add.rectangle(thumbX, thumbY, 1.2, 2.5, fingerColor)
+    thumb.setRotation(thumbAngle)
+    thumb.setStrokeStyle(1, gloveDark, 0.7)
+    this.bodyContainer.add(thumb)
+
+    // Right Glove
+    const rightGloveShadow = scene.add.circle(11, 3, 4, 0x000000, 0.3)
+    this.bodyContainer.add(rightGloveShadow)
+
+    const rightGlove = scene.add.circle(12, 2, 3.5, gloveColor)
+    rightGlove.setStrokeStyle(2, gloveDark, 0.8)
+    this.bodyContainer.add(rightGlove)
+
+    const rightGloveHighlight = scene.add.circle(13, 1, 1.8, this.getLighterColor(gloveColor, 30), 0.6)
+    this.bodyContainer.add(rightGloveHighlight)
+
+    // Wrist cuff
+    const rightCuff = scene.add.rectangle(12, 0, 6, 2, this.getDarkerColor(suitColor, 20))
+    rightCuff.setStrokeStyle(1, 0x000000, 0.7)
+    this.bodyContainer.add(rightCuff)
+
+    // Right Fingers
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = 0.7 - i * 0.35
+      const fingerLength = 3
+      const fingerX = 14 + Math.sin(fingerAngle) * 2
+      const fingerY = 2.5 + Math.cos(fingerAngle) * 2
+
+      const fingerShadow = scene.add.rectangle(fingerX + 0.5, fingerY + 0.5, 1.3, fingerLength, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 1.2, fingerLength, fingerColor)
+      finger.setRotation(fingerAngle)
+      finger.setStrokeStyle(1, gloveDark, 0.7)
+      this.bodyContainer.add(finger)
+
+      const fingerHighlight = scene.add.rectangle(fingerX + 0.3, fingerY, 0.5, fingerLength - 0.5, gloveColor, 0.6)
+      fingerHighlight.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerHighlight)
+
+      for (let s = 0; s < 2; s++) {
+        const segY = fingerY - fingerLength / 2 + s * (fingerLength / 2)
+        const seg = scene.add.rectangle(fingerX, segY, 1.1, 0.5, gloveDark, 0.5)
+        seg.setRotation(fingerAngle)
+        this.bodyContainer.add(seg)
+      }
+    }
+
+    // Right Thumb
+    const thumbRAngle = 1.2
+    const thumbRX = 15
+    const thumbRY = 1
+
+    const thumbRShadow = scene.add.rectangle(thumbRX + 0.5, thumbRY + 0.5, 1.3, 2.5, 0x000000, 0.3)
+    thumbRShadow.setRotation(thumbRAngle)
+    this.bodyContainer.add(thumbRShadow)
+
+    const thumbR = scene.add.rectangle(thumbRX, thumbRY, 1.2, 2.5, fingerColor)
+    thumbR.setRotation(thumbRAngle)
+    thumbR.setStrokeStyle(1, gloveDark, 0.7)
+    this.bodyContainer.add(thumbR)
+
+    // =========================
+    // LEGS & BOOTS - Space suit legs with detailed boots
+    // =========================
+    const bootColor = this.getDarkerColor(suitColor, 30)
+
+    // Left Leg
+    const leftLegShadow = scene.add.rectangle(-5, 11, 7, 11, 0x000000, 0.3)
+    this.bodyContainer.add(leftLegShadow)
+
+    const leftLeg = scene.add.rectangle(-6, 10, 6.5, 10, suitColor)
+    leftLeg.setStrokeStyle(2, this.getDarkerColor(suitColor, 40), 0.8)
+    this.bodyContainer.add(leftLeg)
+
+    const leftLegHighlight = scene.add.rectangle(-7, 8, 3, 6, this.getLighterColor(suitColor, 40), 0.5)
+    this.bodyContainer.add(leftLegHighlight)
+
+    // Knee padding
+    const leftKneePad = scene.add.circle(-6, 12, 2.5, this.getDarkerColor(suitColor, 20), 0.6)
+    leftKneePad.setStrokeStyle(1, 0x000000, 0.6)
+    this.bodyContainer.add(leftKneePad)
+
+    // Left Boot
+    const leftBootShadow = scene.add.ellipse(-5, 17, 8, 5, 0x000000, 0.4)
+    this.bodyContainer.add(leftBootShadow)
+
+    const leftBoot = scene.add.ellipse(-6, 16, 7.5, 4.5, bootColor)
+    leftBoot.setStrokeStyle(2, 0x000000, 0.8)
+    this.bodyContainer.add(leftBoot)
+
+    const leftBootHighlight = scene.add.ellipse(-7, 15.5, 3, 2, this.getLighterColor(bootColor, 50), 0.6)
+    this.bodyContainer.add(leftBootHighlight)
+
+    // Boot sole with treads
+    const leftSole = scene.add.ellipse(-6, 17.5, 7, 2, 0x1A1A1A)
+    leftSole.setStrokeStyle(1, 0x000000, 0.9)
+    this.bodyContainer.add(leftSole)
+
+    for (let t = 0; t < 3; t++) {
+      const tread = scene.add.rectangle(-8 + t * 2.5, 17.5, 1.5, 1.5, 0x000000, 0.7)
+      this.bodyContainer.add(tread)
+    }
+
+    // Right Leg
+    const rightLegShadow = scene.add.rectangle(5, 11, 7, 11, 0x000000, 0.3)
+    this.bodyContainer.add(rightLegShadow)
+
+    const rightLeg = scene.add.rectangle(6, 10, 6.5, 10, suitColor)
+    rightLeg.setStrokeStyle(2, this.getDarkerColor(suitColor, 40), 0.8)
+    this.bodyContainer.add(rightLeg)
+
+    const rightLegHighlight = scene.add.rectangle(7, 8, 3, 6, this.getLighterColor(suitColor, 40), 0.5)
+    this.bodyContainer.add(rightLegHighlight)
+
+    // Knee padding
+    const rightKneePad = scene.add.circle(6, 12, 2.5, this.getDarkerColor(suitColor, 20), 0.6)
+    rightKneePad.setStrokeStyle(1, 0x000000, 0.6)
+    this.bodyContainer.add(rightKneePad)
+
+    // Right Boot
+    const rightBootShadow = scene.add.ellipse(5, 17, 8, 5, 0x000000, 0.4)
+    this.bodyContainer.add(rightBootShadow)
+
+    const rightBoot = scene.add.ellipse(6, 16, 7.5, 4.5, bootColor)
+    rightBoot.setStrokeStyle(2, 0x000000, 0.8)
+    this.bodyContainer.add(rightBoot)
+
+    const rightBootHighlight = scene.add.ellipse(7, 15.5, 3, 2, this.getLighterColor(bootColor, 50), 0.6)
+    this.bodyContainer.add(rightBootHighlight)
+
+    // Boot sole with treads
+    const rightSole = scene.add.ellipse(6, 17.5, 7, 2, 0x1A1A1A)
+    rightSole.setStrokeStyle(1, 0x000000, 0.9)
+    this.bodyContainer.add(rightSole)
+
+    for (let t = 0; t < 3; t++) {
+      const tread = scene.add.rectangle(4 + t * 2.5, 17.5, 1.5, 1.5, 0x000000, 0.7)
+      this.bodyContainer.add(tread)
+    }
 
     // IDLE ANIMATION - Floating in zero gravity
     scene.tweens.add({
@@ -3520,30 +3883,175 @@ export class Tower extends Phaser.GameObjects.Container {
 
     this.characterParts.accessories = [clawL, clawR, stalkL, stalkR]
 
-    // LEGS - Multiple legs with joints
+    // LEGS - 6 detailed crab legs with multiple segments (3 on each side)
     const legs: Phaser.GameObjects.Shape[] = []
     const legColor = this.getDarkerColor(shellColor, 50)
+    const legDark = this.getDarkerColor(legColor, 30)
+    const legTipColor = this.getDarkerColor(legColor, 40)
 
     for (let i = 0; i < 3; i++) {
       const yPos = -2 + i * 4
+      const segmentRotation = -0.3 + i * 0.15
 
-      // Left leg
-      const legLJoint = scene.add.circle(-9, yPos, 2, legColor)
-      this.bodyContainer.add(legLJoint)
+      // =========================
+      // LEFT LEG - Multi-segmented crab leg
+      // =========================
 
-      const legL = scene.add.rectangle(-12, yPos, 10, 3, legColor)
-      legL.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legL)
-      legs.push(legL)
+      // Coxa (hip joint) - attached to body
+      const legLCoxaShadow = scene.add.circle(-10, yPos, 2.5, 0x000000, 0.3)
+      this.bodyContainer.add(legLCoxaShadow)
 
-      // Right leg
-      const legRJoint = scene.add.circle(9, yPos, 2, legColor)
-      this.bodyContainer.add(legRJoint)
+      const legLCoxa = scene.add.circle(-11, yPos, 2.2, legColor)
+      legLCoxa.setStrokeStyle(1.5, 0x000000, 0.8)
+      this.bodyContainer.add(legLCoxa)
 
-      const legR = scene.add.rectangle(12, yPos, 10, 3, legColor)
-      legR.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(legR)
-      legs.push(legR)
+      const legLCoxaHighlight = scene.add.circle(-11.5, yPos - 0.5, 1, this.getLighterColor(legColor, 40), 0.6)
+      this.bodyContainer.add(legLCoxaHighlight)
+
+      // Upper leg segment (merus)
+      const legLUpper1Shadow = scene.add.rectangle(-14, yPos + 1, 7, 3.5, 0x000000, 0.3)
+      legLUpper1Shadow.setRotation(segmentRotation)
+      this.bodyContainer.add(legLUpper1Shadow)
+
+      const legLUpper1 = scene.add.rectangle(-15, yPos + 1, 6.5, 3, legColor)
+      legLUpper1.setRotation(segmentRotation)
+      legLUpper1.setStrokeStyle(1.5, legDark, 0.8)
+      this.bodyContainer.add(legLUpper1)
+      legs.push(legLUpper1)
+
+      const legLUpper1Highlight = scene.add.rectangle(-15.5, yPos + 0.5, 2, 2.5, this.getLighterColor(legColor, 30), 0.6)
+      legLUpper1Highlight.setRotation(segmentRotation)
+      this.bodyContainer.add(legLUpper1Highlight)
+
+      // Joint 1
+      const legLJoint1Shadow = scene.add.circle(-18, yPos + 2, 2, 0x000000, 0.3)
+      this.bodyContainer.add(legLJoint1Shadow)
+
+      const legLJoint1 = scene.add.circle(-18.5, yPos + 2, 1.8, legDark)
+      legLJoint1.setStrokeStyle(1, 0x000000, 0.8)
+      this.bodyContainer.add(legLJoint1)
+
+      // Middle leg segment (carpus)
+      const legLMidShadow = scene.add.rectangle(-21, yPos + 3, 6, 2.5, 0x000000, 0.3)
+      legLMidShadow.setRotation(segmentRotation + 0.2)
+      this.bodyContainer.add(legLMidShadow)
+
+      const legLMid = scene.add.rectangle(-21.5, yPos + 3, 5.5, 2.3, legDark)
+      legLMid.setRotation(segmentRotation + 0.2)
+      legLMid.setStrokeStyle(1.5, this.getDarkerColor(legDark, 30), 0.8)
+      this.bodyContainer.add(legLMid)
+
+      const legLMidHighlight = scene.add.rectangle(-22, yPos + 2.5, 1.5, 1.8, this.getLighterColor(legColor, 20), 0.6)
+      legLMidHighlight.setRotation(segmentRotation + 0.2)
+      this.bodyContainer.add(legLMidHighlight)
+
+      // Joint 2
+      const legLJoint2Shadow = scene.add.circle(-24, yPos + 4, 1.8, 0x000000, 0.3)
+      this.bodyContainer.add(legLJoint2Shadow)
+
+      const legLJoint2 = scene.add.circle(-24.5, yPos + 4, 1.5, legDark)
+      legLJoint2.setStrokeStyle(1, 0x000000, 0.8)
+      this.bodyContainer.add(legLJoint2)
+
+      // Lower leg segment (propodus) with pointed tip
+      const legLLowerShadow = scene.add.rectangle(-26, yPos + 5, 4, 2, 0x000000, 0.3)
+      legLLowerShadow.setRotation(segmentRotation + 0.3)
+      this.bodyContainer.add(legLLowerShadow)
+
+      const legLLower = scene.add.rectangle(-26.5, yPos + 5, 3.5, 1.8, legTipColor)
+      legLLower.setRotation(segmentRotation + 0.3)
+      legLLower.setStrokeStyle(1, this.getDarkerColor(legTipColor, 30), 0.8)
+      this.bodyContainer.add(legLLower)
+
+      // Leg tip (dactyl) - pointed claw tip
+      const legLTipShadow = scene.add.triangle(-28.5, yPos + 5.5, 0, 0, 2, -1, 2, 1, 0x000000, 0.4)
+      legLTipShadow.setRotation(segmentRotation + 0.3)
+      this.bodyContainer.add(legLTipShadow)
+
+      const legLTip = scene.add.triangle(-29, yPos + 5.5, 0, 0, 2, -0.8, 2, 0.8, legTipColor)
+      legLTip.setRotation(segmentRotation + 0.3)
+      legLTip.setStrokeStyle(1, 0x000000, 0.9)
+      this.bodyContainer.add(legLTip)
+
+      // =========================
+      // RIGHT LEG - Mirror of left
+      // =========================
+
+      // Coxa (hip joint)
+      const legRCoxaShadow = scene.add.circle(10, yPos, 2.5, 0x000000, 0.3)
+      this.bodyContainer.add(legRCoxaShadow)
+
+      const legRCoxa = scene.add.circle(11, yPos, 2.2, legColor)
+      legRCoxa.setStrokeStyle(1.5, 0x000000, 0.8)
+      this.bodyContainer.add(legRCoxa)
+
+      const legRCoxaHighlight = scene.add.circle(11.5, yPos - 0.5, 1, this.getLighterColor(legColor, 40), 0.6)
+      this.bodyContainer.add(legRCoxaHighlight)
+
+      // Upper leg segment
+      const legRUpper1Shadow = scene.add.rectangle(14, yPos + 1, 7, 3.5, 0x000000, 0.3)
+      legRUpper1Shadow.setRotation(-segmentRotation)
+      this.bodyContainer.add(legRUpper1Shadow)
+
+      const legRUpper1 = scene.add.rectangle(15, yPos + 1, 6.5, 3, legColor)
+      legRUpper1.setRotation(-segmentRotation)
+      legRUpper1.setStrokeStyle(1.5, legDark, 0.8)
+      this.bodyContainer.add(legRUpper1)
+      legs.push(legRUpper1)
+
+      const legRUpper1Highlight = scene.add.rectangle(15.5, yPos + 0.5, 2, 2.5, this.getLighterColor(legColor, 30), 0.6)
+      legRUpper1Highlight.setRotation(-segmentRotation)
+      this.bodyContainer.add(legRUpper1Highlight)
+
+      // Joint 1
+      const legRJoint1Shadow = scene.add.circle(18, yPos + 2, 2, 0x000000, 0.3)
+      this.bodyContainer.add(legRJoint1Shadow)
+
+      const legRJoint1 = scene.add.circle(18.5, yPos + 2, 1.8, legDark)
+      legRJoint1.setStrokeStyle(1, 0x000000, 0.8)
+      this.bodyContainer.add(legRJoint1)
+
+      // Middle leg segment
+      const legRMidShadow = scene.add.rectangle(21, yPos + 3, 6, 2.5, 0x000000, 0.3)
+      legRMidShadow.setRotation(-segmentRotation - 0.2)
+      this.bodyContainer.add(legRMidShadow)
+
+      const legRMid = scene.add.rectangle(21.5, yPos + 3, 5.5, 2.3, legDark)
+      legRMid.setRotation(-segmentRotation - 0.2)
+      legRMid.setStrokeStyle(1.5, this.getDarkerColor(legDark, 30), 0.8)
+      this.bodyContainer.add(legRMid)
+
+      const legRMidHighlight = scene.add.rectangle(22, yPos + 2.5, 1.5, 1.8, this.getLighterColor(legColor, 20), 0.6)
+      legRMidHighlight.setRotation(-segmentRotation - 0.2)
+      this.bodyContainer.add(legRMidHighlight)
+
+      // Joint 2
+      const legRJoint2Shadow = scene.add.circle(24, yPos + 4, 1.8, 0x000000, 0.3)
+      this.bodyContainer.add(legRJoint2Shadow)
+
+      const legRJoint2 = scene.add.circle(24.5, yPos + 4, 1.5, legDark)
+      legRJoint2.setStrokeStyle(1, 0x000000, 0.8)
+      this.bodyContainer.add(legRJoint2)
+
+      // Lower leg segment
+      const legRLowerShadow = scene.add.rectangle(26, yPos + 5, 4, 2, 0x000000, 0.3)
+      legRLowerShadow.setRotation(-segmentRotation - 0.3)
+      this.bodyContainer.add(legRLowerShadow)
+
+      const legRLower = scene.add.rectangle(26.5, yPos + 5, 3.5, 1.8, legTipColor)
+      legRLower.setRotation(-segmentRotation - 0.3)
+      legRLower.setStrokeStyle(1, this.getDarkerColor(legTipColor, 30), 0.8)
+      this.bodyContainer.add(legRLower)
+
+      // Leg tip
+      const legRTipShadow = scene.add.triangle(28.5, yPos + 5.5, 0, 0, -2, -1, -2, 1, 0x000000, 0.4)
+      legRTipShadow.setRotation(-segmentRotation - 0.3)
+      this.bodyContainer.add(legRTipShadow)
+
+      const legRTip = scene.add.triangle(29, yPos + 5.5, 0, 0, -2, -0.8, -2, 0.8, legTipColor)
+      legRTip.setRotation(-segmentRotation - 0.3)
+      legRTip.setStrokeStyle(1, 0x000000, 0.9)
+      this.bodyContainer.add(legRTip)
     }
 
     // IDLE ANIMATION - Sideways sway
@@ -3730,6 +4238,183 @@ export class Tower extends Phaser.GameObjects.Container {
     const bowHighlight = scene.add.star(0, -13, 5, 3, 6, this.getLighterColor(0xFF1EFF, 60), 0.7)
     this.bodyContainer.add(bowHighlight)
 
+    // =========================
+    // ARMS & GLOVES - Colorful clown gloves with fingers
+    // =========================
+    const armColor = this.getDarkerColor(bodyColor, 20)
+    const gloveColor = 0xFFFFFF
+    const gloveDark = this.getDarkerColor(gloveColor, 40)
+
+    // Left Arm
+    const leftArmShadow = scene.add.ellipse(-12, -3, 6, 11, 0x000000, 0.3)
+    leftArmShadow.setRotation(-0.3)
+    this.bodyContainer.add(leftArmShadow)
+
+    const leftArm = scene.add.ellipse(-13, -4, 5.5, 10, armColor)
+    leftArm.setRotation(-0.3)
+    leftArm.setStrokeStyle(2, this.getDarkerColor(armColor, 30), 0.8)
+    this.bodyContainer.add(leftArm)
+
+    const leftArmHighlight = scene.add.ellipse(-14, -6, 3, 6, this.getLighterColor(armColor, 40), 0.5)
+    leftArmHighlight.setRotation(-0.3)
+    this.bodyContainer.add(leftArmHighlight)
+
+    // Left Glove
+    const leftGloveShadow = scene.add.circle(-15, 3, 4, 0x000000, 0.3)
+    this.bodyContainer.add(leftGloveShadow)
+
+    const leftGlove = scene.add.circle(-16, 2, 3.5, gloveColor)
+    leftGlove.setStrokeStyle(2, gloveDark, 0.8)
+    this.bodyContainer.add(leftGlove)
+
+    const leftGloveHighlight = scene.add.circle(-17, 1, 1.8, this.getLighterColor(gloveColor, 30), 0.6)
+    this.bodyContainer.add(leftGloveHighlight)
+
+    // Left Fingers (4 fingers)
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = -0.8 + i * 0.4
+      const fingerLength = 3
+      const fingerX = -18 - Math.sin(fingerAngle) * 1.5
+      const fingerY = 2.5 + Math.cos(fingerAngle) * 1.5
+
+      const fingerShadow = scene.add.rectangle(fingerX + 0.5, fingerY + 0.5, 1.2, fingerLength, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 1.1, fingerLength, gloveColor)
+      finger.setRotation(fingerAngle)
+      finger.setStrokeStyle(1, gloveDark, 0.7)
+      this.bodyContainer.add(finger)
+
+      const fingerHighlight = scene.add.rectangle(fingerX - 0.3, fingerY, 0.5, fingerLength - 0.5, this.getLighterColor(gloveColor, 30), 0.6)
+      fingerHighlight.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerHighlight)
+    }
+
+    // Right Arm
+    const rightArmShadow = scene.add.ellipse(12, -3, 6, 11, 0x000000, 0.3)
+    rightArmShadow.setRotation(0.3)
+    this.bodyContainer.add(rightArmShadow)
+
+    const rightArm = scene.add.ellipse(13, -4, 5.5, 10, armColor)
+    rightArm.setRotation(0.3)
+    rightArm.setStrokeStyle(2, this.getDarkerColor(armColor, 30), 0.8)
+    this.bodyContainer.add(rightArm)
+
+    const rightArmHighlight = scene.add.ellipse(14, -6, 3, 6, this.getLighterColor(armColor, 40), 0.5)
+    rightArmHighlight.setRotation(0.3)
+    this.bodyContainer.add(rightArmHighlight)
+
+    // Right Glove
+    const rightGloveShadow = scene.add.circle(15, 3, 4, 0x000000, 0.3)
+    this.bodyContainer.add(rightGloveShadow)
+
+    const rightGlove = scene.add.circle(16, 2, 3.5, gloveColor)
+    rightGlove.setStrokeStyle(2, gloveDark, 0.8)
+    this.bodyContainer.add(rightGlove)
+
+    const rightGloveHighlight = scene.add.circle(17, 1, 1.8, this.getLighterColor(gloveColor, 30), 0.6)
+    this.bodyContainer.add(rightGloveHighlight)
+
+    // Right Fingers
+    for (let i = 0; i < 4; i++) {
+      const fingerAngle = 0.8 - i * 0.4
+      const fingerLength = 3
+      const fingerX = 18 + Math.sin(fingerAngle) * 1.5
+      const fingerY = 2.5 + Math.cos(fingerAngle) * 1.5
+
+      const fingerShadow = scene.add.rectangle(fingerX + 0.5, fingerY + 0.5, 1.2, fingerLength, 0x000000, 0.3)
+      fingerShadow.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerShadow)
+
+      const finger = scene.add.rectangle(fingerX, fingerY, 1.1, fingerLength, gloveColor)
+      finger.setRotation(fingerAngle)
+      finger.setStrokeStyle(1, gloveDark, 0.7)
+      this.bodyContainer.add(finger)
+
+      const fingerHighlight = scene.add.rectangle(fingerX + 0.3, fingerY, 0.5, fingerLength - 0.5, this.getLighterColor(gloveColor, 30), 0.6)
+      fingerHighlight.setRotation(fingerAngle)
+      this.bodyContainer.add(fingerHighlight)
+    }
+
+    // =========================
+    // LEGS & OVERSIZED SHOES - Clown shoes
+    // =========================
+    const legColor = this.getDarkerColor(bodyColor, 30)
+    const shoeColor = 0xFFEB3B
+
+    // Left Leg
+    const leftLegShadow = scene.add.rectangle(-5, 5, 5, 10, 0x000000, 0.3)
+    this.bodyContainer.add(leftLegShadow)
+
+    const leftLeg = scene.add.rectangle(-6, 4, 4.5, 9, legColor)
+    leftLeg.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(leftLeg)
+
+    const leftLegHighlight = scene.add.rectangle(-7, 2, 2, 5, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(leftLegHighlight)
+
+    // Left Oversized Clown Shoe
+    const leftShoeShadow = scene.add.ellipse(-5, 11, 10, 5, 0x000000, 0.4)
+    this.bodyContainer.add(leftShoeShadow)
+
+    const leftShoe = scene.add.ellipse(-6, 10, 9.5, 4.5, shoeColor)
+    leftShoe.setStrokeStyle(2, this.getDarkerColor(shoeColor, 50), 0.8)
+    this.bodyContainer.add(leftShoe)
+
+    const leftShoeHighlight = scene.add.ellipse(-8, 9.5, 4, 2, this.getLighterColor(shoeColor, 50), 0.6)
+    this.bodyContainer.add(leftShoeHighlight)
+
+    const leftShoeSpecular = scene.add.circle(-9, 9, 1.5, 0xFFFFFF, 0.7)
+    this.bodyContainer.add(leftShoeSpecular)
+
+    // Shoe detail - stripes
+    for (let i = 0; i < 2; i++) {
+      const stripe = scene.add.rectangle(-6, 9 + i * 1.5, 8, 0.8, this.getDarkerColor(shoeColor, 40), 0.6)
+      this.bodyContainer.add(stripe)
+    }
+
+    // Shoe toe cap
+    const leftToeCap = scene.add.ellipse(-10, 10, 3, 2.5, this.getDarkerColor(shoeColor, 30))
+    leftToeCap.setStrokeStyle(1, this.getDarkerColor(shoeColor, 60), 0.8)
+    this.bodyContainer.add(leftToeCap)
+
+    // Right Leg
+    const rightLegShadow = scene.add.rectangle(5, 5, 5, 10, 0x000000, 0.3)
+    this.bodyContainer.add(rightLegShadow)
+
+    const rightLeg = scene.add.rectangle(6, 4, 4.5, 9, legColor)
+    rightLeg.setStrokeStyle(2, this.getDarkerColor(legColor, 30), 0.8)
+    this.bodyContainer.add(rightLeg)
+
+    const rightLegHighlight = scene.add.rectangle(7, 2, 2, 5, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(rightLegHighlight)
+
+    // Right Oversized Clown Shoe
+    const rightShoeShadow = scene.add.ellipse(5, 11, 10, 5, 0x000000, 0.4)
+    this.bodyContainer.add(rightShoeShadow)
+
+    const rightShoe = scene.add.ellipse(6, 10, 9.5, 4.5, shoeColor)
+    rightShoe.setStrokeStyle(2, this.getDarkerColor(shoeColor, 50), 0.8)
+    this.bodyContainer.add(rightShoe)
+
+    const rightShoeHighlight = scene.add.ellipse(8, 9.5, 4, 2, this.getLighterColor(shoeColor, 50), 0.6)
+    this.bodyContainer.add(rightShoeHighlight)
+
+    const rightShoeSpecular = scene.add.circle(9, 9, 1.5, 0xFFFFFF, 0.7)
+    this.bodyContainer.add(rightShoeSpecular)
+
+    // Shoe detail - stripes
+    for (let i = 0; i < 2; i++) {
+      const stripe = scene.add.rectangle(6, 9 + i * 1.5, 8, 0.8, this.getDarkerColor(shoeColor, 40), 0.6)
+      this.bodyContainer.add(stripe)
+    }
+
+    // Shoe toe cap
+    const rightToeCap = scene.add.ellipse(10, 10, 3, 2.5, this.getDarkerColor(shoeColor, 30))
+    rightToeCap.setStrokeStyle(1, this.getDarkerColor(shoeColor, 60), 0.8)
+    this.bodyContainer.add(rightToeCap)
+
     // IDLE ANIMATION - Bouncy
     scene.tweens.add({
       targets: this.bodyContainer,
@@ -3841,18 +4526,18 @@ export class Tower extends Phaser.GameObjects.Container {
     ]
     spots.forEach(spot => {
       const spotShadow = scene.add.circle(spot.x + 1, spot.y + 1, 3, 0x000000, 0.3)
-      this.bodyContainer.add(spotShadow)
+      this.bodyContainer?.add(spotShadow)
 
       const spotBase = scene.add.circle(spot.x, spot.y, 3.5, this.getDarkerColor(spotColor, 30))
-      this.bodyContainer.add(spotBase)
+      this.bodyContainer?.add(spotBase)
 
       const s = scene.add.circle(spot.x, spot.y, 3, spotColor)
       s.setStrokeStyle(1, 0x000000, 0.6)
-      this.bodyContainer.add(s)
+      this.bodyContainer?.add(s)
       spotArray.push(s)
 
       const spotHighlight = scene.add.circle(spot.x - 0.5, spot.y - 0.5, 1.5, this.getLighterColor(spotColor, 40), 0.6)
-      this.bodyContainer.add(spotHighlight)
+      this.bodyContainer?.add(spotHighlight)
     })
 
     // EARS
@@ -3957,7 +4642,7 @@ export class Tower extends Phaser.GameObjects.Container {
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
-      delay: scene.tweens.stagger(100)
+      delay: 100
     })
 
     // Ossicone slight movement
@@ -3970,7 +4655,210 @@ export class Tower extends Phaser.GameObjects.Container {
       ease: 'Sine.easeInOut'
     })
 
+    // =========================
+    // LEGS & HOOVES - Long elegant giraffe legs
+    // =========================
+    const legColor = this.getDarkerColor(mainColor, 20)
+    const legDark = this.getDarkerColor(legColor, 30)
+    const hoofColor = 0x1A1A1A
+
+    // Back Left Leg - Long and slender
+    const backLeftUpperShadow = scene.add.ellipse(-7, 7, 5, 16, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftUpperShadow)
+
+    const backLeftUpper = scene.add.ellipse(-8, 6, 4.5, 15, legColor)
+    backLeftUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(backLeftUpper)
+
+    const backLeftUpperHighlight = scene.add.ellipse(-9, 3, 2, 10, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(backLeftUpperHighlight)
+
+    // Leg spots
+    const backLeftSpot1 = scene.add.circle(-8, 5, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(backLeftSpot1)
+
+    const backLeftSpot2 = scene.add.circle(-8, 10, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(backLeftSpot2)
+
+    // Back Left Lower Leg
+    const backLeftLowerShadow = scene.add.ellipse(-7, 17, 4.5, 10, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftLowerShadow)
+
+    const backLeftLower = scene.add.ellipse(-8, 16, 4, 9, legDark)
+    backLeftLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(backLeftLower)
+
+    // Back Left Hoof
+    const backLeftHoofShadow = scene.add.ellipse(-7, 23, 5, 3, 0x000000, 0.4)
+    this.bodyContainer.add(backLeftHoofShadow)
+
+    const backLeftHoof = scene.add.ellipse(-8, 22, 4.5, 2.8, hoofColor)
+    backLeftHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(backLeftHoof)
+
+    const backLeftHoofHighlight = scene.add.ellipse(-9, 21.5, 2, 1.5, 0x333333, 0.6)
+    this.bodyContainer.add(backLeftHoofHighlight)
+
+    // Hoof split
+    const backLeftHoofSplit = scene.add.rectangle(-8, 22.5, 0.6, 2, 0x000000, 0.8)
+    this.bodyContainer.add(backLeftHoofSplit)
+
+    // Back Right Leg
+    const backRightUpperShadow = scene.add.ellipse(7, 7, 5, 16, 0x000000, 0.3)
+    this.bodyContainer.add(backRightUpperShadow)
+
+    const backRightUpper = scene.add.ellipse(8, 6, 4.5, 15, legColor)
+    backRightUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(backRightUpper)
+
+    const backRightUpperHighlight = scene.add.ellipse(9, 3, 2, 10, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(backRightUpperHighlight)
+
+    // Leg spots
+    const backRightSpot1 = scene.add.circle(8, 5, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(backRightSpot1)
+
+    const backRightSpot2 = scene.add.circle(8, 10, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(backRightSpot2)
+
+    // Back Right Lower Leg
+    const backRightLowerShadow = scene.add.ellipse(7, 17, 4.5, 10, 0x000000, 0.3)
+    this.bodyContainer.add(backRightLowerShadow)
+
+    const backRightLower = scene.add.ellipse(8, 16, 4, 9, legDark)
+    backRightLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(backRightLower)
+
+    // Back Right Hoof
+    const backRightHoofShadow = scene.add.ellipse(7, 23, 5, 3, 0x000000, 0.4)
+    this.bodyContainer.add(backRightHoofShadow)
+
+    const backRightHoof = scene.add.ellipse(8, 22, 4.5, 2.8, hoofColor)
+    backRightHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(backRightHoof)
+
+    const backRightHoofHighlight = scene.add.ellipse(9, 21.5, 2, 1.5, 0x333333, 0.6)
+    this.bodyContainer.add(backRightHoofHighlight)
+
+    // Hoof split
+    const backRightHoofSplit = scene.add.rectangle(8, 22.5, 0.6, 2, 0x000000, 0.8)
+    this.bodyContainer.add(backRightHoofSplit)
+
+    // Front Left Leg
+    const frontLeftUpperShadow = scene.add.ellipse(-6, 5, 5, 17, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftUpperShadow)
+
+    const frontLeftUpper = scene.add.ellipse(-7, 4, 4.5, 16, legColor)
+    frontLeftUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(frontLeftUpper)
+
+    const frontLeftUpperHighlight = scene.add.ellipse(-8, 1, 2, 11, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(frontLeftUpperHighlight)
+
+    // Leg spots
+    const frontLeftSpot1 = scene.add.circle(-7, 3, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(frontLeftSpot1)
+
+    const frontLeftSpot2 = scene.add.circle(-7, 9, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(frontLeftSpot2)
+
+    // Front Left Lower Leg
+    const frontLeftLowerShadow = scene.add.ellipse(-6, 16, 4.5, 9, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftLowerShadow)
+
+    const frontLeftLower = scene.add.ellipse(-7, 15, 4, 8, legDark)
+    frontLeftLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(frontLeftLower)
+
+    // Front Left Hoof
+    const frontLeftHoofShadow = scene.add.ellipse(-6, 22, 5, 3, 0x000000, 0.4)
+    this.bodyContainer.add(frontLeftHoofShadow)
+
+    const frontLeftHoof = scene.add.ellipse(-7, 21, 4.5, 2.8, hoofColor)
+    frontLeftHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(frontLeftHoof)
+
+    const frontLeftHoofHighlight = scene.add.ellipse(-8, 20.5, 2, 1.5, 0x333333, 0.6)
+    this.bodyContainer.add(frontLeftHoofHighlight)
+
+    // Hoof split
+    const frontLeftHoofSplit = scene.add.rectangle(-7, 21.5, 0.6, 2, 0x000000, 0.8)
+    this.bodyContainer.add(frontLeftHoofSplit)
+
+    // Front Right Leg
+    const frontRightUpperShadow = scene.add.ellipse(6, 5, 5, 17, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightUpperShadow)
+
+    const frontRightUpper = scene.add.ellipse(7, 4, 4.5, 16, legColor)
+    frontRightUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(frontRightUpper)
+
+    const frontRightUpperHighlight = scene.add.ellipse(8, 1, 2, 11, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(frontRightUpperHighlight)
+
+    // Leg spots
+    const frontRightSpot1 = scene.add.circle(7, 3, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(frontRightSpot1)
+
+    const frontRightSpot2 = scene.add.circle(7, 9, 1.5, spotColor, 0.6)
+    this.bodyContainer.add(frontRightSpot2)
+
+    // Front Right Lower Leg
+    const frontRightLowerShadow = scene.add.ellipse(6, 16, 4.5, 9, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightLowerShadow)
+
+    const frontRightLower = scene.add.ellipse(7, 15, 4, 8, legDark)
+    frontRightLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(frontRightLower)
+
+    // Front Right Hoof
+    const frontRightHoofShadow = scene.add.ellipse(6, 22, 5, 3, 0x000000, 0.4)
+    this.bodyContainer.add(frontRightHoofShadow)
+
+    const frontRightHoof = scene.add.ellipse(7, 21, 4.5, 2.8, hoofColor)
+    frontRightHoof.setStrokeStyle(2, 0x000000, 0.9)
+    this.bodyContainer.add(frontRightHoof)
+
+    const frontRightHoofHighlight = scene.add.ellipse(8, 20.5, 2, 1.5, 0x333333, 0.6)
+    this.bodyContainer.add(frontRightHoofHighlight)
+
+    // Hoof split
+    const frontRightHoofSplit = scene.add.rectangle(7, 21.5, 0.6, 2, 0x000000, 0.8)
+    this.bodyContainer.add(frontRightHoofSplit)
+
     this.addGlow(scene, 0xFFEE58, 32)
+  }
+
+  // 15. Cynical Cat - Cat with sprite sheet
+  private createCat(scene: Phaser.Scene) {
+    // Use sprite sheet instead of procedural graphics
+    const mainColor = 0xFF8800 // Orange
+
+    // Create body container for consistency with other towers
+    this.bodyContainer = scene.add.container(0, 0)
+    this.add(this.bodyContainer)
+
+    // Create sprite (frames are 540x450, so scale down)
+    this.catSprite = scene.add.sprite(0, -5, 'cynical-cat', 0)
+    this.catSprite.setScale(0.23) // Scale down from 450px height to ~103px - larger for better visibility
+    this.catSprite.setOrigin(0.5, 0.5) // Center origin
+    // Set texture to use nearest-neighbor filtering to prevent frame bleeding
+    this.catSprite.setTexture('cynical-cat', 0)
+    this.catSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+    this.bodyContainer.add(this.catSprite)
+
+    // Set towerGraphic for interaction
+    this.towerGraphic = this.catSprite as any
+
+    // Make the sprite interactive
+    this.catSprite.setInteractive()
+
+    // Play idle animation if it exists
+    if (scene.anims.exists('cat-idle-front')) {
+      this.catSprite.play('cat-idle-front')
+    }
+
+    this.addGlow(scene, mainColor, 28)
   }
 
   // 16. Helpful Hippo - Hippo with big mouth
@@ -4173,6 +5061,197 @@ export class Tower extends Phaser.GameObjects.Container {
       repeat: -1,
       ease: 'Sine.easeInOut'
     })
+
+    // =========================
+    // LEGS & FEET - Thick hippo legs with toes
+    // =========================
+    const legColor = this.getDarkerColor(mainColor, 25)
+    const legDark = this.getDarkerColor(legColor, 30)
+    const toeColor = this.getDarkerColor(legColor, 40)
+
+    // Back Left Leg - Short and thick
+    const backLeftUpperShadow = scene.add.ellipse(-10, 5, 10, 13, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftUpperShadow)
+
+    const backLeftUpper = scene.add.ellipse(-11, 4, 9.5, 12, legColor)
+    backLeftUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(backLeftUpper)
+
+    const backLeftUpperHighlight = scene.add.ellipse(-12, 2, 5, 8, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(backLeftUpperHighlight)
+
+    // Back Left Lower Leg
+    const backLeftLowerShadow = scene.add.ellipse(-10, 13, 9, 9, 0x000000, 0.3)
+    this.bodyContainer.add(backLeftLowerShadow)
+
+    const backLeftLower = scene.add.ellipse(-11, 12, 8.5, 8, legDark)
+    backLeftLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(backLeftLower)
+
+    // Back Left Foot with toes
+    const backLeftFootShadow = scene.add.ellipse(-10, 18, 10, 4.5, 0x000000, 0.4)
+    this.bodyContainer.add(backLeftFootShadow)
+
+    const backLeftFoot = scene.add.ellipse(-11, 17, 9.5, 4, this.getDarkerColor(legDark, 20))
+    backLeftFoot.setStrokeStyle(2, this.getDarkerColor(legDark, 40), 0.8)
+    this.bodyContainer.add(backLeftFoot)
+
+    const backLeftFootHighlight = scene.add.ellipse(-12, 16.5, 4, 2, this.getLighterColor(legColor, 30), 0.5)
+    this.bodyContainer.add(backLeftFootHighlight)
+
+    // Back Left Toes (4 stubby toes)
+    for (let i = 0; i < 4; i++) {
+      const toeX = -14 + i * 2
+      const toeY = 18.5
+
+      const toeShadow = scene.add.ellipse(toeX + 0.5, toeY + 0.5, 1.5, 2, 0x000000, 0.4)
+      this.bodyContainer.add(toeShadow)
+
+      const toe = scene.add.ellipse(toeX, toeY, 1.3, 1.8, toeColor)
+      toe.setStrokeStyle(1, this.getDarkerColor(toeColor, 30), 0.8)
+      this.bodyContainer.add(toe)
+
+      const toeHighlight = scene.add.circle(toeX - 0.3, toeY - 0.3, 0.5, this.getLighterColor(toeColor, 40), 0.6)
+      this.bodyContainer.add(toeHighlight)
+    }
+
+    // Back Right Leg
+    const backRightUpperShadow = scene.add.ellipse(10, 5, 10, 13, 0x000000, 0.3)
+    this.bodyContainer.add(backRightUpperShadow)
+
+    const backRightUpper = scene.add.ellipse(11, 4, 9.5, 12, legColor)
+    backRightUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(backRightUpper)
+
+    const backRightUpperHighlight = scene.add.ellipse(12, 2, 5, 8, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(backRightUpperHighlight)
+
+    // Back Right Lower Leg
+    const backRightLowerShadow = scene.add.ellipse(10, 13, 9, 9, 0x000000, 0.3)
+    this.bodyContainer.add(backRightLowerShadow)
+
+    const backRightLower = scene.add.ellipse(11, 12, 8.5, 8, legDark)
+    backRightLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(backRightLower)
+
+    // Back Right Foot with toes
+    const backRightFootShadow = scene.add.ellipse(10, 18, 10, 4.5, 0x000000, 0.4)
+    this.bodyContainer.add(backRightFootShadow)
+
+    const backRightFoot = scene.add.ellipse(11, 17, 9.5, 4, this.getDarkerColor(legDark, 20))
+    backRightFoot.setStrokeStyle(2, this.getDarkerColor(legDark, 40), 0.8)
+    this.bodyContainer.add(backRightFoot)
+
+    const backRightFootHighlight = scene.add.ellipse(12, 16.5, 4, 2, this.getLighterColor(legColor, 30), 0.5)
+    this.bodyContainer.add(backRightFootHighlight)
+
+    // Back Right Toes
+    for (let i = 0; i < 4; i++) {
+      const toeX = 8 + i * 2
+      const toeY = 18.5
+
+      const toeShadow = scene.add.ellipse(toeX + 0.5, toeY + 0.5, 1.5, 2, 0x000000, 0.4)
+      this.bodyContainer.add(toeShadow)
+
+      const toe = scene.add.ellipse(toeX, toeY, 1.3, 1.8, toeColor)
+      toe.setStrokeStyle(1, this.getDarkerColor(toeColor, 30), 0.8)
+      this.bodyContainer.add(toe)
+
+      const toeHighlight = scene.add.circle(toeX - 0.3, toeY - 0.3, 0.5, this.getLighterColor(toeColor, 40), 0.6)
+      this.bodyContainer.add(toeHighlight)
+    }
+
+    // Front Left Leg
+    const frontLeftUpperShadow = scene.add.ellipse(-9, 3, 10, 14, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftUpperShadow)
+
+    const frontLeftUpper = scene.add.ellipse(-10, 2, 9.5, 13, legColor)
+    frontLeftUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(frontLeftUpper)
+
+    const frontLeftUpperHighlight = scene.add.ellipse(-11, 0, 5, 9, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(frontLeftUpperHighlight)
+
+    // Front Left Lower Leg
+    const frontLeftLowerShadow = scene.add.ellipse(-9, 12, 9, 8, 0x000000, 0.3)
+    this.bodyContainer.add(frontLeftLowerShadow)
+
+    const frontLeftLower = scene.add.ellipse(-10, 11, 8.5, 7, legDark)
+    frontLeftLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(frontLeftLower)
+
+    // Front Left Foot with toes
+    const frontLeftFootShadow = scene.add.ellipse(-9, 17, 10, 4.5, 0x000000, 0.4)
+    this.bodyContainer.add(frontLeftFootShadow)
+
+    const frontLeftFoot = scene.add.ellipse(-10, 16, 9.5, 4, this.getDarkerColor(legDark, 20))
+    frontLeftFoot.setStrokeStyle(2, this.getDarkerColor(legDark, 40), 0.8)
+    this.bodyContainer.add(frontLeftFoot)
+
+    const frontLeftFootHighlight = scene.add.ellipse(-11, 15.5, 4, 2, this.getLighterColor(legColor, 30), 0.5)
+    this.bodyContainer.add(frontLeftFootHighlight)
+
+    // Front Left Toes
+    for (let i = 0; i < 4; i++) {
+      const toeX = -13 + i * 2
+      const toeY = 17.5
+
+      const toeShadow = scene.add.ellipse(toeX + 0.5, toeY + 0.5, 1.5, 2, 0x000000, 0.4)
+      this.bodyContainer.add(toeShadow)
+
+      const toe = scene.add.ellipse(toeX, toeY, 1.3, 1.8, toeColor)
+      toe.setStrokeStyle(1, this.getDarkerColor(toeColor, 30), 0.8)
+      this.bodyContainer.add(toe)
+
+      const toeHighlight = scene.add.circle(toeX - 0.3, toeY - 0.3, 0.5, this.getLighterColor(toeColor, 40), 0.6)
+      this.bodyContainer.add(toeHighlight)
+    }
+
+    // Front Right Leg
+    const frontRightUpperShadow = scene.add.ellipse(9, 3, 10, 14, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightUpperShadow)
+
+    const frontRightUpper = scene.add.ellipse(10, 2, 9.5, 13, legColor)
+    frontRightUpper.setStrokeStyle(2, legDark, 0.8)
+    this.bodyContainer.add(frontRightUpper)
+
+    const frontRightUpperHighlight = scene.add.ellipse(11, 0, 5, 9, this.getLighterColor(legColor, 40), 0.5)
+    this.bodyContainer.add(frontRightUpperHighlight)
+
+    // Front Right Lower Leg
+    const frontRightLowerShadow = scene.add.ellipse(9, 12, 9, 8, 0x000000, 0.3)
+    this.bodyContainer.add(frontRightLowerShadow)
+
+    const frontRightLower = scene.add.ellipse(10, 11, 8.5, 7, legDark)
+    frontRightLower.setStrokeStyle(2, this.getDarkerColor(legDark, 30), 0.8)
+    this.bodyContainer.add(frontRightLower)
+
+    // Front Right Foot with toes
+    const frontRightFootShadow = scene.add.ellipse(9, 17, 10, 4.5, 0x000000, 0.4)
+    this.bodyContainer.add(frontRightFootShadow)
+
+    const frontRightFoot = scene.add.ellipse(10, 16, 9.5, 4, this.getDarkerColor(legDark, 20))
+    frontRightFoot.setStrokeStyle(2, this.getDarkerColor(legDark, 40), 0.8)
+    this.bodyContainer.add(frontRightFoot)
+
+    const frontRightFootHighlight = scene.add.ellipse(11, 15.5, 4, 2, this.getLighterColor(legColor, 30), 0.5)
+    this.bodyContainer.add(frontRightFootHighlight)
+
+    // Front Right Toes
+    for (let i = 0; i < 4; i++) {
+      const toeX = 7 + i * 2
+      const toeY = 17.5
+
+      const toeShadow = scene.add.ellipse(toeX + 0.5, toeY + 0.5, 1.5, 2, 0x000000, 0.4)
+      this.bodyContainer.add(toeShadow)
+
+      const toe = scene.add.ellipse(toeX, toeY, 1.3, 1.8, toeColor)
+      toe.setStrokeStyle(1, this.getDarkerColor(toeColor, 30), 0.8)
+      this.bodyContainer.add(toe)
+
+      const toeHighlight = scene.add.circle(toeX - 0.3, toeY - 0.3, 0.5, this.getLighterColor(toeColor, 40), 0.6)
+      this.bodyContainer.add(toeHighlight)
+    }
 
     this.addGlow(scene, 0xEF5350, 34)
   }
@@ -4608,7 +5687,7 @@ export class Tower extends Phaser.GameObjects.Container {
         duration: 3000,
         repeat: -1,
         onUpdate: (tween) => {
-          const hue = tween.getValue()
+          const hue = tween.getValue() ?? 0
           const color = Phaser.Display.Color.HSVToRGB(hue / 360, 1, 1)
           outline.setStrokeStyle(3, color.color, 0.7)
         }
@@ -5431,8 +6510,177 @@ export class Tower extends Phaser.GameObjects.Container {
     // Find target
     this.target = this.findTarget(enemies)
 
-    // Rotate tower body to face target
-    if (this.target && this.bodyContainer) {
+    // Handle sprite-based direction for Motivated Monster
+    if (this.target && this.monsterSprite && this.stats.type === 3) {
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
+      const degrees = Phaser.Math.RadToDeg(angle)
+
+      // Determine direction based on angle
+      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
+
+      if (degrees > -45 && degrees <= 45) {
+        // Facing right (flip the left-facing sprite)
+        newDirection = 'right'
+        this.monsterSprite.setFlipX(true)
+      } else if (degrees > 45 && degrees <= 135) {
+        // Facing down (front)
+        newDirection = 'front'
+      } else if (degrees > -135 && degrees <= -45) {
+        // Facing up (back)
+        newDirection = 'back'
+      } else {
+        // Facing left (original sprite shows left)
+        newDirection = 'right'
+        this.monsterSprite.setFlipX(false)
+      }
+
+      // Update idle animation if direction changed
+      if (newDirection !== this.currentDirection) {
+        this.currentDirection = newDirection
+        if (newDirection === 'right') {
+          this.monsterSprite.play('monster-idle-right')
+          this.monsterSprite.setOrigin(0.5, 0.5)
+          this.monsterSprite.y = -5
+        } else if (newDirection === 'front') {
+          this.monsterSprite.play('monster-idle-front')
+          this.monsterSprite.setOrigin(0.5, 0.5)
+          this.monsterSprite.y = -5
+        } else if (newDirection === 'back') {
+          this.monsterSprite.play('monster-idle-back')
+          this.monsterSprite.setOrigin(0.5, 0.5) // Standard centered origin
+          this.monsterSprite.y = -5
+        }
+      }
+    }
+    // Handle sprite-based direction for Empathy Elephant
+    else if (this.target && this.elephantSprite && this.stats.type === 5) {
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
+      const degrees = Phaser.Math.RadToDeg(angle)
+
+      // Determine direction based on angle
+      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
+
+      if (degrees > -45 && degrees <= 45) {
+        // Facing right (flip the left-facing sprite)
+        newDirection = 'right'
+        this.elephantSprite.setFlipX(true)
+      } else if (degrees > 45 && degrees <= 135) {
+        // Facing down (front)
+        newDirection = 'front'
+      } else if (degrees > -135 && degrees <= -45) {
+        // Facing up (back)
+        newDirection = 'back'
+      } else {
+        // Facing left (original sprite shows left)
+        newDirection = 'right'
+        this.elephantSprite.setFlipX(false)
+      }
+
+      // Update idle animation if direction changed
+      if (newDirection !== this.currentDirection) {
+        this.currentDirection = newDirection
+        if (newDirection === 'right') {
+          this.elephantSprite.play('elephant-idle-right')
+          this.elephantSprite.setOrigin(0.5, 0.5)
+          this.elephantSprite.y = -5
+        } else if (newDirection === 'front') {
+          this.elephantSprite.play('elephant-idle-front')
+          this.elephantSprite.setOrigin(0.5, 0.5)
+          this.elephantSprite.y = -5
+        } else if (newDirection === 'back') {
+          this.elephantSprite.play('elephant-idle-back')
+          this.elephantSprite.setOrigin(0.5, 0.5)
+          this.elephantSprite.y = -5
+        }
+      }
+    }
+    // Handle sprite-based direction for Fearless Fairy
+    // NOTE: Fairy's middle row faces RIGHT, so flip logic is OPPOSITE
+    else if (this.target && this.fairySprite && this.stats.type === 7) {
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
+      const degrees = Phaser.Math.RadToDeg(angle)
+
+      // Determine direction based on angle
+      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
+
+      if (degrees > -45 && degrees <= 45) {
+        // Facing right (original sprite shows right)
+        newDirection = 'right'
+        this.fairySprite.setFlipX(false)
+      } else if (degrees > 45 && degrees <= 135) {
+        // Facing down (front)
+        newDirection = 'front'
+      } else if (degrees > -135 && degrees <= -45) {
+        // Facing up (back)
+        newDirection = 'back'
+      } else {
+        // Facing left (flip the right-facing sprite)
+        newDirection = 'right'
+        this.fairySprite.setFlipX(true)
+      }
+
+      // Update idle animation if direction changed
+      if (newDirection !== this.currentDirection) {
+        this.currentDirection = newDirection
+        if (newDirection === 'right') {
+          this.fairySprite.play('fairy-idle-right')
+          this.fairySprite.setOrigin(0.5, 0.5)
+          this.fairySprite.y = -5
+        } else if (newDirection === 'front') {
+          this.fairySprite.play('fairy-idle-front')
+          this.fairySprite.setOrigin(0.5, 0.5)
+          this.fairySprite.y = -5
+        } else if (newDirection === 'back') {
+          this.fairySprite.play('fairy-idle-back')
+          this.fairySprite.setOrigin(0.5, 0.5)
+          this.fairySprite.y = -5
+        }
+      }
+    }
+    // Handle sprite-based direction for Cynical Cat
+    else if (this.target && this.catSprite && this.stats.type === 15) {
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
+      const degrees = Phaser.Math.RadToDeg(angle)
+
+      // Determine direction based on angle
+      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
+
+      if (degrees > -45 && degrees <= 45) {
+        // Facing right (flip the left-facing sprite)
+        newDirection = 'right'
+        this.catSprite.setFlipX(true)
+      } else if (degrees > 45 && degrees <= 135) {
+        // Facing down (front)
+        newDirection = 'front'
+      } else if (degrees > -135 && degrees <= -45) {
+        // Facing up (back)
+        newDirection = 'back'
+      } else {
+        // Facing left (original sprite shows left)
+        newDirection = 'right'
+        this.catSprite.setFlipX(false)
+      }
+
+      // Update idle animation if direction changed
+      if (newDirection !== this.currentDirection) {
+        this.currentDirection = newDirection
+        if (newDirection === 'right') {
+          this.catSprite.play('cat-idle-right')
+          this.catSprite.setOrigin(0.5, 0.5)
+          this.catSprite.y = -5
+        } else if (newDirection === 'front') {
+          this.catSprite.play('cat-idle-front')
+          this.catSprite.setOrigin(0.5, 0.5)
+          this.catSprite.y = -5
+        } else if (newDirection === 'back') {
+          this.catSprite.play('cat-idle-back')
+          this.catSprite.setOrigin(0.5, 0.5)
+          this.catSprite.y = -5
+        }
+      }
+    }
+    // Rotate tower body to face target (for non-sprite towers)
+    else if (this.target && this.bodyContainer) {
       const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
       // Smoothly rotate towards target
       const targetRotation = angle + Math.PI / 2 // Add 90 degrees to face forward
@@ -5476,8 +6724,48 @@ export class Tower extends Phaser.GameObjects.Container {
     return closest
   }
 
+  private playThrowAnimation() {
+    // Play throw animation for sprite-based towers
+    if (this.monsterSprite && this.stats.type === 3) {
+      const throwAnim = `monster-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+      this.monsterSprite.play(throwAnim)
+      // Return to idle after throw animation completes
+      this.monsterSprite.once('animationcomplete', () => {
+        const idleAnim = `monster-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+        this.monsterSprite?.play(idleAnim)
+      })
+    } else if (this.elephantSprite && this.stats.type === 5) {
+      const throwAnim = `elephant-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+      this.elephantSprite.play(throwAnim)
+      // Return to idle after throw animation completes
+      this.elephantSprite.once('animationcomplete', () => {
+        const idleAnim = `elephant-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+        this.elephantSprite?.play(idleAnim)
+      })
+    } else if (this.fairySprite && this.stats.type === 7) {
+      const throwAnim = `fairy-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+      this.fairySprite.play(throwAnim)
+      // Return to idle after throw animation completes
+      this.fairySprite.once('animationcomplete', () => {
+        const idleAnim = `fairy-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+        this.fairySprite?.play(idleAnim)
+      })
+    } else if (this.catSprite && this.stats.type === 15) {
+      const throwAnim = `cat-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+      this.catSprite.play(throwAnim)
+      // Return to idle after throw animation completes
+      this.catSprite.once('animationcomplete', () => {
+        const idleAnim = `cat-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+        this.catSprite?.play(idleAnim)
+      })
+    }
+  }
+
   private fire(projectiles: Phaser.GameObjects.Group) {
     if (!this.target) return
+
+    // Play throw animation for sprite-based towers
+    this.playThrowAnimation()
 
     // Create unique attack based on tower type
     switch (this.stats.type) {
@@ -5523,7 +6811,7 @@ export class Tower extends Phaser.GameObjects.Container {
       case 14: // Competitive Clown - Explosive ball
         this.fireExplosiveBall(projectiles)
         break
-      case 15: // Genuine Giraffe - Laser beam
+      case 15: // Cynical Cat - Laser beam
         this.fireLaser(projectiles)
         break
       case 16: // Helpful Hippo - Massive fireball
@@ -5655,6 +6943,69 @@ export class Tower extends Phaser.GameObjects.Container {
 
   // 3. Motivated Monster - Heavy rock
   private fireRock(projectiles: Phaser.GameObjects.Group) {
+    // Trigger throw animation for Motivated Monster sprite
+    if (this.monsterSprite) {
+      const throwAnim = this.currentDirection === 'back' ? 'monster-throw-back' :
+                        this.currentDirection === 'right' ? 'monster-throw-right' :
+                        'monster-throw-front'
+
+      this.monsterSprite.play(throwAnim)
+
+      // Maintain proper Y position and origin during throw animation
+      this.monsterSprite.setOrigin(0.5, 0.5)
+      this.monsterSprite.y = -5
+
+      // Return to idle after throw animation
+      this.monsterSprite.once('animationcomplete', () => {
+        const idleAnim = this.currentDirection === 'back' ? 'monster-idle-back' :
+                         this.currentDirection === 'right' ? 'monster-idle-right' :
+                         'monster-idle-front'
+        this.monsterSprite?.play(idleAnim)
+      })
+    }
+
+    // Trigger throw animation for Empathy Elephant sprite
+    if (this.elephantSprite) {
+      const throwAnim = this.currentDirection === 'back' ? 'elephant-throw-back' :
+                        this.currentDirection === 'right' ? 'elephant-throw-right' :
+                        'elephant-throw-front'
+
+      this.elephantSprite.play(throwAnim)
+
+      // Maintain proper Y position and origin during throw animation
+      this.elephantSprite.setOrigin(0.5, 0.5)
+      this.elephantSprite.y = -5
+
+      // Return to idle after throw animation
+      this.elephantSprite.once('animationcomplete', () => {
+        const idleAnim = this.currentDirection === 'back' ? 'elephant-idle-back' :
+                         this.currentDirection === 'right' ? 'elephant-idle-right' :
+                         'elephant-idle-front'
+        this.elephantSprite?.play(idleAnim)
+      })
+    }
+
+    // Trigger throw animation for Fearless Fairy sprite
+    if (this.fairySprite) {
+      const throwAnim = this.currentDirection === 'back' ? 'fairy-throw-back' :
+                        this.currentDirection === 'right' ? 'fairy-throw-right' :
+                        'fairy-throw-front'
+
+      this.fairySprite.play(throwAnim)
+
+      // Maintain proper Y position and origin during throw animation
+      this.fairySprite.setOrigin(0.5, 0.5)
+      this.fairySprite.y = -5
+
+      // Return to idle after throw animation
+      this.fairySprite.once('animationcomplete', () => {
+        const idleAnim = this.currentDirection === 'back' ? 'fairy-idle-back' :
+                         this.currentDirection === 'right' ? 'fairy-idle-right' :
+                         'fairy-idle-front'
+        this.fairySprite?.play(idleAnim)
+      })
+    }
+
     const projectile = this.scene.add.container(this.x, this.y)
 
     if (this.level === 0) {
@@ -6275,6 +7626,7 @@ export class Tower extends Phaser.GameObjects.Container {
     angleOffset: number = 0
   ) {
     projectiles.add(projectile)
+    projectile.setDepth(26) // Projectiles above enemies but below UI
 
     const trail: Phaser.GameObjects.Arc[] = []
 
@@ -6296,6 +7648,7 @@ export class Tower extends Phaser.GameObjects.Container {
       // Create trail particle
       if (hasTrail && Math.random() > 0.7) {
         const trailParticle = this.scene.add.circle(proj.x, proj.y, 3, this.stats.color, 0.4)
+        trailParticle.setDepth(26)
         proj.trail.push(trailParticle)
         this.scene.tweens.add({
           targets: trailParticle,
