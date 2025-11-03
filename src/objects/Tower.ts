@@ -22,24 +22,25 @@ export interface TowerUpgrade {
   special?: string
 }
 
-// Mapping of tower types to their sprite keys and animation prefixes
-const TOWER_SPRITE_CONFIG: Record<number, { spriteKey: string; animPrefix: string; scale: number } | null> = {
-  1: { spriteKey: 'focused-falcon', animPrefix: 'falcon', scale: 0.23 },
-  2: { spriteKey: 'ambitious-angel', animPrefix: 'angel', scale: 0.23 },
-  3: { spriteKey: 'motivated-monster', animPrefix: 'monster', scale: 0.23 },
-  4: { spriteKey: 'thoughtful-harpik', animPrefix: 'harpik', scale: 0.23 },
-  5: { spriteKey: 'empathy-elephant', animPrefix: 'elephant', scale: 0.23 },
-  6: { spriteKey: 'adaptable-alien', animPrefix: 'alien', scale: 0.23 },
-  7: { spriteKey: 'fearless-fairy', animPrefix: 'fairy', scale: 0.23 },
-  8: { spriteKey: 'notorious-ninja', animPrefix: 'ninja', scale: 0.23 },
-  9: { spriteKey: 'flex-n-fox', animPrefix: 'fox', scale: 0.23 },
-  10: { spriteKey: 'driven-dragon', animPrefix: 'dragon', scale: 0.23 }, // Dragon has 1080px wide frames - same scale as others
-  11: { spriteKey: 'balanced-beetle', animPrefix: 'beetle', scale: 0.23 },
-  12: { spriteKey: 'adventurous-astronaut', animPrefix: 'astronaut', scale: 0.23 },
-  13: { spriteKey: 'creative-crab', animPrefix: 'crab', scale: 0.23 },
-  14: { spriteKey: 'competitive-clown', animPrefix: 'clown', scale: 0.23 },
-  15: { spriteKey: 'cynical-cat', animPrefix: 'cat', scale: 0.23 },
-  16: { spriteKey: 'rare-robot', animPrefix: 'robot', scale: 0.23 }
+// Mapping of tower types to their sprite keys, animation prefixes, and mirror behavior
+// mirrorDirection: 'right' means flip when facing right, 'left' means flip when facing left
+const TOWER_SPRITE_CONFIG: Record<number, { spriteKey: string; animPrefix: string; scale: number; mirrorDirection: 'left' | 'right' } | null> = {
+  1: { spriteKey: 'focused-falcon', animPrefix: 'falcon', scale: 0.18, mirrorDirection: 'left' },
+  2: { spriteKey: 'ambitious-angel', animPrefix: 'angel', scale: 0.18, mirrorDirection: 'left' },
+  3: { spriteKey: 'motivated-monster', animPrefix: 'monster', scale: 0.18, mirrorDirection: 'left' },
+  4: { spriteKey: 'thoughtful-harpik', animPrefix: 'harpik', scale: 0.18, mirrorDirection: 'right' },
+  5: { spriteKey: 'empathy-elephant', animPrefix: 'elephant', scale: 0.18, mirrorDirection: 'right' },
+  6: { spriteKey: 'adaptable-alien', animPrefix: 'alien', scale: 0.18, mirrorDirection: 'left' },
+  7: { spriteKey: 'fearless-fairy', animPrefix: 'fairy', scale: 0.18, mirrorDirection: 'left' },
+  8: { spriteKey: 'notorious-ninja', animPrefix: 'ninja', scale: 0.18, mirrorDirection: 'left' },
+  9: { spriteKey: 'flex-n-fox', animPrefix: 'fox', scale: 0.18, mirrorDirection: 'left' },
+  10: { spriteKey: 'driven-dragon', animPrefix: 'dragon', scale: 0.09, mirrorDirection: 'left' }, // Dragon has 1080px wide frames (2x) - use half scale
+  11: { spriteKey: 'balanced-beetle', animPrefix: 'beetle', scale: 0.18, mirrorDirection: 'right' },
+  12: { spriteKey: 'adventurous-astronaut', animPrefix: 'astronaut', scale: 0.18, mirrorDirection: 'left' },
+  13: { spriteKey: 'creative-crab', animPrefix: 'crab', scale: 0.18, mirrorDirection: 'left' },
+  14: { spriteKey: 'competitive-clown', animPrefix: 'clown', scale: 0.18, mirrorDirection: 'right' },
+  15: { spriteKey: 'cynical-cat', animPrefix: 'cat', scale: 0.18, mirrorDirection: 'right' },
+  16: { spriteKey: 'rare-robot', animPrefix: 'robot', scale: 0.18, mirrorDirection: 'left' }
 }
 
 export class Tower extends Phaser.GameObjects.Container {
@@ -55,6 +56,8 @@ export class Tower extends Phaser.GameObjects.Container {
   private bodyContainer: Phaser.GameObjects.Container | null = null
   private upgradeEffects: Phaser.GameObjects.GameObject[] = []
   private characterSprite: Phaser.GameObjects.Sprite | null = null
+  private animPrefix: string | null = null // Animation prefix for sprite-based towers
+  private mirrorDirection: 'left' | 'right' = 'right' // Which direction should use flipX=true
   private monsterSprite: Phaser.GameObjects.Sprite | null = null
   private elephantSprite: Phaser.GameObjects.Sprite | null = null
   private fairySprite: Phaser.GameObjects.Sprite | null = null
@@ -129,7 +132,11 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   // Helper method to create sprite-based tower
-  private createSpriteBasedTower(scene: Phaser.Scene, spriteKey: string, animPrefix: string, scale: number, mainColor: number) {
+  private createSpriteBasedTower(scene: Phaser.Scene, spriteKey: string, animPrefix: string, scale: number, mainColor: number, mirrorDirection: 'left' | 'right') {
+    // Store animation prefix and mirror direction for direction updates
+    this.animPrefix = animPrefix
+    this.mirrorDirection = mirrorDirection
+
     // Create body container for consistency
     this.bodyContainer = scene.add.container(0, 0)
     this.add(this.bodyContainer)
@@ -178,7 +185,8 @@ export class Tower extends Phaser.GameObjects.Container {
         spriteConfig.spriteKey,
         spriteConfig.animPrefix,
         spriteConfig.scale,
-        this.stats.color
+        this.stats.color,
+        spriteConfig.mirrorDirection
       )
     } else {
       // Fall back to procedural graphics for towers without sprites
@@ -6510,8 +6518,8 @@ export class Tower extends Phaser.GameObjects.Container {
     // Find target
     this.target = this.findTarget(enemies)
 
-    // Handle sprite-based direction for Motivated Monster
-    if (this.target && this.monsterSprite && this.stats.type === 3) {
+    // Handle sprite-based direction for ALL sprite-based towers
+    if (this.target && this.characterSprite && this.animPrefix) {
       const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
       const degrees = Phaser.Math.RadToDeg(angle)
 
@@ -6519,9 +6527,10 @@ export class Tower extends Phaser.GameObjects.Container {
       let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
 
       if (degrees > -45 && degrees <= 45) {
-        // Facing right (flip the left-facing sprite)
+        // Facing right
         newDirection = 'right'
-        this.monsterSprite.setFlipX(true)
+        // Apply mirror based on character's mirrorDirection setting
+        this.characterSprite.setFlipX(this.mirrorDirection === 'right')
       } else if (degrees > 45 && degrees <= 135) {
         // Facing down (front)
         newDirection = 'front'
@@ -6529,153 +6538,27 @@ export class Tower extends Phaser.GameObjects.Container {
         // Facing up (back)
         newDirection = 'back'
       } else {
-        // Facing left (original sprite shows left)
+        // Facing left
         newDirection = 'right'
-        this.monsterSprite.setFlipX(false)
+        // Apply mirror based on character's mirrorDirection setting
+        this.characterSprite.setFlipX(this.mirrorDirection === 'left')
       }
 
       // Update idle animation if direction changed
       if (newDirection !== this.currentDirection) {
         this.currentDirection = newDirection
         if (newDirection === 'right') {
-          this.monsterSprite.play('monster-idle-right')
-          this.monsterSprite.setOrigin(0.5, 0.5)
-          this.monsterSprite.y = -5
+          this.characterSprite.play(`${this.animPrefix}-idle-right`)
+          this.characterSprite.setOrigin(0.5, 0.5)
+          this.characterSprite.y = -5
         } else if (newDirection === 'front') {
-          this.monsterSprite.play('monster-idle-front')
-          this.monsterSprite.setOrigin(0.5, 0.5)
-          this.monsterSprite.y = -5
+          this.characterSprite.play(`${this.animPrefix}-idle-front`)
+          this.characterSprite.setOrigin(0.5, 0.5)
+          this.characterSprite.y = -5
         } else if (newDirection === 'back') {
-          this.monsterSprite.play('monster-idle-back')
-          this.monsterSprite.setOrigin(0.5, 0.5) // Standard centered origin
-          this.monsterSprite.y = -5
-        }
-      }
-    }
-    // Handle sprite-based direction for Empathy Elephant
-    else if (this.target && this.elephantSprite && this.stats.type === 5) {
-      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
-      const degrees = Phaser.Math.RadToDeg(angle)
-
-      // Determine direction based on angle
-      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
-
-      if (degrees > -45 && degrees <= 45) {
-        // Facing right (flip the left-facing sprite)
-        newDirection = 'right'
-        this.elephantSprite.setFlipX(true)
-      } else if (degrees > 45 && degrees <= 135) {
-        // Facing down (front)
-        newDirection = 'front'
-      } else if (degrees > -135 && degrees <= -45) {
-        // Facing up (back)
-        newDirection = 'back'
-      } else {
-        // Facing left (original sprite shows left)
-        newDirection = 'right'
-        this.elephantSprite.setFlipX(false)
-      }
-
-      // Update idle animation if direction changed
-      if (newDirection !== this.currentDirection) {
-        this.currentDirection = newDirection
-        if (newDirection === 'right') {
-          this.elephantSprite.play('elephant-idle-right')
-          this.elephantSprite.setOrigin(0.5, 0.5)
-          this.elephantSprite.y = -5
-        } else if (newDirection === 'front') {
-          this.elephantSprite.play('elephant-idle-front')
-          this.elephantSprite.setOrigin(0.5, 0.5)
-          this.elephantSprite.y = -5
-        } else if (newDirection === 'back') {
-          this.elephantSprite.play('elephant-idle-back')
-          this.elephantSprite.setOrigin(0.5, 0.5)
-          this.elephantSprite.y = -5
-        }
-      }
-    }
-    // Handle sprite-based direction for Fearless Fairy
-    // NOTE: Fairy's middle row faces RIGHT, so flip logic is OPPOSITE
-    else if (this.target && this.fairySprite && this.stats.type === 7) {
-      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
-      const degrees = Phaser.Math.RadToDeg(angle)
-
-      // Determine direction based on angle
-      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
-
-      if (degrees > -45 && degrees <= 45) {
-        // Facing right (original sprite shows right)
-        newDirection = 'right'
-        this.fairySprite.setFlipX(false)
-      } else if (degrees > 45 && degrees <= 135) {
-        // Facing down (front)
-        newDirection = 'front'
-      } else if (degrees > -135 && degrees <= -45) {
-        // Facing up (back)
-        newDirection = 'back'
-      } else {
-        // Facing left (flip the right-facing sprite)
-        newDirection = 'right'
-        this.fairySprite.setFlipX(true)
-      }
-
-      // Update idle animation if direction changed
-      if (newDirection !== this.currentDirection) {
-        this.currentDirection = newDirection
-        if (newDirection === 'right') {
-          this.fairySprite.play('fairy-idle-right')
-          this.fairySprite.setOrigin(0.5, 0.5)
-          this.fairySprite.y = -5
-        } else if (newDirection === 'front') {
-          this.fairySprite.play('fairy-idle-front')
-          this.fairySprite.setOrigin(0.5, 0.5)
-          this.fairySprite.y = -5
-        } else if (newDirection === 'back') {
-          this.fairySprite.play('fairy-idle-back')
-          this.fairySprite.setOrigin(0.5, 0.5)
-          this.fairySprite.y = -5
-        }
-      }
-    }
-    // Handle sprite-based direction for Cynical Cat
-    else if (this.target && this.catSprite && this.stats.type === 15) {
-      const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y)
-      const degrees = Phaser.Math.RadToDeg(angle)
-
-      // Determine direction based on angle
-      let newDirection: 'front' | 'back' | 'left' | 'right' = 'front'
-
-      if (degrees > -45 && degrees <= 45) {
-        // Facing right (flip the left-facing sprite)
-        newDirection = 'right'
-        this.catSprite.setFlipX(true)
-      } else if (degrees > 45 && degrees <= 135) {
-        // Facing down (front)
-        newDirection = 'front'
-      } else if (degrees > -135 && degrees <= -45) {
-        // Facing up (back)
-        newDirection = 'back'
-      } else {
-        // Facing left (original sprite shows left)
-        newDirection = 'right'
-        this.catSprite.setFlipX(false)
-      }
-
-      // Update idle animation if direction changed
-      if (newDirection !== this.currentDirection) {
-        this.currentDirection = newDirection
-        if (newDirection === 'right') {
-          this.catSprite.play('cat-idle-right')
-          this.catSprite.setOrigin(0.5, 0.5)
-          this.catSprite.y = -5
-        } else if (newDirection === 'front') {
-          this.catSprite.play('cat-idle-front')
-          this.catSprite.setOrigin(0.5, 0.5)
-          this.catSprite.y = -5
-        } else if (newDirection === 'back') {
-          this.catSprite.play('cat-idle-back')
-          this.catSprite.setOrigin(0.5, 0.5)
-          this.catSprite.y = -5
+          this.characterSprite.play(`${this.animPrefix}-idle-back`)
+          this.characterSprite.setOrigin(0.5, 0.5)
+          this.characterSprite.y = -5
         }
       }
     }
@@ -6725,38 +6608,14 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   private playThrowAnimation() {
-    // Play throw animation for sprite-based towers
-    if (this.monsterSprite && this.stats.type === 3) {
-      const throwAnim = `monster-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-      this.monsterSprite.play(throwAnim)
+    // Play throw animation for ALL sprite-based towers
+    if (this.characterSprite && this.animPrefix) {
+      const throwAnim = `${this.animPrefix}-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+      this.characterSprite.play(throwAnim)
       // Return to idle after throw animation completes
-      this.monsterSprite.once('animationcomplete', () => {
-        const idleAnim = `monster-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-        this.monsterSprite?.play(idleAnim)
-      })
-    } else if (this.elephantSprite && this.stats.type === 5) {
-      const throwAnim = `elephant-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-      this.elephantSprite.play(throwAnim)
-      // Return to idle after throw animation completes
-      this.elephantSprite.once('animationcomplete', () => {
-        const idleAnim = `elephant-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-        this.elephantSprite?.play(idleAnim)
-      })
-    } else if (this.fairySprite && this.stats.type === 7) {
-      const throwAnim = `fairy-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-      this.fairySprite.play(throwAnim)
-      // Return to idle after throw animation completes
-      this.fairySprite.once('animationcomplete', () => {
-        const idleAnim = `fairy-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-        this.fairySprite?.play(idleAnim)
-      })
-    } else if (this.catSprite && this.stats.type === 15) {
-      const throwAnim = `cat-throw-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-      this.catSprite.play(throwAnim)
-      // Return to idle after throw animation completes
-      this.catSprite.once('animationcomplete', () => {
-        const idleAnim = `cat-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
-        this.catSprite?.play(idleAnim)
+      this.characterSprite.once('animationcomplete', () => {
+        const idleAnim = `${this.animPrefix}-idle-${this.currentDirection === 'right' ? 'right' : this.currentDirection}`
+        this.characterSprite?.play(idleAnim)
       })
     }
   }

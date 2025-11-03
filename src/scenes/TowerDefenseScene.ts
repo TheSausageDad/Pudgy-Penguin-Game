@@ -15,6 +15,7 @@ export class TowerDefenseScene extends Phaser.Scene {
   private currentWave: number = 0
   private isWaveActive: boolean = false
   private gameSpeed: number = 1
+  private autoStartWaves: boolean = false
 
   // Collections
   private towers: Tower[] = []
@@ -26,11 +27,14 @@ export class TowerDefenseScene extends Phaser.Scene {
   private coinsText!: Phaser.GameObjects.Text
   private waveText!: Phaser.GameObjects.Text
   private speedButtonText!: Phaser.GameObjects.Text
+  private autoStartButtonText!: Phaser.GameObjects.Text
 
   // Grid and path
-  private gridSize: number = 60
+  private gridSize: number = 70 // Grid cell size
+  private gridOffsetX: number = 0 // Will be set based on map (35 for interior paths, 0 for edge paths)
   private placementGrid: boolean[][] = []
   private path: Phaser.Math.Vector2[] = []
+  private debugMode: boolean = false // Toggle to show grid visualization
 
   // Tower selection
   private selectedTowerType: number | null = null
@@ -58,6 +62,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.currentWave = 0
     this.isWaveActive = false
     this.gameSpeed = 1
+    this.autoStartWaves = false
     this.towers = []
     this.selectedTowerType = null
     this.currentTowerPage = 0
@@ -68,6 +73,13 @@ export class TowerDefenseScene extends Phaser.Scene {
     // With lazy loading, we don't load sprites here
     // They'll be loaded on-demand when towers are selected
     console.log('[TowerDefenseScene] Using lazy loading - sprites will load on demand')
+
+    // Load map background images
+    this.load.image('meadow-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Map-jgDQzJNQmX1jeqFdews23JXHhdRNyE.png')
+    this.load.image('jungle-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Jungle%20path-rZBIekbd1UvXB4I3zndaghbXwZUBlm.png')
+    this.load.image('sand-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Sand%20Map-pN86hXgXGFP4S5PhrqTJAgwi8r9wE4.png')
+    this.load.image('mountain-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Mountain%20Map-bttUnesTDSS0bc67vY8vSXjdMWZN2C.png')
+    this.load.image('lava-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Lava%20Map-aVyuoUovzbcS8SQ6v67YyhZx25cGEA.png')
   }
 
   /**
@@ -312,48 +324,77 @@ export class TowerDefenseScene extends Phaser.Scene {
     }
   }
 
-  create() {
+  async create() {
     const { width, height } = this.cameras.main
 
     // Animations will be created lazily when sprites are loaded
     // Load map configuration
     this.mapConfig = this.getMapConfig(this.mapId)
 
-    // Create layered background with depth
-    // Base layer
-    const bg = this.add.rectangle(width / 2, height / 2, width, height, this.mapConfig.backgroundColor)
-    bg.setDepth(-100)
-
-    // Add subtle gradient overlay for depth
-    const gradientGraphics = this.add.graphics()
-    gradientGraphics.setDepth(-99)
-    gradientGraphics.fillStyle(0x000000, 0.1)
-    gradientGraphics.fillRect(0, height * 0.6, width, height * 0.4)
-
-    // Add organic texture pattern (grass/ground)
-    const bgGraphics = this.add.graphics()
-    bgGraphics.setDepth(-98)
-
-    // Draw subtle grid for terrain
-    bgGraphics.lineStyle(1, 0x000000, 0.03)
-    const baseColorObj = Phaser.Display.Color.IntegerToColor(this.mapConfig.backgroundColor)
-    for (let x = 0; x < width; x += 60) {
-      const offset = (x / 60) % 2 === 0 ? 0 : 30
-      for (let y = offset; y < height; y += 60) {
-        // Small patches of slightly different color
-        const variance = 10
-        const newColor = Phaser.Display.Color.GetColor(
-          Math.max(0, Math.min(255, baseColorObj.red + (Math.random() - 0.5) * variance)),
-          Math.max(0, Math.min(255, baseColorObj.green + (Math.random() - 0.5) * variance)),
-          Math.max(0, Math.min(255, baseColorObj.blue + (Math.random() - 0.5) * variance))
-        )
-        bgGraphics.fillStyle(newColor, 0.15)
-        bgGraphics.fillCircle(x, y, 20 + Math.random() * 15)
-      }
+    // Set grid offset based on map type
+    // Maps 1-2 (Meadow, Jungle) have interior winding paths, use margins
+    // Maps 3-6 (Desert, Mountain, Lava, Ice) have edge-to-edge paths, no margins
+    if (this.mapId === 1 || this.mapId === 2) {
+      this.gridOffsetX = 35 // Half-tile margins for interior paths
+    } else {
+      this.gridOffsetX = 0 // No margins for edge-to-edge paths
     }
 
-    // Add some decorative elements based on map theme
-    this.addBackgroundDecorations()
+    // Create layered background with depth
+    if (this.mapId === 1 || this.mapId === 2 || this.mapId === 3 || this.mapId === 4 || this.mapId === 5) {
+      // Use image background for Meadow, Jungle, Sand, Mountain, and Lava maps
+      // Position image in playable area only (between top menu and bottom tower selection)
+      const topMenuHeight = 100 // Height of top UI
+      const bottomMenuHeight = 300 // Height of tower selection menu
+      const playableHeight = height - topMenuHeight - bottomMenuHeight
+      const playableCenterY = topMenuHeight + (playableHeight / 2)
+
+      let bgImageKey = 'meadow-map-bg'
+      if (this.mapId === 2) bgImageKey = 'jungle-map-bg'
+      if (this.mapId === 3) bgImageKey = 'sand-map-bg'
+      if (this.mapId === 4) bgImageKey = 'mountain-map-bg'
+      if (this.mapId === 5) bgImageKey = 'lava-map-bg'
+
+      const bgImage = this.add.image(width / 2, playableCenterY, bgImageKey)
+      bgImage.setDisplaySize(width, playableHeight)
+      bgImage.setDepth(-100)
+    } else {
+      // Use procedural background for other maps
+      // Base layer
+      const bg = this.add.rectangle(width / 2, height / 2, width, height, this.mapConfig.backgroundColor)
+      bg.setDepth(-100)
+
+      // Add subtle gradient overlay for depth
+      const gradientGraphics = this.add.graphics()
+      gradientGraphics.setDepth(-99)
+      gradientGraphics.fillStyle(0x000000, 0.1)
+      gradientGraphics.fillRect(0, height * 0.6, width, height * 0.4)
+
+      // Add organic texture pattern (grass/ground)
+      const bgGraphics = this.add.graphics()
+      bgGraphics.setDepth(-98)
+
+      // Draw subtle grid for terrain
+      bgGraphics.lineStyle(1, 0x000000, 0.03)
+      const baseColorObj = Phaser.Display.Color.IntegerToColor(this.mapConfig.backgroundColor)
+      for (let x = 0; x < width; x += 60) {
+        const offset = (x / 60) % 2 === 0 ? 0 : 30
+        for (let y = offset; y < height; y += 60) {
+          // Small patches of slightly different color
+          const variance = 10
+          const newColor = Phaser.Display.Color.GetColor(
+            Math.max(0, Math.min(255, baseColorObj.red + (Math.random() - 0.5) * variance)),
+            Math.max(0, Math.min(255, baseColorObj.green + (Math.random() - 0.5) * variance)),
+            Math.max(0, Math.min(255, baseColorObj.blue + (Math.random() - 0.5) * variance))
+          )
+          bgGraphics.fillStyle(newColor, 0.15)
+          bgGraphics.fillCircle(x, y, 20 + Math.random() * 15)
+        }
+      }
+
+      // Add some decorative elements based on map theme
+      this.addBackgroundDecorations()
+    }
 
     // Initialize groups
     this.enemies = this.add.group({
@@ -379,7 +420,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.setupInput()
 
     // Setup tower menu
-    this.setupTowerMenu()
+    await this.setupTowerMenu()
 
     // Listen for enemy kills to award coins
     this.events.on('enemyKilled', (reward: number) => {
@@ -575,7 +616,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.coins += sellValue
 
     // Find grid position
-    const gridX = Math.floor(tower.x / this.gridSize)
+    const gridX = Math.floor((tower.x - this.gridOffsetX) / this.gridSize)
     const gridY = Math.floor(tower.y / this.gridSize)
 
     // Mark grid as available again
@@ -659,7 +700,8 @@ export class TowerDefenseScene extends Phaser.Scene {
 
   private setupGrid() {
     const { width, height } = this.cameras.main
-    const cols = Math.floor(width / this.gridSize)
+    const usableWidth = width - (this.gridOffsetX * 2) // Account for half-tile margins
+    const cols = Math.floor(usableWidth / this.gridSize)
     const rows = Math.floor(height / this.gridSize)
 
     // Initialize all tiles as placeable
@@ -680,11 +722,11 @@ export class TowerDefenseScene extends Phaser.Scene {
           const y = start.y + (end.y - start.y) * t
 
           // Mark the path tile and surrounding buffer zone
-          const centerGridX = Math.floor(x / this.gridSize)
+          const centerGridX = Math.floor((x - this.gridOffsetX) / this.gridSize)
           const centerGridY = Math.floor(y / this.gridSize)
 
           // Create a buffer zone around the path (prevents placement right at edge)
-          const bufferRadius = 1.2 // tiles on each side
+          const bufferRadius = 0.6 // tiles on each side (reduced from 1.2 for more placeable space)
           const bufferRadiusInt = Math.ceil(bufferRadius)
           for (let dy = -bufferRadiusInt; dy <= bufferRadiusInt; dy++) {
             for (let dx = -bufferRadiusInt; dx <= bufferRadiusInt; dx++) {
@@ -708,10 +750,16 @@ export class TowerDefenseScene extends Phaser.Scene {
   private drawPath() {
     const graphics = this.add.graphics()
     graphics.setDepth(-90)
-    const pathWidth = this.gridSize
+    const pathWidth = 32 // Fixed path width (67% of grid size for cleaner layout)
+
+    // Make path invisible for Map 1 (Meadow), Map 2 (Jungle), Map 3 (Sand), Map 4 (Mountain), and Map 5 (Lava) since the background images have the path
+    if (this.mapId === 1 || this.mapId === 2 || this.mapId === 3 || this.mapId === 4 || this.mapId === 5) {
+      graphics.setAlpha(0)
+      return
+    }
 
     // Draw outer border (darker edge)
-    graphics.lineStyle(pathWidth + 20, 0x3d2817, 1)
+    graphics.lineStyle(pathWidth + 8, 0x3d2817, 1) // Reduced border from +20 to +8
     if (this.path.length > 0) {
       graphics.beginPath()
       graphics.moveTo(this.path[0].x, this.path[0].y)
@@ -722,7 +770,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     }
 
     // Draw path shadow
-    graphics.lineStyle(pathWidth + 10, 0x000000, 0.3)
+    graphics.lineStyle(pathWidth + 5, 0x000000, 0.3) // Reduced shadow from +10 to +5
     if (this.path.length > 0) {
       graphics.beginPath()
       graphics.moveTo(this.path[0].x, this.path[0].y + 2)
@@ -744,7 +792,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     }
 
     // Draw path texture with slight variation
-    graphics.lineStyle(pathWidth - 5, 0x9B8365, 0.7)
+    graphics.lineStyle(pathWidth - 3, 0x9B8365, 0.7) // Reduced from -5 to -3
     if (this.path.length > 0) {
       graphics.beginPath()
       graphics.moveTo(this.path[0].x, this.path[0].y)
@@ -755,7 +803,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     }
 
     // Draw center highlight/worn path
-    graphics.lineStyle(pathWidth - 20, 0xA0826D, 0.5)
+    graphics.lineStyle(pathWidth - 10, 0xA0826D, 0.5) // Reduced from -20 to -10
     if (this.path.length > 0) {
       graphics.beginPath()
       graphics.moveTo(this.path[0].x, this.path[0].y)
@@ -844,6 +892,106 @@ export class TowerDefenseScene extends Phaser.Scene {
         duration: 1500,
         repeat: -1
       })
+    }
+  }
+
+  private debugGraphics: Phaser.GameObjects.Graphics | null = null
+
+  private drawDebugGrid() {
+    // Remove existing debug graphics if any
+    if (this.debugGraphics) {
+      // Also destroy the info text if it exists
+      if ((this.debugGraphics as any).infoText) {
+        (this.debugGraphics as any).infoText.destroy()
+      }
+      // Destroy coordinate text labels
+      if ((this.debugGraphics as any).coordTexts) {
+        (this.debugGraphics as any).coordTexts.forEach((text: Phaser.GameObjects.Text) => text.destroy())
+      }
+      this.debugGraphics.destroy()
+      this.debugGraphics = null
+    }
+
+    if (!this.debugMode) {
+      return // Debug mode is off, don't draw anything
+    }
+
+    // Create new debug graphics
+    this.debugGraphics = this.add.graphics()
+    this.debugGraphics.setDepth(500) // Above most things but below UI
+
+    const { width, height } = this.cameras.main
+    const usableWidth = width - (this.gridOffsetX * 2)
+    const cols = Math.floor(usableWidth / this.gridSize)
+    const rows = Math.floor(height / this.gridSize)
+
+    // Draw half-tile margins on left and right (only if margins exist)
+    if (this.gridOffsetX > 0) {
+      this.debugGraphics.fillStyle(0x0000ff, 0.1)
+      this.debugGraphics.fillRect(0, 0, this.gridOffsetX, height) // Left margin
+      this.debugGraphics.fillRect(width - this.gridOffsetX, 0, this.gridOffsetX, height) // Right margin
+    }
+
+    // Draw grid cells
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const x = this.gridOffsetX + col * this.gridSize
+        const y = row * this.gridSize
+        const canPlace = this.placementGrid[row] && this.placementGrid[row][col]
+
+        // Color coding: green = placeable, red = blocked
+        const fillColor = canPlace ? 0x00ff00 : 0xff0000
+        const strokeColor = 0xffffff
+
+        // Draw cell with semi-transparent fill
+        this.debugGraphics.fillStyle(fillColor, 0.15)
+        this.debugGraphics.fillRect(x, y, this.gridSize, this.gridSize)
+
+        // Draw cell border
+        this.debugGraphics.lineStyle(1, strokeColor, 0.3)
+        this.debugGraphics.strokeRect(x, y, this.gridSize, this.gridSize)
+
+        // Draw coordinate label in cell
+        const coordText = this.add.text(
+          x + this.gridSize / 2,
+          y + this.gridSize / 2,
+          `${col},${row}`,
+          {
+            fontSize: '10px',
+            color: '#ffffff',
+            backgroundColor: '#000000',
+            padding: { x: 2, y: 1 }
+          }
+        )
+        coordText.setOrigin(0.5)
+        coordText.setDepth(501)
+
+        // Store reference to clean up later
+        if (!(this.debugGraphics as any).coordTexts) {
+          (this.debugGraphics as any).coordTexts = []
+        }
+        (this.debugGraphics as any).coordTexts.push(coordText)
+      }
+    }
+
+    // Draw grid info text
+    const marginInfo = this.gridOffsetX > 0 ? ` | Margins: ${this.gridOffsetX}px` : ' | Edge-to-edge'
+    const infoText = this.add.text(
+      10,
+      height - 30,
+      `Grid: ${cols}×${rows} (${cols * rows} cells) | Cell Size: ${this.gridSize}px${marginInfo} | Press G to toggle`,
+      {
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#000000',
+        padding: { x: 8, y: 4 }
+      }
+    )
+    infoText.setDepth(501)
+
+    // Store reference so we can destroy it when toggling off
+    if (this.debugGraphics) {
+      (this.debugGraphics as any).infoText = infoText
     }
   }
 
@@ -1105,6 +1253,15 @@ export class TowerDefenseScene extends Phaser.Scene {
     // Store reference to speed button text for updates
     this.speedButtonText = speedBtn.list[1] as Phaser.GameObjects.Text
 
+    // Auto-start button (next to speed button)
+    const autoStartBtn = this.createButton(620, 25, 100, 40, 'AUTO: OFF', 0x9C27B0, () => {
+      this.toggleAutoStart()
+    })
+    autoStartBtn.setDepth(101)
+
+    // Store reference to auto-start button text for updates
+    this.autoStartButtonText = autoStartBtn.list[1] as Phaser.GameObjects.Text
+
     // Selected tower indicator (will be updated when tower is selected)
     this.selectedTowerText = this.add.text(width / 2, 25, '', {
       fontSize: '20px',
@@ -1117,10 +1274,18 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.selectedTowerText.setDepth(101)
   }
 
-  private setupTowerMenu() {
+  private async setupTowerMenu() {
     const { width, height } = this.cameras.main
     const menuHeight = 300
     const menuY = height - menuHeight
+
+    // Get all towers
+    const allTowers = getAllTowerConfigs()
+
+    // Preload all tower sprites
+    for (const towerConfig of allTowers) {
+      await this.ensureTowerSpriteLoaded(towerConfig.type)
+    }
 
     // Menu background
     const menuBg = this.add.rectangle(width / 2, menuY + menuHeight / 2, width, menuHeight, 0x000000, 0.9)
@@ -1135,8 +1300,6 @@ export class TowerDefenseScene extends Phaser.Scene {
     title.setOrigin(0.5, 0)
     title.setDepth(201)
 
-    // Get all towers
-    const allTowers = getAllTowerConfigs()
     const towersPerPage = 4
     const totalPages = Math.ceil(allTowers.length / towersPerPage)
 
@@ -1174,7 +1337,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         // Tower full name (split into two lines if needed)
         const nameParts = towerConfig.name.split(' ')
         const nameText = this.add.text(0, -75, nameParts[0], {
-          fontSize: '18px',
+          fontSize: '16px',
           color: '#ffffff',
           fontStyle: 'bold',
           align: 'center',
@@ -1183,8 +1346,8 @@ export class TowerDefenseScene extends Phaser.Scene {
         })
         nameText.setOrigin(0.5)
 
-        const nameText2 = this.add.text(0, -55, nameParts[1] || '', {
-          fontSize: '18px',
+        const nameText2 = this.add.text(0, -57, nameParts[1] || '', {
+          fontSize: '16px',
           color: '#ffffff',
           fontStyle: 'bold',
           align: 'center',
@@ -1193,8 +1356,8 @@ export class TowerDefenseScene extends Phaser.Scene {
         })
         nameText2.setOrigin(0.5)
 
-        // Tower icon/preview (character representation)
-        const iconContainer = this.createTowerIcon(towerConfig.type, 0, -10)
+        // Tower icon/preview using sprite sheet (first frame)
+        const iconContainer = this.createTowerSpriteIcon(towerConfig.type, 0, -10)
 
         // Add glow to icon
         const glow = this.add.circle(0, -10, 35, towerConfig.color, 0.3)
@@ -1371,6 +1534,13 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ESC', () => {
       this.cancelTowerSelection()
     })
+
+    // G key to toggle grid debug visualization
+    this.input.keyboard?.on('keydown-G', () => {
+      this.debugMode = !this.debugMode
+      this.drawDebugGrid()
+      console.log(`[DEBUG] Grid visualization: ${this.debugMode ? 'ON' : 'OFF'}`)
+    })
   }
 
   private cancelTowerSelection() {
@@ -1417,7 +1587,7 @@ export class TowerDefenseScene extends Phaser.Scene {
       return
     }
 
-    const gridX = Math.floor(pointer.x / this.gridSize)
+    const gridX = Math.floor((pointer.x - this.gridOffsetX) / this.gridSize)
     const gridY = Math.floor(pointer.y / this.gridSize)
 
     if (this.hoverTile) {
@@ -1428,7 +1598,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     const color = canPlace ? 0x00ff00 : 0xff0000
 
     this.hoverTile = this.add.rectangle(
-      gridX * this.gridSize + this.gridSize / 2,
+      this.gridOffsetX + gridX * this.gridSize + this.gridSize / 2,
       gridY * this.gridSize + this.gridSize / 2,
       this.gridSize,
       this.gridSize,
@@ -1445,7 +1615,7 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private async placeTower(pointer: Phaser.Input.Pointer) {
-    const gridX = Math.floor(pointer.x / this.gridSize)
+    const gridX = Math.floor((pointer.x - this.gridOffsetX) / this.gridSize)
     const gridY = Math.floor(pointer.y / this.gridSize)
 
     if (!this.canPlaceTower(gridX, gridY)) return
@@ -1486,7 +1656,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.coins -= towerConfig.cost
 
     // Create tower at grid position
-    const worldX = gridX * this.gridSize + this.gridSize / 2
+    const worldX = this.gridOffsetX + gridX * this.gridSize + this.gridSize / 2
     const worldY = gridY * this.gridSize + this.gridSize / 2
     const tower = new Tower(this, worldX, worldY, towerConfig)
     this.towers.push(tower)
@@ -1568,6 +1738,13 @@ export class TowerDefenseScene extends Phaser.Scene {
           this.isWaveActive = false
           checkInterval.remove()
           console.log(`Wave ${this.currentWave} complete!`)
+
+          // Auto-start next wave if enabled
+          if (this.autoStartWaves) {
+            this.time.delayedCall(1000, () => {
+              this.startNextWave()
+            })
+          }
         }
       },
       loop: true
@@ -1666,39 +1843,190 @@ export class TowerDefenseScene extends Phaser.Scene {
     const { width, height } = this.cameras.main
 
     const configs: { [key: number]: MapConfig } = {
-      // EASY MAP 1: Spiral - Long winding path that loops back
+      // EASY MAP 1: Meadow Spiral - Matches background image path
       1: {
         id: 1,
         name: 'Meadow Spiral',
         backgroundColor: 0x7EC850,
         path: [
-          new Phaser.Math.Vector2(30, height * 0.42),
-          new Phaser.Math.Vector2(width * 0.28, height * 0.42),
-          new Phaser.Math.Vector2(width * 0.28, height * 0.22),
-          new Phaser.Math.Vector2(width * 0.72, height * 0.22),
-          new Phaser.Math.Vector2(width * 0.72, height * 0.62),
-          new Phaser.Math.Vector2(width * 0.48, height * 0.62),
-          new Phaser.Math.Vector2(width * 0.48, height * 0.42),
-          new Phaser.Math.Vector2(width - 30, height * 0.42)
+          // Start at row 3, col 1
+          new Phaser.Math.Vector2(48, 120),  // (3,1) - start position
+          new Phaser.Math.Vector2(48, 312),  // (7,1) - down before diagonal
+          new Phaser.Math.Vector2(96, 336),  // (7.5,2) - diagonal down-right
+          new Phaser.Math.Vector2(144, 336), // (7.5,3) - diagonal continue
+          new Phaser.Math.Vector2(192, 336), // (7.5,4) - diagonal continue
+          new Phaser.Math.Vector2(240, 312), // (7,5) - arrive at turn end
+          new Phaser.Math.Vector2(240, 288), // (6.5,5) - ease into up turn
+          new Phaser.Math.Vector2(240, 264), // (6,5) - corner cell
+          new Phaser.Math.Vector2(264, 264), // (6,5.5) - ease into right turn
+          new Phaser.Math.Vector2(528, 264), // (6,11) - right 6 cells
+          new Phaser.Math.Vector2(528, 288), // (6.5,11) - ease into down turn
+          new Phaser.Math.Vector2(528, 600), // (13,11) - down 7 cells
+          new Phaser.Math.Vector2(504, 600), // (13,10.5) - ease into left turn
+          new Phaser.Math.Vector2(336, 600), // (13,7) - left 4 cells
+          new Phaser.Math.Vector2(336, 576), // (12.5,7) - ease into up turn
+          new Phaser.Math.Vector2(336, 408), // (9,7) - up 4 cells
+          new Phaser.Math.Vector2(360, 408), // (9,7.5) - ease into right turn
+          new Phaser.Math.Vector2(672, 408), // (9,14) - right 7 cells
+          new Phaser.Math.Vector2(672, 432), // (9.5,14) - ease into down turn
+          new Phaser.Math.Vector2(672, 696), // (15,14) - down 6 cells
+          new Phaser.Math.Vector2(648, 696), // (15,13.5) - ease into left turn
+          new Phaser.Math.Vector2(624, 696), // (15,13) - left 1 cell
+          new Phaser.Math.Vector2(600, 720), // (15.5,12.5) - ease into diagonal
+          new Phaser.Math.Vector2(576, 744), // (16,12) - diagonal down-left 1 cell
+          new Phaser.Math.Vector2(552, 744), // (16,11.5) - ease out of diagonal
+          new Phaser.Math.Vector2(480, 744), // (16,10) - left 2 cells
+          new Phaser.Math.Vector2(480, 768), // (16.5,10) - ease into final down
+          new Phaser.Math.Vector2(480, 840)  // (18,10) - down 2 cells
         ]
       },
-      // EASY MAP 2: Figure-8 - Path crosses itself
+      // EASY MAP 2: Jungle - Matches background image path (high waypoint density for smooth curves)
       2: {
         id: 2,
         name: 'Forest Loop',
         backgroundColor: 0x4A7C59,
         path: [
-          new Phaser.Math.Vector2(width * 0.5, 130),
-          new Phaser.Math.Vector2(width * 0.5, height * 0.2),
-          new Phaser.Math.Vector2(width * 0.2, height * 0.28),
-          new Phaser.Math.Vector2(width * 0.2, height * 0.4),
-          new Phaser.Math.Vector2(width * 0.5, height * 0.4),
-          new Phaser.Math.Vector2(width * 0.8, height * 0.4),
-          new Phaser.Math.Vector2(width * 0.8, height * 0.52),
-          new Phaser.Math.Vector2(width * 0.5, height * 0.6),
-          new Phaser.Math.Vector2(width * 0.2, height * 0.52),
-          new Phaser.Math.Vector2(width * 0.5, height * 0.68),
-          new Phaser.Math.Vector2(width * 0.5, height * 0.72)
+          // Start at 4,1
+          new Phaser.Math.Vector2(350, 105),
+          // Down to 4,2 (add intermediates)
+          new Phaser.Math.Vector2(350, 125),
+          new Phaser.Math.Vector2(350, 145),
+          new Phaser.Math.Vector2(350, 165),
+          new Phaser.Math.Vector2(350, 175),
+          // Diagonal curve to 3,3 (many intermediates)
+          new Phaser.Math.Vector2(342, 183),
+          new Phaser.Math.Vector2(333, 192),
+          new Phaser.Math.Vector2(324, 201),
+          new Phaser.Math.Vector2(315, 210),
+          new Phaser.Math.Vector2(306, 219),
+          new Phaser.Math.Vector2(297, 228),
+          new Phaser.Math.Vector2(288, 237),
+          new Phaser.Math.Vector2(280, 245),
+          // Left to 2,3 (intermediates)
+          new Phaser.Math.Vector2(262, 245),
+          new Phaser.Math.Vector2(245, 245),
+          new Phaser.Math.Vector2(228, 245),
+          new Phaser.Math.Vector2(210, 245),
+          // Smooth curve around 1,3 to 1,4 (many intermediates)
+          new Phaser.Math.Vector2(198, 248),
+          new Phaser.Math.Vector2(186, 252),
+          new Phaser.Math.Vector2(175, 260),
+          new Phaser.Math.Vector2(165, 268),
+          new Phaser.Math.Vector2(155, 277),
+          new Phaser.Math.Vector2(147, 287),
+          new Phaser.Math.Vector2(140, 297),
+          new Phaser.Math.Vector2(140, 308),
+          new Phaser.Math.Vector2(140, 315),
+          // Curve around 1,5 to 2,5 (many intermediates)
+          new Phaser.Math.Vector2(140, 330),
+          new Phaser.Math.Vector2(140, 345),
+          new Phaser.Math.Vector2(140, 360),
+          new Phaser.Math.Vector2(140, 375),
+          new Phaser.Math.Vector2(140, 385),
+          new Phaser.Math.Vector2(145, 385),
+          new Phaser.Math.Vector2(152, 385),
+          new Phaser.Math.Vector2(160, 385),
+          new Phaser.Math.Vector2(175, 385),
+          new Phaser.Math.Vector2(193, 385),
+          new Phaser.Math.Vector2(210, 385),
+          // Slight diagonal from 2,5 to 6,5 (add more intermediates)
+          new Phaser.Math.Vector2(228, 385),
+          new Phaser.Math.Vector2(245, 385),
+          new Phaser.Math.Vector2(262, 385),
+          new Phaser.Math.Vector2(280, 385),
+          new Phaser.Math.Vector2(298, 385),
+          new Phaser.Math.Vector2(315, 385),
+          new Phaser.Math.Vector2(333, 385),
+          new Phaser.Math.Vector2(350, 385),
+          new Phaser.Math.Vector2(368, 385),
+          new Phaser.Math.Vector2(385, 385),
+          new Phaser.Math.Vector2(403, 385),
+          new Phaser.Math.Vector2(420, 385),
+          new Phaser.Math.Vector2(438, 385),
+          new Phaser.Math.Vector2(455, 385),
+          new Phaser.Math.Vector2(473, 385),
+          new Phaser.Math.Vector2(490, 385),
+          // Diagonal curve to 7,6 (many intermediates)
+          new Phaser.Math.Vector2(500, 395),
+          new Phaser.Math.Vector2(510, 405),
+          new Phaser.Math.Vector2(520, 415),
+          new Phaser.Math.Vector2(530, 425),
+          new Phaser.Math.Vector2(540, 435),
+          new Phaser.Math.Vector2(550, 445),
+          new Phaser.Math.Vector2(560, 455),
+          // Down and around 7,7 to 6,7 (smooth curve)
+          new Phaser.Math.Vector2(560, 468),
+          new Phaser.Math.Vector2(560, 480),
+          new Phaser.Math.Vector2(560, 493),
+          new Phaser.Math.Vector2(560, 505),
+          new Phaser.Math.Vector2(560, 518),
+          new Phaser.Math.Vector2(560, 525),
+          new Phaser.Math.Vector2(553, 525),
+          new Phaser.Math.Vector2(545, 525),
+          new Phaser.Math.Vector2(537, 525),
+          new Phaser.Math.Vector2(528, 525),
+          new Phaser.Math.Vector2(520, 525),
+          new Phaser.Math.Vector2(510, 525),
+          new Phaser.Math.Vector2(500, 525),
+          new Phaser.Math.Vector2(490, 525),
+          // 6,7 to 4,7 (slight downward angle, many intermediates)
+          new Phaser.Math.Vector2(473, 526),
+          new Phaser.Math.Vector2(456, 527),
+          new Phaser.Math.Vector2(438, 528),
+          new Phaser.Math.Vector2(421, 529),
+          new Phaser.Math.Vector2(404, 528),
+          new Phaser.Math.Vector2(387, 527),
+          new Phaser.Math.Vector2(370, 526),
+          new Phaser.Math.Vector2(350, 525),
+          // 4,7 to 2,7 (slight upward angle, many intermediates)
+          new Phaser.Math.Vector2(333, 524),
+          new Phaser.Math.Vector2(315, 523),
+          new Phaser.Math.Vector2(298, 522),
+          new Phaser.Math.Vector2(280, 521),
+          new Phaser.Math.Vector2(262, 522),
+          new Phaser.Math.Vector2(245, 523),
+          new Phaser.Math.Vector2(228, 524),
+          new Phaser.Math.Vector2(210, 525),
+          // Curve downward around 1,7 (smooth curve)
+          new Phaser.Math.Vector2(195, 529),
+          new Phaser.Math.Vector2(182, 535),
+          new Phaser.Math.Vector2(170, 542),
+          new Phaser.Math.Vector2(158, 550),
+          new Phaser.Math.Vector2(148, 560),
+          new Phaser.Math.Vector2(142, 570),
+          new Phaser.Math.Vector2(140, 580),
+          // Diagonal curve: 1,8 → 2,8 → 3,9 → 4,9 (smooth S-curve)
+          new Phaser.Math.Vector2(140, 595),
+          new Phaser.Math.Vector2(142, 605),
+          new Phaser.Math.Vector2(148, 612),
+          new Phaser.Math.Vector2(157, 618),
+          new Phaser.Math.Vector2(168, 620),
+          new Phaser.Math.Vector2(180, 618),
+          new Phaser.Math.Vector2(192, 612),
+          new Phaser.Math.Vector2(203, 605),
+          new Phaser.Math.Vector2(210, 595),
+          new Phaser.Math.Vector2(218, 603),
+          new Phaser.Math.Vector2(227, 612),
+          new Phaser.Math.Vector2(238, 622),
+          new Phaser.Math.Vector2(250, 632),
+          new Phaser.Math.Vector2(262, 642),
+          new Phaser.Math.Vector2(273, 652),
+          new Phaser.Math.Vector2(283, 660),
+          new Phaser.Math.Vector2(295, 665),
+          new Phaser.Math.Vector2(308, 665),
+          new Phaser.Math.Vector2(322, 665),
+          new Phaser.Math.Vector2(337, 665),
+          new Phaser.Math.Vector2(350, 665),
+          // Down to 4,10 (intermediates)
+          new Phaser.Math.Vector2(350, 682),
+          new Phaser.Math.Vector2(350, 700),
+          new Phaser.Math.Vector2(350, 718),
+          new Phaser.Math.Vector2(350, 735),
+          // Down to 4,11 (disappear - intermediates)
+          new Phaser.Math.Vector2(350, 753),
+          new Phaser.Math.Vector2(350, 770),
+          new Phaser.Math.Vector2(350, 788),
+          new Phaser.Math.Vector2(350, 805)
         ]
       },
       // MEDIUM MAP 1: S-Curve
@@ -1773,6 +2101,53 @@ export class TowerDefenseScene extends Phaser.Scene {
       this.physics.world.timeScale = 1
       this.time.timeScale = 1
     }
+  }
+
+  private toggleAutoStart() {
+    // Toggle auto-start waves on/off
+    this.autoStartWaves = !this.autoStartWaves
+    this.autoStartButtonText.setText(this.autoStartWaves ? 'AUTO: ON' : 'AUTO: OFF')
+    console.log(`Auto-start waves: ${this.autoStartWaves ? 'ON' : 'OFF'}`)
+  }
+
+  private createTowerSpriteIcon(type: number, x: number, y: number): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y)
+
+    // Sprite should already be loaded by setupTowerMenu preload
+
+    // Get sprite configuration
+    const spriteConfigs: Record<number, any> = {
+      1: SPRITE_CONFIGS.FOCUSED_FALCON,
+      2: SPRITE_CONFIGS.AMBITIOUS_ANGEL,
+      3: SPRITE_CONFIGS.MOTIVATED_MONSTER,
+      4: SPRITE_CONFIGS.THOUGHTFUL_HARPIK,
+      5: SPRITE_CONFIGS.EMPATHY_ELEPHANT,
+      6: SPRITE_CONFIGS.ADAPTABLE_ALIEN,
+      7: SPRITE_CONFIGS.FEARLESS_FAIRY,
+      8: SPRITE_CONFIGS.NOTORIOUS_NINJA,
+      9: SPRITE_CONFIGS.FLEX_N_FOX,
+      10: SPRITE_CONFIGS.DRIVEN_DRAGON,
+      11: SPRITE_CONFIGS.BALANCED_BEETLE,
+      12: SPRITE_CONFIGS.ADVENTUROUS_ASTRONAUT,
+      13: SPRITE_CONFIGS.CREATIVE_CRAB,
+      14: SPRITE_CONFIGS.COMPETITIVE_CLOWN,
+      15: SPRITE_CONFIGS.CYNICAL_CAT,
+      16: SPRITE_CONFIGS.RARE_ROBOT
+    }
+
+    const config = spriteConfigs[type]
+    if (config) {
+      // Create sprite showing first frame (frame 0)
+      const sprite = this.add.sprite(0, 0, config.key, 0)
+      sprite.setScale(0.12) // Match tower display scale
+      sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+      container.add(sprite)
+    } else {
+      // Fallback to old icon if no sprite config
+      return this.createTowerIcon(type, x, y)
+    }
+
+    return container
   }
 
   private createTowerIcon(type: number, x: number, y: number): Phaser.GameObjects.Container {

@@ -159,9 +159,9 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.x += Math.cos(angle) * moveDistance
     this.y += Math.sin(angle) * moveDistance
 
-    // Check if reached current target
+    // Check if reached current target (tighter detection for smoother curves)
     const dist = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y)
-    if (dist < 5) {
+    if (dist < 3) {
       this.pathIndex++
     }
   }
