@@ -1,3 +1,4 @@
+import { StartScene } from "./scenes/StartScene"
 import { LevelSelectionScene } from "./scenes/LevelSelectionScene"
 import { TowerDefenseScene } from "./scenes/TowerDefenseScene"
 import { initializeRemixSDK, initializeDevelopment } from "./utils/RemixUtils"
@@ -18,7 +19,7 @@ const config: Phaser.Types.Core.GameConfig = {
     height: GameSettings.canvas.height,
   },
   backgroundColor: "#1a1a1a",
-  scene: [LevelSelectionScene, TowerDefenseScene],
+  scene: [StartScene, LevelSelectionScene, TowerDefenseScene],
   physics: {
     default: "arcade",
   },

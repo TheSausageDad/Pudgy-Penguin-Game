@@ -141,8 +141,31 @@ export class Tower extends Phaser.GameObjects.Container {
     this.bodyContainer = scene.add.container(0, 0)
     this.add(this.bodyContainer)
 
+    // Per-tower offsets to center the actual character body (not the transparent sprite bounds)
+    // These offsets compensate for transparent space in sprite sheets
+    const bodyOffsets: Record<number, { x: number; y: number }> = {
+      1: { x: 0, y: -21 },    // Focused Falcon
+      2: { x: 10, y: -10 },   // Ambitious Angel
+      3: { x: 5, y: -18 },     // Motivated Monster
+      4: { x: 12, y: -5 },     // Thoughtful Harpik
+      5: { x: -7, y: -5 },     // Empathy Elephant
+      6: { x: 12, y: -10 },    // Adaptable Alien
+      7: { x: -5, y: -5 },     // Fearless Fairy
+      8: { x: 5, y: 0 },     // Notorious Ninja
+      9: { x: 0, y: -15 },     // Flex N' Fox
+      10: { x: -5, y: 0 },    // Driven Dragon
+      11: { x: 0, y: -15 },    // Balanced Beetle
+      12: { x: 0, y: -10 },   // Adventurous Astronaut
+      13: { x: 18, y: -5 },    // Creative Crab
+      14: { x: 15, y: -15 },    // Competitive Clown
+      15: { x: 5, y: -5 },    // Cynical Cat
+      16: { x: 0, y: -5 }    // Rare Robot
+    }
+
+    const offset = bodyOffsets[this.stats.type] || { x: 0, y: -5 }
+
     // Create sprite (frames are 540x450, so scale down)
-    this.characterSprite = scene.add.sprite(0, -5, spriteKey, 0)
+    this.characterSprite = scene.add.sprite(offset.x, offset.y, spriteKey, 0)
     this.characterSprite.setScale(scale)
     this.characterSprite.setOrigin(0.5, 0.5) // Center origin to show full character
     this.characterSprite.setTexture(spriteKey, 0)
@@ -6547,18 +6570,43 @@ export class Tower extends Phaser.GameObjects.Container {
       // Update idle animation if direction changed
       if (newDirection !== this.currentDirection) {
         this.currentDirection = newDirection
+
+        // Get the body offset for this tower type (same as in createSpriteBasedTower)
+        const bodyOffsets: Record<number, { x: number; y: number }> = {
+          1: { x: 0, y: -21 },    // Focused Falcon
+          2: { x: 10, y: -10 },   // Ambitious Angel
+          3: { x: 5, y: -18 },     // Motivated Monster
+          4: { x: 12, y: -5 },     // Thoughtful Harpik
+          5: { x: -7, y: -5 },     // Empathy Elephant
+          6: { x: 12, y: -10 },    // Adaptable Alien
+          7: { x: -5, y: -5 },     // Fearless Fairy
+          8: { x: 5, y: 0 },     // Notorious Ninja
+          9: { x: 0, y: -15 },     // Flex N' Fox
+          10: { x: -5, y: 0 },    // Driven Dragon
+          11: { x: 0, y: -15 },    // Balanced Beetle
+          12: { x: 0, y: -10 },   // Adventurous Astronaut
+          13: { x: 18, y: -5 },    // Creative Crab
+          14: { x: 15, y: -15 },    // Competitive Clown
+          15: { x: 5, y: -5 },    // Cynical Cat
+          16: { x: 0, y: -5 }    // Rare Robot
+        }
+        const offset = bodyOffsets[this.stats.type] || { x: 0, y: -5 }
+
         if (newDirection === 'right') {
           this.characterSprite.play(`${this.animPrefix}-idle-right`)
           this.characterSprite.setOrigin(0.5, 0.5)
-          this.characterSprite.y = -5
+          this.characterSprite.x = 0  // Center horizontally when facing left/right
+          this.characterSprite.y = offset.y
         } else if (newDirection === 'front') {
           this.characterSprite.play(`${this.animPrefix}-idle-front`)
           this.characterSprite.setOrigin(0.5, 0.5)
-          this.characterSprite.y = -5
+          this.characterSprite.x = offset.x
+          this.characterSprite.y = offset.y
         } else if (newDirection === 'back') {
           this.characterSprite.play(`${this.animPrefix}-idle-back`)
           this.characterSprite.setOrigin(0.5, 0.5)
-          this.characterSprite.y = -5
+          this.characterSprite.x = offset.x
+          this.characterSprite.y = offset.y
         }
       }
     }

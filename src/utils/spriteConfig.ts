@@ -353,3 +353,150 @@ export const SPRITE_CONFIGS = {
     totalHeight: 1350
   })
 }
+
+/**
+ * Enemy sprite sheet configurations
+ * All carrot sprites have 3 frames: right-facing, center/left-facing, right-facing (mirror)
+ * Frame layout: 2 columns x 3 rows (same as tower sprites)
+ */
+export const ENEMY_SPRITE_CONFIGS = {
+  // Type 1 - Orange Carrot (most basic)
+  ORANGE_CARROT: createSpriteConfig({
+    key: 'orange-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Orange%20Carrot-Mo5BvDjfQSG5r6QWKkTUeJ8OMnn7Hm.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 2 - Yellow Carrot
+  YELLOW_CARROT: createSpriteConfig({
+    key: 'yellow-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Yellow%20Carrot-ZQUlY9oYkGAOXtMAYuUZNmEbSpyea2.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 3 - Purple Carrot
+  PURPLE_CARROT: createSpriteConfig({
+    key: 'purple-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Purple%20Carrot-6hmABU3cE8o8NhQkYOK4DXbRJ8OnPX.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 4 - Black Carrot
+  BLACK_CARROT: createSpriteConfig({
+    key: 'black-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Black%20Carrot-o5edLQq2S3zeWAikc2kdPf29zocfG6.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 5 - Steel Carrot
+  STEEL_CARROT: createSpriteConfig({
+    key: 'steel-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Steel%20CArrot-Vpu2PUCbDNj8RIW6qksfOO3NCgVKRK.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 6 - White Carrot
+  WHITE_CARROT: createSpriteConfig({
+    key: 'white-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/White%20Carrot-c8sBT9nmaWGmpX6McMyky2V3pEGmD2.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 7 - Blue Carrot
+  BLUE_CARROT: createSpriteConfig({
+    key: 'blue-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Blue%20Carrot-QeEh2rRC5b1skyC3LktMwQroeQoIp0.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 8 - Fire Carrot
+  FIRE_CARROT: createSpriteConfig({
+    key: 'fire-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Fire%20Carrot-OAC2dnyvF1BPvnHQ5o6yDU9Vo5DCHq.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 9 - Icy Carrot
+  ICY_CARROT: createSpriteConfig({
+    key: 'icy-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Icy%20Carrot-qgBYmPaZgo0R4UVh7tQ6MpfioXRDrD.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  }),
+
+  // Type 10 - Green Carrot
+  GREEN_CARROT: createSpriteConfig({
+    key: 'green-carrot',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Green%20Carrot-eThSPmI2Q1kZ0ZOL9c4r5ChaED5clm.png',
+    frameWidth: 1080,
+    frameHeight: 450,
+    spacing: 0,
+    margin: 0,
+    columns: 1,
+    rows: 3,
+    totalWidth: 1080,
+    totalHeight: 1350
+  })
+}
