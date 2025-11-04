@@ -205,8 +205,8 @@ export function getWaveEnemies(waveNumber: number): { type: number, count: numbe
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 81-100: Introduce Green Carrot (boss) + final challenge
-  if (waveNumber <= 100) {
+  // Waves 81-118: Introduce Green Carrot (boss) + final challenge
+  if (waveNumber <= 118) {
     waves.push({ type: 1, count: 28 + waveNumber })
     waves.push({ type: 2, count: 22 + Math.floor(waveNumber / 2) })
     waves.push({ type: 3, count: 20 + Math.floor(waveNumber / 3) })

@@ -558,4 +558,122 @@ This isn't just about building a game - it's about building something exceptiona
 
 ---
 
-*Last Updated: 2025-10-27*
+## Recent Session Progress (Current)
+
+### Visual Polish & UI Improvements
+
+#### Enemy Sprite Integration
+- ✅ **Increased enemy carrot sprite sizes** from 0.08 to 0.15 scale for better visibility
+- ✅ **Fixed enemy sprite centering** by converting from 2-column (540px) to 1-column (1080px) layout
+  - All 10 carrot enemy types now properly centered under health bars
+  - Characters are centered in full 1080px width frames
+  - No more right-side cutoff issues
+
+#### Map Path Updates
+- ✅ **Updated all 5 map paths** with precise coordinates:
+  - Meadow Spiral: 97 waypoints
+  - Forest Loop: 65 waypoints
+  - Desert Winds: 60 waypoints
+  - Mountain Zigzag: 86 waypoints
+  - Volcanic Rush: 130 waypoints
+
+#### Tower Sprite Positioning System
+- ✅ **Implemented per-tower body offset system** for proper sprite centering
+  - Each of 16 towers has custom x/y offsets to center character body in grid cells
+  - Offsets compensate for transparent space in sprite sheets
+  - Applied to both initial placement and directional animations
+  - Special handling for left/right facing (x=0) vs front/back facing (custom x offset)
+
+#### Tower Icon Adjustments (in selection menu)
+- ✅ Focused Falcon: {x: 22, y: -21}
+- ✅ Ambitious Angel: {x: 10, y: -10}
+- ✅ Motivated Monster: {x: 5, y: -18}
+- ✅ Thoughtful Harpik: {x: 5, y: -5}
+- ✅ Empathy Elephant: {x: -7, y: -5}
+- ✅ Adaptable Alien: {x: 12, y: -10}
+- ✅ Fearless Fairy: {x: -5, y: -5}
+- ✅ Notorious Ninja: {x: 5, y: 0}
+- ✅ Flex N' Fox: {x: 0, y: -15}
+- ✅ Driven Dragon: {x: -5, y: 0}
+- ✅ Balanced Beetle: {x: 0, y: -15}
+- ✅ Adventurous Astronaut: {x: 0, y: -10}
+- ✅ Creative Crab: {x: 18, y: -5}
+- ✅ Competitive Clown: {x: 15, y: -15}
+- ✅ Cynical Cat: {x: 5, y: -5}
+- ✅ Rare Robot: {x: 0, y: -5}
+
+#### Tower Placement Sprite Offsets
+- ✅ **Same offset system applied to in-game towers** (Tower.ts)
+  - Consistent positioning across all directional animations
+  - Prevents towers from "jumping" when changing directions
+  - Front-facing Falcon: {x: 12, y: -21}
+  - All 16 towers properly centered on shadow circles
+
+#### UI Layout Improvements
+- ✅ **Tower selection menu resized** to fit on screen
+  - Button dimensions: 180x200 → 160x180
+  - Gap between towers: 20px → 10px
+  - Better fit for 4 towers per page layout
+
+- ✅ **Top menu buttons optimized** for space
+  - MENU button: 120x40 at x:300
+  - Speed button: 80x35 at x:410
+  - AUTO button: 100x35 at x:500
+  - All buttons fit within screen width
+
+#### New Start Screen
+- ✅ **Created StartScene** as initial game screen
+  - Background image: Full-screen start background
+  - Title image: Positioned in lower middle (70% down, -150px from button)
+  - Play button: Interactive with hover effects (1.1x scale)
+  - Transitions to LevelSelectionScene on click
+  - Added to main.ts as first scene
+
+#### Level Selection Screen Enhancements
+- ✅ **Preloaded all 6 map preview images**
+- ✅ **Updated map data** with image keys for each level
+- ✅ **Made buttons square** (200x200) for better layout
+- ✅ **Increased spacing** between level buttons (gap: 80px)
+- ✅ **Changed title** from "VEEFRIENDS DEFENSE" to "LEVEL SELECT"
+- ✅ **Added "How to Play" button** at top right
+  - Blue button (250x60) with hover effects
+  - Positioned at (width - 150, 50)
+  - Ready for how-to-play instructions implementation
+
+### Files Modified
+- `/src/objects/Enemy.ts` - Enemy sprite scaling and centering
+- `/src/utils/spriteConfig.ts` - Enemy and tower sprite configurations
+- `/src/scenes/TowerDefenseScene.ts` - Map paths, tower icon offsets, top menu layout, tower selection sizing
+- `/src/objects/Tower.ts` - Tower sprite body offsets for placement and animations
+- `/src/scenes/StartScene.ts` - New start screen scene (created)
+- `/src/main.ts` - Added StartScene to scene list
+- `/src/scenes/LevelSelectionScene.ts` - Button sizing, spacing, title, How to Play button
+
+### Still Needs Completion
+
+#### Critical Gameplay
+- ⚠️ **How to Play instructions** - Button created, needs content/modal
+- ⚠️ **Fine-tune tower sprite positioning** - Some towers may need adjustment when facing different directions
+
+#### Polish & Features
+- ⚠️ **Sound effects and music** - No audio implemented yet
+- ⚠️ **Tutorial/onboarding** - New players need guidance
+- ⚠️ **Save/load system** - Progress doesn't persist
+- ⚠️ **Achievements** - No achievement system
+- ⚠️ **Leaderboards** - No competitive tracking
+
+#### Balance & Testing
+- ⚠️ **Difficulty balancing** - Needs extensive playtesting
+- ⚠️ **Tower balance** - Some towers may be over/underpowered
+- ⚠️ **Economy tuning** - Starting coins, rewards, costs need testing
+- ⚠️ **Wave difficulty curve** - Verify smooth progression through 118 waves
+
+#### Technical Debt
+- ⚠️ **Performance optimization** - Test with many towers/enemies
+- ⚠️ **Mobile responsiveness** - Currently desktop-focused
+- ⚠️ **Error handling** - Need robust error recovery
+- ⚠️ **Code documentation** - More inline comments needed
+
+---
+
+*Last Updated: 2025-11-03*

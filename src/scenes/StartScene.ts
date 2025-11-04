@@ -25,7 +25,14 @@ export class StartScene extends Phaser.Scene {
 
     // Make play button clickable
     playButton.on('pointerdown', () => {
-      this.scene.start('LevelSelectionScene')
+      // Disable the button to prevent multiple clicks
+      playButton.disableInteractive()
+
+      // Small delay before transitioning to prevent event bleed-through
+      this.time.delayedCall(100, () => {
+        this.scene.stop('StartScene')
+        this.scene.start('LevelSelectionScene')
+      })
     })
 
     // Add hover effect

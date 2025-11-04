@@ -26,8 +26,8 @@ export class TowerDefenseScene extends Phaser.Scene {
   private livesText!: Phaser.GameObjects.Text
   private coinsText!: Phaser.GameObjects.Text
   private waveText!: Phaser.GameObjects.Text
-  private speedButtonText!: Phaser.GameObjects.Text
-  private autoStartButtonText!: Phaser.GameObjects.Text
+  private speedButtonImage!: Phaser.GameObjects.Image
+  private autoStartButtonImage!: Phaser.GameObjects.Image
 
   // Grid and path
   private gridSize: number = 70 // Grid cell size (will be set per map)
@@ -59,7 +59,7 @@ export class TowerDefenseScene extends Phaser.Scene {
   init(data: { mapId: number }) {
     this.mapId = data.mapId
     this.lives = 100
-    this.coins = 999999 // Unlimited money for testing
+    this.coins = 650 // Starting coins for production
     this.currentWave = 0
     this.isWaveActive = false
     this.gameSpeed = 1
@@ -74,6 +74,16 @@ export class TowerDefenseScene extends Phaser.Scene {
     // With lazy loading, we don't load tower sprites here
     // They'll be loaded on-demand when towers are selected
     console.log('[TowerDefenseScene] Using lazy loading for towers - sprites will load on demand')
+
+    // Load UI button images
+    this.load.image('menu-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Menu%20Button-Yq6zJRqINxQgosRgRYe24R5IL82GtM.png')
+    this.load.image('auto-on-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Auto%3A%20On%20Button-F05N0EvEnTstRIJP2rlwHcfN954oVm.png')
+    this.load.image('auto-off-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Auto%20OFF%20Button-a56obIb6D5SFeS9n32XmHtpAfuzB3p.png')
+    this.load.image('1x-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/1x%20Button-usvxFAGriZXaJSjfJpnDnlJa3vl6aT.png')
+    this.load.image('2x-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/2x%20Button-85LJbcru8GZAWg76PZrRSNnXtehOS6.png')
+    this.load.image('3x-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/3x%20Button-lp9wuMiygciPVEywdjSFmQ5pWR69Yy.png')
+    this.load.image('start-wave-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Start%20Wave-m9R6w6gUvYWUJ5Y7BcztPyvd8R5v5f.png')
+    this.load.image('end-game-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/End%20Game%20Button-4da3DgEQn6uKGc09nu2tZOchZqaKtw.png')
 
     // Load map background images
     this.load.image('meadow-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Map-jgDQzJNQmX1jeqFdews23JXHhdRNyE.png')
@@ -529,7 +539,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.upgradeButtons.push(statsRight as any)
 
     // Upgrade buttons area
-    const upgradeAreaY = menuY + 120
+    const upgradeAreaY = menuY + 115
 
     if (availablePaths.length > 0) {
       // Title for upgrade section
@@ -543,7 +553,7 @@ export class TowerDefenseScene extends Phaser.Scene {
       this.upgradeButtons.push(upgradeTitle as any)
 
       // Create upgrade path buttons
-      const buttonY = upgradeAreaY + 45
+      const buttonY = upgradeAreaY + 70
       const buttonWidth = 200
       const buttonHeight = 80
       const buttonGap = 20
@@ -556,13 +566,35 @@ export class TowerDefenseScene extends Phaser.Scene {
         // Can afford check
         const canAfford = this.coins >= pathInfo.cost
 
+        // Path-specific colors
+        let pathColor = 0x2E7D32  // Default green
+        let pathStroke = 0x4CAF50
+        let pathHover = 0x43A047
+
+        if (pathInfo.path === 'pathA') {
+          // Blue colors for Path A
+          pathColor = 0x1565C0
+          pathStroke = 0x1E88E5
+          pathHover = 0x1976D2
+        } else if (pathInfo.path === 'pathB') {
+          // Red/Orange colors for Path B
+          pathColor = 0xD84315
+          pathStroke = 0xFF5722
+          pathHover = 0xE64A19
+        } else if (pathInfo.path === 'pathC') {
+          // Purple colors for Path C
+          pathColor = 0x6A1B9A
+          pathStroke = 0x9C27B0
+          pathHover = 0x7B1FA2
+        }
+
         // Button container
         const btnContainer = this.add.container(x, buttonY)
         btnContainer.setDepth(600)
 
         // Button background
-        const btnBg = this.add.rectangle(0, 0, buttonWidth, buttonHeight, canAfford ? 0x2E7D32 : 0x424242)
-        btnBg.setStrokeStyle(3, canAfford ? 0x4CAF50 : 0x666666, 1)
+        const btnBg = this.add.rectangle(0, 0, buttonWidth, buttonHeight, canAfford ? pathColor : 0x424242)
+        btnBg.setStrokeStyle(3, canAfford ? pathStroke : 0x666666, 1)
 
         // Path name
         const pathName = this.add.text(0, -20, pathInfo.name, {
@@ -587,11 +619,11 @@ export class TowerDefenseScene extends Phaser.Scene {
         if (canAfford) {
           btnBg.setInteractive({ useHandCursor: true })
             .on('pointerover', () => {
-              btnBg.setFillStyle(0x43A047)
+              btnBg.setFillStyle(pathHover)
               btnContainer.setScale(1.05)
             })
             .on('pointerout', () => {
-              btnBg.setFillStyle(0x2E7D32)
+              btnBg.setFillStyle(pathColor)
               btnContainer.setScale(1)
             })
             .on('pointerdown', () => {
@@ -615,7 +647,7 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     // Sell button at bottom
     const sellValue = tower.getSellValue()
-    const sellY = menuY + 240
+    const sellY = menuY + 270
 
     const sellContainer = this.add.container(width / 2, sellY)
     sellContainer.setDepth(600)
@@ -713,6 +745,9 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     // Deduct cost
     this.coins -= upgrade.cost
+
+    // Track upgrade cost for sell value calculation
+    tower.totalUpgradeCost += upgrade.cost
 
     // Apply upgrade bonuses
     if (upgrade.damageBonus) {
@@ -864,6 +899,7 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private setupGrid() {
+    console.log(`[SETUP GRID] Called with mapId: ${this.mapId}`)
     const { width, height } = this.cameras.main
     const usableWidth = width - (this.gridOffsetX * 2) // Account for X margins
     const usableHeight = height - this.gridOffsetY // Account for Y offset (top menu)
@@ -872,6 +908,24 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     // Initialize all tiles as placeable
     this.placementGrid = Array(rows).fill(null).map(() => Array(cols).fill(true))
+
+    // Block specific cells for Meadow level
+    if (this.mapId === 1) {
+      // Note: placementGrid is [row][col], so format is [row, col]
+      const blockedCells = [
+        [6,6], [7,6], [8,6], [9,6], [10,6],  // column 6, rows 6-10
+        [0,0], [1,0], [2,0], [3,0],  // column 0, rows 0-3
+        [4,5],  // grid position 5,4
+        [11,13], // grid position 13,11
+        [12,11], // grid position 11,12
+        [13,9]   // grid position 9,13
+      ]
+      blockedCells.forEach(([row, col]) => {
+        if (row >= 0 && row < rows && col >= 0 && col < cols) {
+          this.placementGrid[row][col] = false
+        }
+      })
+    }
 
     // Mark path tiles and buffer zone as non-placeable
     // We'll trace along the path and mark tiles in a wider area
@@ -891,8 +945,8 @@ export class TowerDefenseScene extends Phaser.Scene {
           const centerGridX = Math.floor((x - this.gridOffsetX) / this.gridSize)
           const centerGridY = Math.floor((y - this.gridOffsetY) / this.gridSize)
 
-          // Create a buffer zone around the path (prevents placement right at edge)
-          const bufferRadius = 0.5 // tiles on each side - reduced to allow more placement space near paths
+          // Create a small buffer zone around the path
+          const bufferRadius = 0.5 // tiles on each side
           const bufferRadiusInt = Math.ceil(bufferRadius)
           for (let dy = -bufferRadiusInt; dy <= bufferRadiusInt; dy++) {
             for (let dx = -bufferRadiusInt; dx <= bufferRadiusInt; dx++) {
@@ -910,6 +964,31 @@ export class TowerDefenseScene extends Phaser.Scene {
           }
         }
       }
+    }
+
+    // Mountain level: unblock some cells and block others
+    if (this.mapId === 4) {
+      // Unblock cells at grid positions (2,9) and (3,9)
+      const unblockedCells = [
+        [9,2],  // grid position 2,9
+        [9,3]   // grid position 3,9
+      ]
+      unblockedCells.forEach(([row, col]) => {
+        if (row >= 0 && row < rows && col >= 0 && col < cols) {
+          this.placementGrid[row][col] = true
+        }
+      })
+
+      // Block cells at grid positions (2,10) and (3,10)
+      const blockedCells = [
+        [10,2],  // grid position 2,10
+        [10,3]   // grid position 3,10
+      ]
+      blockedCells.forEach(([row, col]) => {
+        if (row >= 0 && row < rows && col >= 0 && col < cols) {
+          this.placementGrid[row][col] = false
+        }
+      })
     }
   }
 
@@ -1371,7 +1450,7 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private setupUI() {
-    const { width } = this.cameras.main
+    const { width, height } = this.cameras.main
 
     // Top bar background
     const topBar = this.add.rectangle(width / 2, 50, width, 100, 0x000000, 0.8)
@@ -1399,46 +1478,72 @@ export class TowerDefenseScene extends Phaser.Scene {
     })
     this.coinsText.setDepth(101)
 
-    // Wave
-    this.waveText = this.add.text(width - 20, 25, `Wave: ${this.currentWave}/118`, {
+    // Wave (top right corner)
+    this.waveText = this.add.text(width - 10, 10, `Wave: ${this.currentWave}/118`, {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold'
     }).setOrigin(1, 0)
     this.waveText.setDepth(101)
 
-    // Start Wave button (top right, more accessible)
-    const startWaveBtn = this.createButton(width - 120, 65, 200, 50, 'START WAVE', 0x4CAF50, () => {
-      this.startNextWave()
-    })
-    startWaveBtn.setDepth(101)
+    // All buttons scaled down to 0.25 size for better fit
+    const buttonScale = 0.25
 
-    // Back to menu button (top left)
-    const menuBtn = this.createButton(300, 25, 100, 35, 'MENU', 0x666666, () => {
-      this.scene.start('LevelSelectionScene')
-    })
-    menuBtn.setDepth(101)
+    // Start Wave button (top right, slightly bigger)
+    const startWaveBtnScale = 0.35
+    const startWaveBtn = this.add.image(width - 100, 65, 'start-wave-button')
+      .setScale(startWaveBtnScale)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(101)
+      .on('pointerover', () => startWaveBtn.setScale(startWaveBtnScale * 1.05))
+      .on('pointerout', () => startWaveBtn.setScale(startWaveBtnScale))
+      .on('pointerdown', () => this.startNextWave())
 
-    // Speed button (next to menu button)
-    const speedBtn = this.createButton(410, 25, 80, 35, '1x', 0xFF9800, () => {
-      this.toggleSpeed()
-    })
-    speedBtn.setDepth(101)
+    // Bottom buttons (in tower menu area)
+    const bottomButtonY = height - 270 // Just above tower menu
+    const buttonSpacing = 85
 
-    // Store reference to speed button text for updates
-    this.speedButtonText = speedBtn.list[1] as Phaser.GameObjects.Text
+    // Speed button (bottom left)
+    const speedButtonScale = buttonScale * 0.75
+    this.speedButtonImage = this.add.image(50, bottomButtonY, '1x-button')
+      .setScale(speedButtonScale)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201) // Above tower menu
+      .on('pointerover', () => this.speedButtonImage.setScale(speedButtonScale * 1.05))
+      .on('pointerout', () => this.speedButtonImage.setScale(speedButtonScale))
+      .on('pointerdown', () => this.toggleSpeed())
 
-    // Auto-start button (next to speed button)
-    const autoStartBtn = this.createButton(500, 25, 100, 35, 'AUTO: OFF', 0x9C27B0, () => {
-      this.toggleAutoStart()
-    })
-    autoStartBtn.setDepth(101)
+    // Auto-start button (bottom left)
+    const autoButtonScale = buttonScale * 0.85
+    this.autoStartButtonImage = this.add.image(50 + buttonSpacing, bottomButtonY, 'auto-off-button')
+      .setScale(autoButtonScale)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201) // Above tower menu
+      .on('pointerover', () => this.autoStartButtonImage.setScale(autoButtonScale * 1.05))
+      .on('pointerout', () => this.autoStartButtonImage.setScale(autoButtonScale))
+      .on('pointerdown', () => this.toggleAutoStart())
 
-    // Store reference to auto-start button text for updates
-    this.autoStartButtonText = autoStartBtn.list[1] as Phaser.GameObjects.Text
+    // Back to menu button (center top)
+    const menuBtnScale = 0.27
+    const menuBtn = this.add.image(width / 2, 20, 'menu-button')
+      .setScale(menuBtnScale)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(101)
+      .on('pointerover', () => menuBtn.setScale(menuBtnScale * 1.05))
+      .on('pointerout', () => menuBtn.setScale(menuBtnScale))
+      .on('pointerdown', () => this.scene.start('LevelSelectionScene'))
+
+    // End Game button (center, below menu button)
+    const endGameBtn = this.add.image(width / 2, 70, 'end-game-button')
+      .setScale(buttonScale)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(101)
+      .on('pointerover', () => endGameBtn.setScale(buttonScale * 1.05))
+      .on('pointerout', () => endGameBtn.setScale(buttonScale))
+      .on('pointerdown', () => this.gameOver())
 
     // Selected tower indicator (will be updated when tower is selected)
-    this.selectedTowerText = this.add.text(width / 2, 25, '', {
+    this.selectedTowerText = this.add.text(width / 2, 90, '', {
       fontSize: '20px',
       color: '#00ff00',
       fontStyle: 'bold',
@@ -1447,6 +1552,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     })
     this.selectedTowerText.setOrigin(0.5, 0)
     this.selectedTowerText.setDepth(101)
+    this.selectedTowerText.setVisible(false) // Hide initially
   }
 
   private async setupTowerMenu() {
@@ -1511,6 +1617,7 @@ export class TowerDefenseScene extends Phaser.Scene {
 
         // Tower full name (split into two lines if needed)
         const nameParts = towerConfig.name.split(' ')
+        // Show first word on line 1
         const nameText = this.add.text(0, -75, nameParts[0], {
           fontSize: '16px',
           color: '#ffffff',
@@ -1521,7 +1628,9 @@ export class TowerDefenseScene extends Phaser.Scene {
         })
         nameText.setOrigin(0.5)
 
-        const nameText2 = this.add.text(0, -57, nameParts[1] || '', {
+        // Show remaining words on line 2
+        const remainingName = nameParts.slice(1).join(' ')
+        const nameText2 = this.add.text(0, -57, remainingName, {
           fontSize: '16px',
           color: '#ffffff',
           fontStyle: 'bold',
@@ -1569,6 +1678,7 @@ export class TowerDefenseScene extends Phaser.Scene {
               // Update selected tower text
               if (this.selectedTowerText) {
                 this.selectedTowerText.setText(`Selected: ${towerConfig.name} ($${towerConfig.cost}) - Click map to place or ESC to cancel`)
+                this.selectedTowerText.setVisible(true)
               }
 
               console.log(`Selected tower: ${towerConfig.name}`)
@@ -1817,6 +1927,7 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     if (this.selectedTowerText) {
       this.selectedTowerText.setText('')
+      this.selectedTowerText.setVisible(false)
     }
 
     console.log('Tower selection cancelled')
@@ -1882,7 +1993,11 @@ export class TowerDefenseScene extends Phaser.Scene {
     const gridX = Math.floor((pointer.x - this.gridOffsetX) / this.gridSize)
     const gridY = Math.floor((pointer.y - this.gridOffsetY) / this.gridSize)
 
-    if (!this.canPlaceTower(gridX, gridY)) return
+    console.log(`[PlaceTower] Attempting to place at grid (${gridX}, ${gridY})`)
+    if (!this.canPlaceTower(gridX, gridY)) {
+      console.log(`[PlaceTower] Cannot place at (${gridX}, ${gridY})`)
+      return
+    }
     if (this.selectedTowerType === null) return
 
     // Get tower config
@@ -1940,6 +2055,7 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     if (this.selectedTowerText) {
       this.selectedTowerText.setText('')
+      this.selectedTowerText.setVisible(false)
     }
 
     console.log(`Placed ${towerConfig.name} at (${gridX}, ${gridY})`)
@@ -2027,44 +2143,12 @@ export class TowerDefenseScene extends Phaser.Scene {
     console.log('Game Over!')
     this.scene.pause()
 
-    const { width, height } = this.cameras.main
-
-    // Dark overlay
-    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8)
-    overlay.setDepth(1000)
-
-    // Game Over text
-    const gameOverText = this.add.text(width / 2, height / 3, 'GAME OVER', {
-      fontSize: '64px',
-      color: '#ff0000',
-      fontStyle: 'bold'
-    })
-    gameOverText.setOrigin(0.5)
-    gameOverText.setDepth(1001)
-
-    // Stats
-    const statsText = this.add.text(width / 2, height / 2,
-      `Wave Reached: ${this.currentWave}\nCoins Earned: ${this.coins}`,
-      {
-        fontSize: '24px',
-        color: '#ffffff',
-        align: 'center'
-      }
-    )
-    statsText.setOrigin(0.5)
-    statsText.setDepth(1001)
-
-    // Restart button
-    const restartBtn = this.createButton(width / 2, height * 0.65, 200, 60, 'Restart', 0x4CAF50, () => {
-      this.scene.restart()
-    })
-    restartBtn.setDepth(1001)
-
-    // Menu button
-    const menuBtn = this.createButton(width / 2, height * 0.75, 200, 60, 'Main Menu', 0x666666, () => {
-      this.scene.start('LevelSelectionScene')
-    })
-    menuBtn.setDepth(1001)
+    // Call Remix SDK game over with the wave number as score
+    if (window.FarcadeSDK?.singlePlayer?.actions?.gameOver) {
+      window.FarcadeSDK.singlePlayer.actions.gameOver({ score: this.currentWave })
+    } else {
+      console.warn('FarcadeSDK not available')
+    }
   }
 
   private createButton(
@@ -2223,8 +2307,8 @@ export class TowerDefenseScene extends Phaser.Scene {
         name: 'Forest Loop',
         backgroundColor: 0x4A7C59,
         grid: {
-          cellSize: 70,    // 70px cells for easier placement
-          offsetX: 35,     // Half-tile margin for interior path
+          cellSize: 48,    // Smaller cells to allow more towers
+          offsetX: 24,     // Adjusted for smaller cell size
           offsetY: 100     // Start below top menu (100px)
         },
         path: [
@@ -2301,7 +2385,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         name: 'Desert Winds',
         backgroundColor: 0xE0AC69,
         grid: {
-          cellSize: 60,    // 60px cells for tower placement only
+          cellSize: 40,    // Even smaller cells for desert map
           offsetX: 0,      // Edge-to-edge (path starts at left edge)
           offsetY: 100     // Start below top menu (100px)
         },
@@ -2374,7 +2458,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         name: 'Mountain Zigzag',
         backgroundColor: 0x8B7355,
         grid: {
-          cellSize: 60,    // 60px cells for tower placement only
+          cellSize: 48,    // Smaller cells to allow more towers
           offsetX: 0,      // Edge-to-edge
           offsetY: 100     // Start below top menu (100px)
         },
@@ -2473,9 +2557,9 @@ export class TowerDefenseScene extends Phaser.Scene {
         name: 'Volcanic Rush',
         backgroundColor: 0x5C2E2E,
         grid: {
-          cellSize: 60,    // 60px cells for this map
+          cellSize: 40,    // Even smaller cells for lava map
           offsetX: 0,      // Edge-to-edge
-          offsetY: 100     // Start below top menu (100px)
+          offsetY: 120     // Start a bit lower (120px below top)
         },
         path: [
           new Phaser.Math.Vector2(6, 527),
@@ -2615,7 +2699,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         name: 'Ice Highway',
         backgroundColor: 0x5E7C8C,
         grid: {
-          cellSize: 60,    // 60px cells for tower placement only
+          cellSize: 60,    // Larger cells for ice level
           offsetX: 0,      // Edge-to-edge
           offsetY: 100     // Start below top menu (100px)
         },
@@ -2716,15 +2800,20 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private toggleSpeed() {
-    // Toggle between 1x and 2x speed
+    // Cycle through 1x, 2x, and 3x speed
     if (this.gameSpeed === 1) {
       this.gameSpeed = 2
-      this.speedButtonText.setText('2x')
+      this.speedButtonImage.setTexture('2x-button')
       this.physics.world.timeScale = 1 // Physics runs at normal speed
       this.time.timeScale = 2 // Time events run at 2x
+    } else if (this.gameSpeed === 2) {
+      this.gameSpeed = 3
+      this.speedButtonImage.setTexture('3x-button')
+      this.physics.world.timeScale = 1
+      this.time.timeScale = 3 // Time events run at 3x
     } else {
       this.gameSpeed = 1
-      this.speedButtonText.setText('1x')
+      this.speedButtonImage.setTexture('1x-button')
       this.physics.world.timeScale = 1
       this.time.timeScale = 1
     }
@@ -2733,7 +2822,7 @@ export class TowerDefenseScene extends Phaser.Scene {
   private toggleAutoStart() {
     // Toggle auto-start waves on/off
     this.autoStartWaves = !this.autoStartWaves
-    this.autoStartButtonText.setText(this.autoStartWaves ? 'AUTO: ON' : 'AUTO: OFF')
+    this.autoStartButtonImage.setTexture(this.autoStartWaves ? 'auto-on-button' : 'auto-off-button')
     console.log(`Auto-start waves: ${this.autoStartWaves ? 'ON' : 'OFF'}`)
   }
 
@@ -2888,7 +2977,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         }
         break
 
-      case 8: // Patient Panda
+      case 8: // Notorious Ninja
         {
           const body = this.add.circle(0, 0, 14 * scale, 0xFFFFFF)
           const earL = this.add.circle(-10 * scale, -10 * scale, 5 * scale, 0x000000)
@@ -2968,7 +3057,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         }
         break
 
-      case 15: // Genuine Giraffe
+      case 15: // Cynical Cat
         {
           const body = this.add.ellipse(0, 6 * scale, 14 * scale, 16 * scale, 0xFFD54F)
           const neck = this.add.rectangle(0, -12 * scale, 6 * scale, 24 * scale, 0xFFD54F)

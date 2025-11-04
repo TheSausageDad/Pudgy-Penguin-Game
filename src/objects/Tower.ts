@@ -47,6 +47,7 @@ export class Tower extends Phaser.GameObjects.Container {
   public stats: TowerStats
   public level: number = 0
   public upgradePath: 'pathA' | 'pathB' | 'pathC' | null = null
+  public totalUpgradeCost: number = 0 // Track total spent on upgrades
 
   private lastFireTime: number = 0
   private rangeCircle: Phaser.GameObjects.Arc
@@ -84,7 +85,7 @@ export class Tower extends Phaser.GameObjects.Container {
 
     this.stats = stats
     scene.add.existing(this)
-    this.setDepth(20) // Towers above background/path but below UI
+    this.setDepth(30) // Towers above enemies and background
 
     // Create unique visual based on tower type
     this.createTowerVisual(scene)
@@ -94,8 +95,12 @@ export class Tower extends Phaser.GameObjects.Container {
     this.rangeCircle.setStrokeStyle(3, this.stats.color, 0.5)
     this.add(this.rangeCircle)
 
-    // Show range on hover and allow clicks
-    this.towerGraphic.setInteractive()
+    // Create a very small invisible hit area for clicking
+    // This prevents towers from being unclickable when placed close together
+    const clickCircle = scene.add.circle(0, 0, 12, 0xff0000, 0)
+    this.add(clickCircle)
+
+    clickCircle.setInteractive({ useHandCursor: true })
       .on('pointerover', () => {
         this.rangeCircle.setAlpha(0.3)
         this.setScale(1.05)
@@ -144,10 +149,10 @@ export class Tower extends Phaser.GameObjects.Container {
     // Per-tower offsets to center the actual character body (not the transparent sprite bounds)
     // These offsets compensate for transparent space in sprite sheets
     const bodyOffsets: Record<number, { x: number; y: number }> = {
-      1: { x: 0, y: -21 },    // Focused Falcon
+      1: { x: 12, y: -21 },    // Focused Falcon
       2: { x: 10, y: -10 },   // Ambitious Angel
       3: { x: 5, y: -18 },     // Motivated Monster
-      4: { x: 12, y: -5 },     // Thoughtful Harpik
+      4: { x: 5, y: -5 },     // Thoughtful Harpik
       5: { x: -7, y: -5 },     // Empathy Elephant
       6: { x: 12, y: -10 },    // Adaptable Alien
       7: { x: -5, y: -5 },     // Fearless Fairy
@@ -1829,7 +1834,7 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
 
-  // 8. Patient Panda - Panda with round face and ears
+  // 8. Notorious Ninja - Ninja character
   private createPanda(scene: Phaser.Scene) {
     // Create rotating body container
     this.bodyContainer = scene.add.container(0, 0)
@@ -4481,7 +4486,7 @@ export class Tower extends Phaser.GameObjects.Container {
     this.addGlow(scene, 0xFF1EFF, 30)
   }
 
-  // 15. Genuine Giraffe - Giraffe with long neck and spots
+  // 15. Cynical Cat - Cat character
   private createGiraffe(scene: Phaser.Scene) {
     // Create rotating body container
     this.bodyContainer = scene.add.container(0, 0)
@@ -5383,7 +5388,7 @@ export class Tower extends Phaser.GameObjects.Container {
     if (!this.bodyContainer) return
 
     if (this.level === 1) {
-      // Level 1: Green targeting reticle, crosshair lines
+      // Level 1: Same visual for all paths - Basic upgrade
       const reticle = this.scene.add.circle(0, -10, 30, 0x00FF00, 0)
       reticle.setStrokeStyle(2, 0x00FF00, 0.8)
       this.bodyContainer.add(reticle)
@@ -5404,34 +5409,45 @@ export class Tower extends Phaser.GameObjects.Container {
         repeat: -1
       })
     } else if (this.level === 2) {
-      // Level 2: Cyan laser eyes, energy wings
-      const { eyes, wings } = this.characterParts
+      // Level 2: Different visuals based on upgrade path
+      if (this.upgradePath === 'pathA') {
+        // Path A: Precision Strike - Blue targeting theme
+        const reticle = this.scene.add.circle(0, -10, 40, 0x42A5F5, 0)
+        reticle.setStrokeStyle(3, 0x42A5F5, 0.9)
+        this.bodyContainer.add(reticle)
+        this.upgradeEffects.push(reticle)
 
-      if (eyes) {
-        eyes.forEach(eye => {
-          eye.setFillStyle(0x00FFFF)
-          // Laser beam from eyes
-          const laser = this.scene.add.rectangle(eye.x + 15, eye.y, 25, 2, 0x00FFFF, 0.8)
-          this.bodyContainer?.add(laser)
-          this.upgradeEffects.push(laser)
+        // Multiple precision rings
+        for (let i = 0; i < 3; i++) {
+          const ring = this.scene.add.circle(0, -10, 25 + i * 10, 0x1E88E5, 0)
+          ring.setStrokeStyle(2, 0x1E88E5, 0.6 - i * 0.15)
+          this.bodyContainer.add(ring)
+          this.upgradeEffects.push(ring)
 
           this.scene.tweens.add({
-            targets: laser,
-            alpha: { from: 0.8, to: 0.4 },
-            duration: 400,
+            targets: ring,
+            alpha: { from: 0.6 - i * 0.15, to: 0.2 },
+            duration: 1000 + i * 200,
             yoyo: true,
             repeat: -1
           })
-        })
-      }
+        }
+      } else if (this.upgradePath === 'pathB') {
+        // Path B: Lightning Speed - Orange/yellow lightning theme
+        const lightning1 = this.scene.add.rectangle(-15, -8, 35, 4, 0xFFEB3B, 0.8)
+        const lightning2 = this.scene.add.rectangle(-15, 8, 35, 4, 0xFFEB3B, 0.8)
+        const core = this.scene.add.circle(0, 0, 8, 0xFF5722, 0.6)
+        this.bodyContainer.add([lightning1, lightning2, core])
+        this.upgradeEffects.push(lightning1, lightning2, core)
 
-      // Energy wings glow
-      if (wings) {
-        wings.forEach(wing => {
-          wing.setStrokeStyle(3, 0x00FFFF, 1)
-          const wingGlow = this.scene.add.circle(wing.x, wing.y, 15, 0x00FFFF, 0.3)
-          this.bodyContainer?.add(wingGlow)
-          this.upgradeEffects.push(wingGlow)
+        // Rapid pulsing
+        this.scene.tweens.add({
+          targets: [lightning1, lightning2, core],
+          alpha: { from: 0.8, to: 0.3 },
+          scale: { from: 1, to: 1.2 },
+          duration: 300,
+          yoyo: true,
+          repeat: -1
         })
       }
     }
@@ -5442,7 +5458,7 @@ export class Tower extends Phaser.GameObjects.Container {
     if (!this.bodyContainer) return
 
     if (this.level === 1) {
-      // Level 1: Multiple gold halos, light rays
+      // Level 1: Same visual for all paths - Gold halos
       for (let i = 0; i < 3; i++) {
         const halo = this.scene.add.circle(0, -30 - i * 5, 20 + i * 5, 0xFFD700, 0)
         halo.setStrokeStyle(2, 0xFFD700, 0.7 - i * 0.2)
@@ -5470,41 +5486,70 @@ export class Tower extends Phaser.GameObjects.Container {
         this.upgradeEffects.push(ray)
       }
     } else if (this.level === 2) {
-      // Level 2: White divine aura, radiant wings
-      const aura = this.scene.add.circle(0, -10, 50, 0xFFFFFF, 0.2)
-      this.bodyContainer.add(aura)
-      this.upgradeEffects.push(aura)
+      // Level 2: Different visuals based on upgrade path
+      if (this.upgradePath === 'pathA') {
+        // Path A: Army Commander - Blue chain attack theme
+        const chains = []
+        for (let i = 0; i < 3; i++) {
+          const angle = (Math.PI * 2 * i) / 3
+          const chainEnd = this.scene.add.star(
+            Math.cos(angle) * 45,
+            Math.sin(angle) * 45,
+            5, 4, 8, 0x42A5F5, 0.8
+          )
+          this.bodyContainer.add(chainEnd)
+          this.upgradeEffects.push(chainEnd)
+          chains.push(chainEnd)
 
-      this.scene.tweens.add({
-        targets: aura,
-        scale: { from: 1, to: 1.3 },
-        alpha: { from: 0.2, to: 0.05 },
-        duration: 1000,
-        yoyo: true,
-        repeat: -1
-      })
+          // Lightning bolt effect
+          const bolt = this.scene.add.rectangle(
+            Math.cos(angle) * 22,
+            Math.sin(angle) * 22,
+            25, 3, 0x64B5F6, 0.7
+          )
+          bolt.setRotation(angle)
+          this.bodyContainer.add(bolt)
+          this.upgradeEffects.push(bolt)
+        }
 
-      const { wings } = this.characterParts
-      if (wings) {
-        wings.forEach(wing => {
-          wing.setStrokeStyle(4, 0xFFFFFF, 1)
-          wing.setScale(wing.scaleX * 1.2, wing.scaleY * 1.2)
+        this.scene.tweens.add({
+          targets: chains,
+          alpha: { from: 0.8, to: 0.4 },
+          duration: 600,
+          yoyo: true,
+          repeat: -1
+        })
+      } else if (this.upgradePath === 'pathB') {
+        // Path B: Ruthless Strike - Red/orange critical strike theme
+        const critCore = this.scene.add.circle(0, -10, 20, 0xFF1744, 0.4)
+        this.bodyContainer.add(critCore)
+        this.upgradeEffects.push(critCore)
 
-          // Radiant particles
-          for (let i = 0; i < 3; i++) {
-            const particle = this.scene.add.star(wing.x, wing.y, 4, 2, 4, 0xFFFFFF, 0.8)
-            this.bodyContainer?.add(particle)
-            this.upgradeEffects.push(particle)
+        // Explosive rings
+        for (let i = 0; i < 3; i++) {
+          const ring = this.scene.add.circle(0, -10, 25 + i * 12, 0xFF5722, 0)
+          ring.setStrokeStyle(3, 0xFF5722, 0.6 - i * 0.15)
+          this.bodyContainer.add(ring)
+          this.upgradeEffects.push(ring)
 
-            this.scene.tweens.add({
-              targets: particle,
-              y: particle.y - 20,
-              alpha: 0,
-              duration: 1000,
-              delay: i * 300,
-              repeat: -1
-            })
-          }
+          this.scene.tweens.add({
+            targets: ring,
+            scale: { from: 1, to: 1.5 },
+            alpha: { from: 0.6 - i * 0.15, to: 0 },
+            duration: 1000,
+            delay: i * 200,
+            repeat: -1
+          })
+        }
+
+        // Pulsing core
+        this.scene.tweens.add({
+          targets: critCore,
+          scale: { from: 1, to: 1.3 },
+          alpha: { from: 0.4, to: 0.7 },
+          duration: 400,
+          yoyo: true,
+          repeat: -1
         })
       }
     }
@@ -6573,10 +6618,10 @@ export class Tower extends Phaser.GameObjects.Container {
 
         // Get the body offset for this tower type (same as in createSpriteBasedTower)
         const bodyOffsets: Record<number, { x: number; y: number }> = {
-          1: { x: 0, y: -21 },    // Focused Falcon
+          1: { x: 12, y: -21 },    // Focused Falcon
           2: { x: 10, y: -10 },   // Ambitious Angel
           3: { x: 5, y: -18 },     // Motivated Monster
-          4: { x: 12, y: -5 },     // Thoughtful Harpik
+          4: { x: 5, y: -5 },     // Thoughtful Harpik
           5: { x: -7, y: -5 },     // Empathy Elephant
           6: { x: 12, y: -10 },    // Adaptable Alien
           7: { x: -5, y: -5 },     // Fearless Fairy
@@ -6595,18 +6640,27 @@ export class Tower extends Phaser.GameObjects.Container {
         if (newDirection === 'right') {
           this.characterSprite.play(`${this.animPrefix}-idle-right`)
           this.characterSprite.setOrigin(0.5, 0.5)
-          this.characterSprite.x = 0  // Center horizontally when facing left/right
+          // Special x positioning for Focused Falcon
+          if (this.stats.type === 1) {
+            // If flipped (facing left), move left; if not flipped (facing right), move right
+            this.characterSprite.x = this.characterSprite.flipX ? -8 : 8
+          } else {
+            this.characterSprite.x = 0
+          }
           this.characterSprite.y = offset.y
         } else if (newDirection === 'front') {
           this.characterSprite.play(`${this.animPrefix}-idle-front`)
           this.characterSprite.setOrigin(0.5, 0.5)
+          this.characterSprite.setFlipX(false) // Reset flip
           this.characterSprite.x = offset.x
           this.characterSprite.y = offset.y
         } else if (newDirection === 'back') {
           this.characterSprite.play(`${this.animPrefix}-idle-back`)
           this.characterSprite.setOrigin(0.5, 0.5)
+          this.characterSprite.setFlipX(false) // Reset flip
           this.characterSprite.x = offset.x
-          this.characterSprite.y = offset.y
+          // Special y positioning for Focused Falcon when facing back - move down
+          this.characterSprite.y = this.stats.type === 1 ? offset.y + 5 : offset.y
         }
       }
     }
@@ -6697,7 +6751,7 @@ export class Tower extends Phaser.GameObjects.Container {
       case 7: // Fearless Fairy - Magic sparkles
         this.fireMagicSparkle(projectiles)
         break
-      case 8: // Patient Panda - Heavy strike
+      case 8: // Notorious Ninja - Heavy strike
         this.fireHeavyStrike(projectiles)
         break
       case 9: // Brave Bison - Charging energy
@@ -7218,7 +7272,7 @@ export class Tower extends Phaser.GameObjects.Container {
     }
   }
 
-  // 8. Patient Panda - Heavy strike
+  // 8. Notorious Ninja - Heavy strike
   private fireHeavyStrike(projectiles: Phaser.GameObjects.Group) {
     const projectile = this.scene.add.container(this.x, this.y)
 
@@ -7476,7 +7530,7 @@ export class Tower extends Phaser.GameObjects.Container {
     this.setupProjectile(projectile, projectiles, 550, true)
   }
 
-  // 15. Genuine Giraffe - Laser beam
+  // 15. Cynical Cat - Laser beam
   private fireLaser(projectiles: Phaser.GameObjects.Group) {
     this.createMuzzleFlash(10, 0x000000)
     const projectile = this.scene.add.container(this.x, this.y)
@@ -7533,7 +7587,7 @@ export class Tower extends Phaser.GameObjects.Container {
     angleOffset: number = 0
   ) {
     projectiles.add(projectile)
-    projectile.setDepth(26) // Projectiles above enemies but below UI
+    projectile.setDepth(35) // Projectiles above towers and enemies
 
     const trail: Phaser.GameObjects.Arc[] = []
 
@@ -7555,7 +7609,7 @@ export class Tower extends Phaser.GameObjects.Container {
       // Create trail particle
       if (hasTrail && Math.random() > 0.7) {
         const trailParticle = this.scene.add.circle(proj.x, proj.y, 3, this.stats.color, 0.4)
-        trailParticle.setDepth(26)
+        trailParticle.setDepth(35)
         proj.trail.push(trailParticle)
         this.scene.tweens.add({
           targets: trailParticle,
@@ -7590,6 +7644,8 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   getSellValue(): number {
-    return Math.floor(this.stats.cost * 0.7) // 70% refund
+    // 70% refund of base cost + all upgrade costs
+    const totalInvestment = this.stats.cost + this.totalUpgradeCost
+    return Math.floor(totalInvestment * 0.7)
   }
 }

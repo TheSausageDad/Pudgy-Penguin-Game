@@ -1,16 +1,23 @@
 export class LevelSelectionScene extends Phaser.Scene {
+  private isTransitioning: boolean = false
+
   constructor() {
     super({ key: 'LevelSelectionScene' })
   }
 
+  init() {
+    // Reset transition flag when scene starts
+    this.isTransitioning = false
+  }
+
   preload() {
-    // Load map background images for preview
-    this.load.image('meadow-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Map-jgDQzJNQmX1jeqFdews23JXHhdRNyE.png')
-    this.load.image('jungle-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Jungle%20path-rZBIekbd1UvXB4I3zndaghbXwZUBlm.png')
-    this.load.image('sand-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Sand%20Map-pN86hXgXGFP4S5PhrqTJAgwi8r9wE4.png')
-    this.load.image('mountain-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Mountain%20MAp-N5MfCtrKm0Yy8ivp0rbjdB2h8tGdRc.png')
-    this.load.image('lava-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Lava%20map-jUpQQ95jaogKpiZ6teG4tPnP7uvbkQ.png')
-    this.load.image('ice-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Ice%20Level-XLgGa9w5UFsvJpGi1UIxlvOOvAvJfu.png')
+    // Load level selection button images
+    this.load.image('meadow-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Button-xQwhB86avE9fBYYt4xdUxTyeoASBIK.png')
+    this.load.image('jungle-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Jungle%20Button-GOd3cqiNoU0bbPQXJRMQRrZXLRF6Mk.png')
+    this.load.image('desert-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Desert%20Button-B0ULkixQ2cLkRgxIVbMwJ7im2wDdPU.png')
+    this.load.image('mountain-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Mountain%20Button-sycFIXT2JZPVpSdAmPufYjsh3Hdeqq.png')
+    this.load.image('lava-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Lava%20Button-dCSWgRoYu5EotyIdAd2PiAHiquxb8o.png')
+    this.load.image('ice-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Ice%20button-JpODQ9jHLtnhqxQjn5Tc2Q3XR3VMkc.png')
   }
 
   create() {
@@ -20,7 +27,7 @@ export class LevelSelectionScene extends Phaser.Scene {
     this.add.rectangle(width / 2, height / 2, width, height, 0x2a2a2a)
 
     // Title
-    const title = this.add.text(width / 2, 100, 'LEVEL SELECT', {
+    const title = this.add.text(width / 2, 160, 'LEVEL SELECT', {
       fontSize: '48px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -29,25 +36,24 @@ export class LevelSelectionScene extends Phaser.Scene {
 
     // How to Play button (top right)
     const howToPlayBtn = this.createButton(width - 150, 50, 250, 60, 'HOW TO PLAY', 0x2196F3, () => {
-      // TODO: Show how to play instructions
-      console.log('How to Play clicked')
+      this.scene.start('HowToPlayScene')
     })
 
     // Map data
     const maps = [
-      { id: 1, name: 'Meadow Spiral', difficulty: 'EASY', color: 0x4CAF50, imageKey: 'meadow-map-bg' },
-      { id: 2, name: 'Forest Loop', difficulty: 'EASY', color: 0x8BC34A, imageKey: 'jungle-map-bg' },
-      { id: 3, name: 'Desert Winds', difficulty: 'MEDIUM', color: 0xFF9800, imageKey: 'sand-map-bg' },
-      { id: 4, name: 'Mountain Zigzag', difficulty: 'MEDIUM', color: 0xFF5722, imageKey: 'mountain-map-bg' },
-      { id: 5, name: 'Volcanic Rush', difficulty: 'HARD', color: 0xF44336, imageKey: 'lava-map-bg' },
-      { id: 6, name: 'Ice Highway', difficulty: 'HARD', color: 0x9C27B0, imageKey: 'ice-map-bg' }
+      { id: 1, name: 'Meadow Spiral', difficulty: 'EASY', buttonImage: 'meadow-button' },
+      { id: 2, name: 'Forest Loop', difficulty: 'EASY', buttonImage: 'jungle-button' },
+      { id: 3, name: 'Desert Winds', difficulty: 'MEDIUM', buttonImage: 'desert-button' },
+      { id: 4, name: 'Mountain Zigzag', difficulty: 'MEDIUM', buttonImage: 'mountain-button' },
+      { id: 5, name: 'Volcanic Rush', difficulty: 'HARD', buttonImage: 'lava-button' },
+      { id: 6, name: 'Ice Highway', difficulty: 'HARD', buttonImage: 'ice-button' }
     ]
 
     // Create level buttons in a 2-column grid
-    const startY = 250
-    const buttonWidth = 200
+    const startY = 360 // Adjusted positioning
+    const buttonWidth = 320
     const buttonHeight = 200
-    const gap = 80
+    const gap = 40
     const cols = 2
 
     maps.forEach((map, index) => {
@@ -65,56 +71,38 @@ export class LevelSelectionScene extends Phaser.Scene {
     y: number,
     width: number,
     height: number,
-    map: { id: number, name: string, difficulty: string, color: number, imageKey: string }
+    map: { id: number, name: string, difficulty: string, buttonImage: string }
   ) {
     const container = this.add.container(x, y)
 
-    // Background
-    const bg = this.add.rectangle(0, 0, width, height, map.color)
-    bg.setStrokeStyle(4, 0xffffff)
+    // Button image - set to exact dimensions
+    const buttonImg = this.add.image(0, 0, map.buttonImage)
 
-    // Difficulty badge
-    const difficultyBadge = this.add.rectangle(-width / 2 + 60, -height / 2 + 20, 100, 30, 0x000000, 0.7)
-    const difficultyText = this.add.text(0, 0, map.difficulty, {
-      fontSize: '14px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    difficultyText.setOrigin(0.5)
-    difficultyText.setPosition(difficultyBadge.x, difficultyBadge.y)
+    // Special sizing for specific buttons
+    if (map.buttonImage === 'meadow-button') {
+      // Make meadow button shorter and wider
+      buttonImg.setDisplaySize(width * 1.15, height * 0.85)
+    } else if (map.buttonImage === 'jungle-button') {
+      // Make jungle button shorter and adjust position
+      buttonImg.setDisplaySize(width, height * 0.80)
+      buttonImg.y = 7 // Move down by 7 pixels
+    } else {
+      // Force all other buttons to the same size
+      buttonImg.setDisplaySize(width, height)
+    }
 
-    // Map name
-    const nameText = this.add.text(0, 10, map.name, {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    nameText.setOrigin(0.5)
-
-    // Map number
-    const numberText = this.add.text(0, -20, `MAP ${map.id}`, {
-      fontSize: '18px',
-      color: '#ffffff'
-    })
-    numberText.setOrigin(0.5)
-    numberText.setAlpha(0.8)
-
-    container.add([bg, difficultyBadge, difficultyText, nameText, numberText])
+    container.add([buttonImg])
     container.setSize(width, height)
 
     // Make interactive
-    bg.setInteractive({ useHandCursor: true })
+    buttonImg.setInteractive({ useHandCursor: true })
       .on('pointerover', () => {
         container.setScale(1.05)
-        bg.setFillStyle(Phaser.Display.Color.GetColor(
-          Math.min(255, Phaser.Display.Color.IntegerToColor(map.color).red + 30),
-          Math.min(255, Phaser.Display.Color.IntegerToColor(map.color).green + 30),
-          Math.min(255, Phaser.Display.Color.IntegerToColor(map.color).blue + 30)
-        ))
+        buttonImg.setTint(0xdddddd) // Slight brighten effect
       })
       .on('pointerout', () => {
         container.setScale(1)
-        bg.setFillStyle(map.color)
+        buttonImg.clearTint()
       })
       .on('pointerdown', () => {
         container.setScale(0.95)
@@ -126,7 +114,16 @@ export class LevelSelectionScene extends Phaser.Scene {
   }
 
   private startGame(mapId: number) {
+    // Prevent multiple clicks during transition
+    if (this.isTransitioning) {
+      return
+    }
+
+    this.isTransitioning = true
     console.log(`Starting map ${mapId}`)
+
+    // Stop this scene and start the game
+    this.scene.stop('LevelSelectionScene')
     this.scene.start('TowerDefenseScene', { mapId })
   }
 
