@@ -159,7 +159,7 @@ export const SPRITE_CONFIGS = {
   // Type 3 - Motivated Monster
   MOTIVATED_MONSTER: createSpriteConfig({
     key: 'motivated-monster',
-    path: '/assets/motivated-monster-spritesheet.png',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Moti%20Monster%20Sprites-JCyubyuAOvpSHELxFPY7P1dR2ApxnM.png',
     frameWidth: 540,
     frameHeight: 420,
     spacing: 15,
@@ -173,7 +173,7 @@ export const SPRITE_CONFIGS = {
   // Type 5 - Empathy Elephant
   EMPATHY_ELEPHANT: createSpriteConfig({
     key: 'empathy-elephant',
-    path: '/assets/empathy-elephant-spritesheet.png',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/ELephant%20Sprites-p0WvFw7g1MtA3nV6x9GViL51iUTRyQ.png',
     frameWidth: 540,
     frameHeight: 450,
     spacing: 0,
@@ -201,7 +201,7 @@ export const SPRITE_CONFIGS = {
   // Type 7 - Fearless Fairy
   FEARLESS_FAIRY: createSpriteConfig({
     key: 'fearless-fairy',
-    path: '/assets/fearless-fairy-spritesheet.png',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Fairy%20Sprites-WuNlIW16g2Xmb2bUF23vnZWBrplrXu.png',
     frameWidth: 540,
     frameHeight: 450,
     spacing: 0,
@@ -342,7 +342,7 @@ export const SPRITE_CONFIGS = {
   // Legacy - Cynical Cat (keeping for backward compatibility)
   CYNICAL_CAT: createSpriteConfig({
     key: 'cynical-cat',
-    path: '/assets/cynical-cat-spritesheet.png',
+    path: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Cynical%20Cat%20Sprites-kKZcBXUT10qLNW1RXarz2h68NocuFk.png',
     frameWidth: 540,
     frameHeight: 450,
     spacing: 0,

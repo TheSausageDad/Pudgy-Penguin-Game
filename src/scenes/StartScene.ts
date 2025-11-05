@@ -4,10 +4,7 @@ export class StartScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load start screen assets
-    this.load.image('start-background', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Start%20Background-gSizUnjA64DLDNhlmbHnZidHpFEDe7.png')
-    this.load.image('play-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Play%20Button-X5USnXd1Txy3OTCu6GnT53hy1hsZIR.png')
-    this.load.image('title', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Title-tSrD0FGJ5XY10zTcC861JjzwxQJbom.png')
+    // Assets are preloaded in LoadingScene
   }
 
   create() {
@@ -24,15 +21,31 @@ export class StartScene extends Phaser.Scene {
     playButton.setInteractive({ cursor: 'pointer' })
 
     // Make play button clickable
-    playButton.on('pointerdown', () => {
-      // Disable the button to prevent multiple clicks
+    playButton.on('pointerup', async (pointer: Phaser.Input.Pointer) => {
+      // Stop event propagation
+      if (pointer.event) {
+        pointer.event.stopPropagation()
+      }
+
+      // Disable the button and input to prevent multiple clicks
       playButton.disableInteractive()
+      this.input.enabled = false
+
+      // Call Remix SDK ready() to signal the game is ready to play
+      if (window.FarcadeSDK?.singlePlayer?.actions?.ready) {
+        try {
+          await window.FarcadeSDK.singlePlayer.actions.ready()
+          console.log('Remix SDK ready() called')
+        } catch (error) {
+          console.error('Failed to call SDK ready():', error)
+        }
+      }
 
       // Small delay before transitioning to prevent event bleed-through
-      this.time.delayedCall(100, () => {
+      setTimeout(() => {
         this.scene.stop('StartScene')
         this.scene.start('LevelSelectionScene')
-      })
+      }, 100)
     })
 
     // Add hover effect

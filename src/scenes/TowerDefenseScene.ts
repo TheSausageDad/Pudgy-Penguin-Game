@@ -29,6 +29,14 @@ export class TowerDefenseScene extends Phaser.Scene {
   private speedButtonImage!: Phaser.GameObjects.Image
   private autoStartButtonImage!: Phaser.GameObjects.Image
 
+  // Pause menu
+  private pauseMenuContainer!: Phaser.GameObjects.Container
+  private isPaused: boolean = false
+
+  // Tutorial
+  private tutorialContainer!: Phaser.GameObjects.Container
+  private hasSeenTutorial: boolean = false
+
   // Grid and path
   private gridSize: number = 70 // Grid cell size (will be set per map)
   private gridOffsetX: number = 0 // Horizontal offset (will be set per map)
@@ -84,6 +92,10 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.load.image('3x-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/3x%20Button-lp9wuMiygciPVEywdjSFmQ5pWR69Yy.png')
     this.load.image('start-wave-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Start%20Wave-m9R6w6gUvYWUJ5Y7BcztPyvd8R5v5f.png')
     this.load.image('end-game-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/End%20Game%20Button-4da3DgEQn6uKGc09nu2tZOchZqaKtw.png')
+    this.load.image('level-select-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Level%20Select-Kz46ddSyt67hZYImSnfwdDQhGv0KU2.png')
+
+    // Load background music
+    this.load.audio('bgMusic', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Music%20Loop-yPYC7cMLmOtbATLHj8PF8HxkCyoDqo.mp3')
 
     // Load map background images
     this.load.image('meadow-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Map-jgDQzJNQmX1jeqFdews23JXHhdRNyE.png')
@@ -120,12 +132,18 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     // Check if currently loading
     if (this.loadingSprites.has(spriteKey)) {
-      // Wait for the existing load to complete
-      return new Promise((resolve) => {
+      // Wait for the existing load to complete with timeout
+      return new Promise((resolve, reject) => {
+        let attempts = 0
+        const maxAttempts = 50 // 5 seconds max
         const checkInterval = setInterval(() => {
+          attempts++
           if (this.loadedSprites.has(spriteKey)) {
             clearInterval(checkInterval)
             resolve()
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval)
+            reject(new Error(`Timeout waiting for sprite: ${spriteKey}`))
           }
         }, 100)
       })
@@ -135,11 +153,20 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.loadingSprites.add(spriteKey)
 
     return new Promise((resolve, reject) => {
+      // Set a timeout for the load
+      const loadTimeout = setTimeout(() => {
+        console.error(`[LazyLoad] Timeout loading sprite: ${spriteKey}`)
+        this.loadingSprites.delete(spriteKey)
+        reject(new Error(`Timeout loading sprite: ${spriteKey}`))
+      }, 10000) // 10 second timeout
+
       // Load the sprite sheet
       this.load.spritesheet(config.key, config.path, config.config)
 
       // Handle load complete
       this.load.once('complete', () => {
+        clearTimeout(loadTimeout)
+
         // Set texture filtering
         const texture = this.textures.get(config.key)
         if (texture) {
@@ -156,8 +183,9 @@ export class TowerDefenseScene extends Phaser.Scene {
 
       // Handle load error
       this.load.once('loaderror', (file: any) => {
+        clearTimeout(loadTimeout)
         if (file.key === spriteKey) {
-          console.error(`[LazyLoad] Failed to load sprite: ${spriteKey}`)
+          console.error(`[LazyLoad] Failed to load sprite: ${spriteKey}`, file)
           this.loadingSprites.delete(spriteKey)
           reject(new Error(`Failed to load sprite: ${spriteKey}`))
         }
@@ -196,24 +224,30 @@ export class TowerDefenseScene extends Phaser.Scene {
       return Promise.resolve()
     }
 
-    await this.lazyLoadSprite(config.key, config)
+    try {
+      await this.lazyLoadSprite(config.key, config)
 
-    // Create animations if they don't exist
-    const animPrefixes: Record<number, string> = {
-      1: 'falcon', 2: 'angel', 3: 'monster', 4: 'harpik',
-      5: 'elephant', 6: 'alien', 7: 'fairy', 8: 'ninja',
-      9: 'fox', 10: 'dragon', 11: 'beetle', 12: 'astronaut',
-      13: 'crab', 14: 'clown', 15: 'cat', 16: 'robot'
-    }
-
-    const animPrefix = animPrefixes[towerType]
-    if (animPrefix && !this.anims.exists(`${animPrefix}-idle-front`)) {
-      // Dragon uses 3-frame layout, others use standard 6-frame layout
-      if (towerType === 10) {
-        this.createSimple3FrameAnimations(config.key, animPrefix)
-      } else {
-        this.createCharacterAnimations(config.key, animPrefix)
+      // Create animations if they don't exist
+      const animPrefixes: Record<number, string> = {
+        1: 'falcon', 2: 'angel', 3: 'monster', 4: 'harpik',
+        5: 'elephant', 6: 'alien', 7: 'fairy', 8: 'ninja',
+        9: 'fox', 10: 'dragon', 11: 'beetle', 12: 'astronaut',
+        13: 'crab', 14: 'clown', 15: 'cat', 16: 'robot'
       }
+
+      const animPrefix = animPrefixes[towerType]
+      if (animPrefix && !this.anims.exists(`${animPrefix}-idle-front`)) {
+        // Dragon uses 3-frame layout, others use standard 6-frame layout
+        if (towerType === 10) {
+          this.createSimple3FrameAnimations(config.key, animPrefix)
+        } else {
+          this.createCharacterAnimations(config.key, animPrefix)
+        }
+      }
+    } catch (error) {
+      console.warn(`[TowerDefenseScene] Failed to load sprite for tower ${towerType}, will use fallback graphics:`, error)
+      // Don't throw - let the game continue with fallback graphics
+      return Promise.resolve()
     }
   }
 
@@ -443,6 +477,9 @@ export class TowerDefenseScene extends Phaser.Scene {
     // Setup tower menu
     await this.setupTowerMenu()
 
+    // Check if this is the first time playing and show tutorial
+    this.checkAndShowTutorial()
+
     // Listen for enemy kills to award coins
     this.events.on('enemyKilled', (reward: number) => {
       this.coins += reward
@@ -454,6 +491,23 @@ export class TowerDefenseScene extends Phaser.Scene {
       this.justClickedTower = true
       this.showTowerOptions(tower)
     })
+
+    // Check if music is already playing (from StartScene)
+    // If not, start it here as a fallback
+    if (!this.sound.get('bgMusic')) {
+      this.time.delayedCall(100, () => {
+        try {
+          const music = this.sound.add('bgMusic', {
+            loop: true,
+            volume: 0.7
+          })
+          music.play()
+          console.log('Background music started (fallback)')
+        } catch (error) {
+          console.error('Failed to play background music:', error)
+        }
+      })
+    }
 
     console.log(`Map ${this.mapId} loaded: ${this.mapConfig.name}`)
   }
@@ -1497,7 +1551,10 @@ export class TowerDefenseScene extends Phaser.Scene {
       .setDepth(101)
       .on('pointerover', () => startWaveBtn.setScale(startWaveBtnScale * 1.05))
       .on('pointerout', () => startWaveBtn.setScale(startWaveBtnScale))
-      .on('pointerdown', () => this.startNextWave())
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        pointer.event.stopPropagation()
+        this.startNextWave()
+      })
 
     // Bottom buttons (in tower menu area)
     const bottomButtonY = height - 270 // Just above tower menu
@@ -1511,7 +1568,10 @@ export class TowerDefenseScene extends Phaser.Scene {
       .setDepth(201) // Above tower menu
       .on('pointerover', () => this.speedButtonImage.setScale(speedButtonScale * 1.05))
       .on('pointerout', () => this.speedButtonImage.setScale(speedButtonScale))
-      .on('pointerdown', () => this.toggleSpeed())
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        pointer.event.stopPropagation()
+        this.toggleSpeed()
+      })
 
     // Auto-start button (bottom left)
     const autoButtonScale = buttonScale * 0.85
@@ -1521,26 +1581,23 @@ export class TowerDefenseScene extends Phaser.Scene {
       .setDepth(201) // Above tower menu
       .on('pointerover', () => this.autoStartButtonImage.setScale(autoButtonScale * 1.05))
       .on('pointerout', () => this.autoStartButtonImage.setScale(autoButtonScale))
-      .on('pointerdown', () => this.toggleAutoStart())
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        pointer.event.stopPropagation()
+        this.toggleAutoStart()
+      })
 
-    // Back to menu button (center top)
+    // Menu button (center top) - Opens pause menu
     const menuBtnScale = 0.27
-    const menuBtn = this.add.image(width / 2, 20, 'menu-button')
+    const menuBtn = this.add.image(width / 2, 30, 'menu-button')
       .setScale(menuBtnScale)
       .setInteractive({ useHandCursor: true })
       .setDepth(101)
       .on('pointerover', () => menuBtn.setScale(menuBtnScale * 1.05))
       .on('pointerout', () => menuBtn.setScale(menuBtnScale))
-      .on('pointerdown', () => this.scene.start('LevelSelectionScene'))
-
-    // End Game button (center, below menu button)
-    const endGameBtn = this.add.image(width / 2, 70, 'end-game-button')
-      .setScale(buttonScale)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(101)
-      .on('pointerover', () => endGameBtn.setScale(buttonScale * 1.05))
-      .on('pointerout', () => endGameBtn.setScale(buttonScale))
-      .on('pointerdown', () => this.gameOver())
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        pointer.event.stopPropagation()
+        this.togglePauseMenu()
+      })
 
     // Selected tower indicator (will be updated when tower is selected)
     this.selectedTowerText = this.add.text(width / 2, 90, '', {
@@ -1553,6 +1610,206 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.selectedTowerText.setOrigin(0.5, 0)
     this.selectedTowerText.setDepth(101)
     this.selectedTowerText.setVisible(false) // Hide initially
+
+    // Create pause menu (initially hidden)
+    this.createPauseMenu()
+  }
+
+  private createPauseMenu() {
+    const { width, height } = this.cameras.main
+
+    // Create container for pause menu
+    this.pauseMenuContainer = this.add.container(0, 0)
+    this.pauseMenuContainer.setDepth(500) // Very high depth to be on top of everything
+    this.pauseMenuContainer.setVisible(false)
+
+    // Semi-transparent dark overlay
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
+    overlay.setInteractive() // Block clicks to game below
+
+    // Menu panel background
+    const panelWidth = 400
+    const panelHeight = 300
+    const panel = this.add.rectangle(width / 2, height / 2, panelWidth, panelHeight, 0x1a1a1a, 0.95)
+    panel.setStrokeStyle(4, 0xffd700)
+
+    // X button (close/resume)
+    const xButton = this.add.text(width / 2 + panelWidth / 2 - 30, height / 2 - panelHeight / 2 + 15, 'X', {
+      fontSize: '32px',
+      color: '#ff6b6b',
+      fontStyle: 'bold'
+    })
+    xButton.setInteractive({ useHandCursor: true })
+      .on('pointerover', () => xButton.setScale(1.1))
+      .on('pointerout', () => xButton.setScale(1))
+      .on('pointerdown', () => this.togglePauseMenu())
+
+    // Pause title
+    const pauseTitle = this.add.text(width / 2, height / 2 - 80, 'PAUSED', {
+      fontSize: '48px',
+      color: '#ffd700',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+
+    // Button scale
+    const buttonScale = 0.35
+
+    // End Game button (centered)
+    const endGameBtn = this.add.image(width / 2, height / 2 + 20, 'end-game-button')
+      .setScale(buttonScale)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', () => endGameBtn.setScale(buttonScale * 1.05))
+      .on('pointerout', () => endGameBtn.setScale(buttonScale))
+      .on('pointerup', () => {
+        this.input.enabled = false
+        this.togglePauseMenu()
+        this.gameOver()
+      })
+
+    // Add all to container
+    this.pauseMenuContainer.add([overlay, panel, xButton, pauseTitle, endGameBtn])
+  }
+
+  private checkAndShowTutorial() {
+    // Check localStorage to see if tutorial has been seen
+    const tutorialSeen = localStorage.getItem('towerDefenseTutorialSeen')
+
+    if (!tutorialSeen) {
+      // Show tutorial after a short delay
+      this.time.delayedCall(500, () => {
+        this.showTutorial()
+      })
+    }
+  }
+
+  private showTutorial() {
+    const { width, height } = this.cameras.main
+
+    // Create tutorial container
+    this.tutorialContainer = this.add.container(0, 0)
+    this.tutorialContainer.setDepth(600) // Above everything else
+
+    // Semi-transparent dark overlay
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8)
+    overlay.setInteractive() // Block clicks below
+
+    // Highlight area for tower menu (bottom area)
+    const menuHighlightY = height - 150
+    const menuHighlightHeight = 300
+
+    // Create a bright rectangle to highlight the tower menu area
+    const highlight = this.add.rectangle(width / 2, menuHighlightY, width, menuHighlightHeight, 0xffd700, 0.3)
+    highlight.setStrokeStyle(4, 0xffd700, 1)
+
+    // Pulsing animation for highlight
+    this.tweens.add({
+      targets: highlight,
+      alpha: { from: 0.3, to: 0.6 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1
+    })
+
+    // Tutorial text panel
+    const panelY = height / 2 - 100
+    const textPanel = this.add.rectangle(width / 2, panelY, width - 80, 200, 0x1a1a1a, 0.95)
+    textPanel.setStrokeStyle(3, 0xffd700)
+
+    // Title
+    const title = this.add.text(width / 2, panelY - 70, 'WELCOME!', {
+      fontSize: '36px',
+      color: '#ffd700',
+      fontStyle: 'bold',
+      fontFamily: 'Arial Black'
+    }).setOrigin(0.5)
+
+    // Instructions - split into two separate texts
+    const tapText = this.add.text(width / 2, panelY - 5,
+      'TAP towers at the bottom to select', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontFamily: 'Arial',
+      align: 'center'
+    }).setOrigin(0.5)
+
+    const swipeText = this.add.text(width / 2, panelY + 25,
+      'Tap the dots at the bottom or swipe to see more towers!', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontFamily: 'Arial',
+      align: 'center'
+    }).setOrigin(0.5)
+
+    // Hand icon pointing down (using text emoji/arrow)
+    const handIcon = this.add.text(width / 2, panelY + 60, '👇', {
+      fontSize: '48px'
+    }).setOrigin(0.5)
+
+    // Bouncing animation for hand
+    this.tweens.add({
+      targets: handIcon,
+      y: panelY + 70,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+
+    // Got it button
+    const buttonBg = this.add.rectangle(width / 2, height - 60, 200, 60, 0x00aa00)
+    buttonBg.setStrokeStyle(3, 0x00ff00)
+    buttonBg.setInteractive({ useHandCursor: true })
+      .on('pointerover', () => buttonBg.setScale(1.05))
+      .on('pointerout', () => buttonBg.setScale(1))
+      .on('pointerup', () => this.closeTutorial())
+
+    const buttonText = this.add.text(width / 2, height - 60, 'GOT IT!', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      fontFamily: 'Arial Black'
+    }).setOrigin(0.5)
+
+    // Add all to container
+    this.tutorialContainer.add([
+      overlay,
+      highlight,
+      textPanel,
+      title,
+      tapText,
+      swipeText,
+      handIcon,
+      buttonBg,
+      buttonText
+    ])
+  }
+
+  private closeTutorial() {
+    // Mark tutorial as seen
+    localStorage.setItem('towerDefenseTutorialSeen', 'true')
+    this.hasSeenTutorial = true
+
+    // Destroy tutorial container
+    if (this.tutorialContainer) {
+      this.tutorialContainer.destroy()
+    }
+  }
+
+  private togglePauseMenu() {
+    this.isPaused = !this.isPaused
+    this.pauseMenuContainer.setVisible(this.isPaused)
+
+    if (this.isPaused) {
+      // Pause the game completely (physics, tweens, time, but keep input active)
+      this.physics.pause()
+      this.tweens.pauseAll()
+      this.time.paused = true
+    } else {
+      // Resume the game
+      this.physics.resume()
+      this.tweens.resumeAll()
+      this.time.paused = false
+    }
   }
 
   private async setupTowerMenu() {
@@ -1677,7 +1934,7 @@ export class TowerDefenseScene extends Phaser.Scene {
 
               // Update selected tower text
               if (this.selectedTowerText) {
-                this.selectedTowerText.setText(`Selected: ${towerConfig.name} ($${towerConfig.cost}) - Click map to place or ESC to cancel`)
+                this.selectedTowerText.setText('TAP MAP TO PLACE')
                 this.selectedTowerText.setVisible(true)
               }
 
@@ -2829,8 +3086,6 @@ export class TowerDefenseScene extends Phaser.Scene {
   private createTowerSpriteIcon(type: number, x: number, y: number): Phaser.GameObjects.Container {
     const container = this.add.container(x, y)
 
-    // Sprite should already be loaded by setupTowerMenu preload
-
     // Get sprite configuration
     const spriteConfigs: Record<number, any> = {
       1: SPRITE_CONFIGS.FOCUSED_FALCON,
@@ -2853,35 +3108,46 @@ export class TowerDefenseScene extends Phaser.Scene {
 
     const config = spriteConfigs[type]
     if (config) {
-      // Per-tower offsets to center the actual character body (not the transparent sprite bounds)
-      // These offsets compensate for transparent space in sprite sheets
-      const bodyOffsets: Record<number, { x: number; y: number }> = {
-        1: { x: 22, y: -21 },    // Focused Falcon
-        2: { x: 10, y: -10 },   // Ambitious Angel
-        3: { x: 5, y: -18 },     // Motivated Monster
-        4: { x: 12, y: -5 },     // Thoughtful Harpik
-        5: { x: -7, y: -5 },     // Empathy Elephant
-        6: { x: 12, y: -10 },    // Adaptable Alien
-        7: { x: -5, y: -5 },     // Fearless Fairy
-        8: { x: 5, y: 0 },     // Notorious Ninja
-        9: { x: 0, y: -15 },     // Flex N' Fox
-        10: { x: -5, y: 0 },    // Driven Dragon
-        11: { x: 0, y: -15 },    // Balanced Beetle
-        12: { x: 0, y: -10 },   // Adventurous Astronaut
-        13: { x: 18, y: -5 },    // Creative Crab
-        14: { x: 15, y: -15 },    // Competitive Clown
-        15: { x: 5, y: -5 },    // Cynical Cat
-        16: { x: 0, y: -5 }    // Rare Robot
+      // Check if the texture exists before trying to use it
+      if (!this.textures.exists(config.key)) {
+        console.warn(`Texture ${config.key} not loaded, using fallback icon`)
+        return this.createTowerIcon(type, x, y)
       }
 
-      const offset = bodyOffsets[type] || { x: 0, y: 0 }
+      try {
+        // Per-tower offsets to center the actual character body (not the transparent sprite bounds)
+        // These offsets compensate for transparent space in sprite sheets
+        const bodyOffsets: Record<number, { x: number; y: number }> = {
+          1: { x: 22, y: -21 },    // Focused Falcon
+          2: { x: 10, y: -10 },   // Ambitious Angel
+          3: { x: 5, y: -18 },     // Motivated Monster
+          4: { x: 12, y: -5 },     // Thoughtful Harpik
+          5: { x: -7, y: -5 },     // Empathy Elephant
+          6: { x: 12, y: -10 },    // Adaptable Alien
+          7: { x: -5, y: -5 },     // Fearless Fairy
+          8: { x: 5, y: 0 },     // Notorious Ninja
+          9: { x: 0, y: -15 },     // Flex N' Fox
+          10: { x: -5, y: 0 },    // Driven Dragon
+          11: { x: 0, y: -15 },    // Balanced Beetle
+          12: { x: 0, y: -10 },   // Adventurous Astronaut
+          13: { x: 18, y: -5 },    // Creative Crab
+          14: { x: 15, y: -15 },    // Competitive Clown
+          15: { x: 5, y: -5 },    // Cynical Cat
+          16: { x: 0, y: -5 }    // Rare Robot
+        }
 
-      // Create sprite showing first frame (frame 0)
-      const sprite = this.add.sprite(offset.x, offset.y, config.key, 0)
-      sprite.setOrigin(0.5, 0.5) // Center the sprite
-      sprite.setScale(0.25) // Tower selection display scale
-      sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
-      container.add(sprite)
+        const offset = bodyOffsets[type] || { x: 0, y: 0 }
+
+        // Create sprite showing first frame (frame 0)
+        const sprite = this.add.sprite(offset.x, offset.y, config.key, 0)
+        sprite.setOrigin(0.5, 0.5) // Center the sprite
+        sprite.setScale(0.25) // Tower selection display scale
+        sprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+        container.add(sprite)
+      } catch (error) {
+        console.error(`Error creating sprite icon for tower ${type}:`, error)
+        return this.createTowerIcon(type, x, y)
+      }
     } else {
       // Fallback to old icon if no sprite config
       return this.createTowerIcon(type, x, y)

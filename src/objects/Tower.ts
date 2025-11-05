@@ -138,64 +138,77 @@ export class Tower extends Phaser.GameObjects.Container {
 
   // Helper method to create sprite-based tower
   private createSpriteBasedTower(scene: Phaser.Scene, spriteKey: string, animPrefix: string, scale: number, mainColor: number, mirrorDirection: 'left' | 'right') {
-    // Store animation prefix and mirror direction for direction updates
-    this.animPrefix = animPrefix
-    this.mirrorDirection = mirrorDirection
-
-    // Create body container for consistency
-    this.bodyContainer = scene.add.container(0, 0)
-    this.add(this.bodyContainer)
-
-    // Per-tower offsets to center the actual character body (not the transparent sprite bounds)
-    // These offsets compensate for transparent space in sprite sheets
-    const bodyOffsets: Record<number, { x: number; y: number }> = {
-      1: { x: 12, y: -21 },    // Focused Falcon
-      2: { x: 10, y: -10 },   // Ambitious Angel
-      3: { x: 5, y: -18 },     // Motivated Monster
-      4: { x: 5, y: -5 },     // Thoughtful Harpik
-      5: { x: -7, y: -5 },     // Empathy Elephant
-      6: { x: 12, y: -10 },    // Adaptable Alien
-      7: { x: -5, y: -5 },     // Fearless Fairy
-      8: { x: 5, y: 0 },     // Notorious Ninja
-      9: { x: 0, y: -15 },     // Flex N' Fox
-      10: { x: -5, y: 0 },    // Driven Dragon
-      11: { x: 0, y: -15 },    // Balanced Beetle
-      12: { x: 0, y: -10 },   // Adventurous Astronaut
-      13: { x: 18, y: -5 },    // Creative Crab
-      14: { x: 15, y: -15 },    // Competitive Clown
-      15: { x: 5, y: -5 },    // Cynical Cat
-      16: { x: 0, y: -5 }    // Rare Robot
+    // Check if texture exists
+    if (!scene.textures.exists(spriteKey)) {
+      console.warn(`Texture ${spriteKey} not found, using fallback graphics for tower type ${this.stats.type}`)
+      // Fall back to procedural tower creation
+      this.createDefaultTower(scene)
+      return
     }
 
-    const offset = bodyOffsets[this.stats.type] || { x: 0, y: -5 }
+    try {
+      // Store animation prefix and mirror direction for direction updates
+      this.animPrefix = animPrefix
+      this.mirrorDirection = mirrorDirection
 
-    // Create sprite (frames are 540x450, so scale down)
-    this.characterSprite = scene.add.sprite(offset.x, offset.y, spriteKey, 0)
-    this.characterSprite.setScale(scale)
-    this.characterSprite.setOrigin(0.5, 0.5) // Center origin to show full character
-    this.characterSprite.setTexture(spriteKey, 0)
-    this.characterSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
-    this.bodyContainer.add(this.characterSprite)
+      // Create body container for consistency
+      this.bodyContainer = scene.add.container(0, 0)
+      this.add(this.bodyContainer)
 
-    // Set towerGraphic for interaction
-    this.towerGraphic = this.characterSprite as any
+      // Per-tower offsets to center the actual character body (not the transparent sprite bounds)
+      // These offsets compensate for transparent space in sprite sheets
+      const bodyOffsets: Record<number, { x: number; y: number }> = {
+        1: { x: 12, y: -21 },    // Focused Falcon
+        2: { x: 10, y: -10 },   // Ambitious Angel
+        3: { x: 5, y: -18 },     // Motivated Monster
+        4: { x: 5, y: -5 },     // Thoughtful Harpik
+        5: { x: -7, y: -5 },     // Empathy Elephant
+        6: { x: 12, y: -10 },    // Adaptable Alien
+        7: { x: -5, y: -5 },     // Fearless Fairy
+        8: { x: 5, y: 0 },     // Notorious Ninja
+        9: { x: 0, y: -15 },     // Flex N' Fox
+        10: { x: -5, y: 0 },    // Driven Dragon
+        11: { x: 0, y: -15 },    // Balanced Beetle
+        12: { x: 0, y: -10 },   // Adventurous Astronaut
+        13: { x: 18, y: -5 },    // Creative Crab
+        14: { x: 15, y: -15 },    // Competitive Clown
+        15: { x: 5, y: -5 },    // Cynical Cat
+        16: { x: 0, y: -5 }    // Rare Robot
+      }
 
-    // Make the sprite interactive
-    this.characterSprite.setInteractive()
+      const offset = bodyOffsets[this.stats.type] || { x: 0, y: -5 }
 
-    // Play idle animation if it exists
-    const idleAnim = `${animPrefix}-idle-front`
-    if (scene.anims.exists(idleAnim)) {
-      this.characterSprite.play(idleAnim)
+      // Create sprite (frames are 540x450, so scale down)
+      this.characterSprite = scene.add.sprite(offset.x, offset.y, spriteKey, 0)
+      this.characterSprite.setScale(scale)
+      this.characterSprite.setOrigin(0.5, 0.5) // Center origin to show full character
+      this.characterSprite.setTexture(spriteKey, 0)
+      this.characterSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST)
+      this.bodyContainer.add(this.characterSprite)
+
+      // Set towerGraphic for interaction
+      this.towerGraphic = this.characterSprite as any
+
+      // Make the sprite interactive
+      this.characterSprite.setInteractive()
+
+      // Play idle animation if it exists
+      const idleAnim = `${animPrefix}-idle-front`
+      if (scene.anims.exists(idleAnim)) {
+        this.characterSprite.play(idleAnim)
+      }
+
+      this.addGlow(scene, mainColor, 30)
+
+      // Also store in legacy sprite properties for backward compatibility
+      if (animPrefix === 'monster') this.monsterSprite = this.characterSprite
+      if (animPrefix === 'elephant') this.elephantSprite = this.characterSprite
+      if (animPrefix === 'fairy') this.fairySprite = this.characterSprite
+      if (animPrefix === 'cat') this.catSprite = this.characterSprite
+    } catch (error) {
+      console.error(`Error creating sprite-based tower ${this.stats.type}:`, error)
+      this.createDefaultTower(scene)
     }
-
-    this.addGlow(scene, mainColor, 30)
-
-    // Also store in legacy sprite properties for backward compatibility
-    if (animPrefix === 'monster') this.monsterSprite = this.characterSprite
-    if (animPrefix === 'elephant') this.elephantSprite = this.characterSprite
-    if (animPrefix === 'fairy') this.fairySprite = this.characterSprite
-    if (animPrefix === 'cat') this.catSprite = this.characterSprite
   }
 
   private createTowerVisual(scene: Phaser.Scene) {
@@ -6687,8 +6700,8 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   private findTarget(enemies: Phaser.GameObjects.Group): any {
-    let closest: any = null
-    let closestDist = this.stats.range
+    let target: any = null
+    let furthestProgress = -1
 
     enemies.children.entries.forEach((enemy: any) => {
       if (!enemy.active) return
@@ -6700,13 +6713,20 @@ export class Tower extends Phaser.GameObjects.Container {
         enemy.y
       )
 
-      if (dist <= this.stats.range && dist < closestDist) {
-        closest = enemy
-        closestDist = dist
+      // Check if enemy is in range
+      if (dist <= this.stats.range) {
+        // Prioritize enemies that have traveled furthest along the path
+        // (closest to reaching the end)
+        const progress = enemy.pathIndex || 0
+
+        if (progress > furthestProgress) {
+          target = enemy
+          furthestProgress = progress
+        }
       }
     })
 
-    return closest
+    return target
   }
 
   private playThrowAnimation() {

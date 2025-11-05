@@ -11,20 +11,15 @@ export class LevelSelectionScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load level selection button images
-    this.load.image('meadow-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Button-xQwhB86avE9fBYYt4xdUxTyeoASBIK.png')
-    this.load.image('jungle-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Jungle%20Button-GOd3cqiNoU0bbPQXJRMQRrZXLRF6Mk.png')
-    this.load.image('desert-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Desert%20Button-B0ULkixQ2cLkRgxIVbMwJ7im2wDdPU.png')
-    this.load.image('mountain-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Mountain%20Button-sycFIXT2JZPVpSdAmPufYjsh3Hdeqq.png')
-    this.load.image('lava-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Lava%20Button-dCSWgRoYu5EotyIdAd2PiAHiquxb8o.png')
-    this.load.image('ice-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Ice%20button-JpODQ9jHLtnhqxQjn5Tc2Q3XR3VMkc.png')
+    // Assets are preloaded in LoadingScene
   }
 
   create() {
     const { width, height } = this.cameras.main
 
     // Background
-    this.add.rectangle(width / 2, height / 2, width, height, 0x2a2a2a)
+    const background = this.add.image(width / 2, height / 2, 'level-select-background')
+    background.setDisplaySize(width, height)
 
     // Title
     const title = this.add.text(width / 2, 160, 'LEVEL SELECT', {
@@ -33,11 +28,6 @@ export class LevelSelectionScene extends Phaser.Scene {
       fontStyle: 'bold'
     })
     title.setOrigin(0.5)
-
-    // How to Play button (top right)
-    const howToPlayBtn = this.createButton(width - 150, 50, 250, 60, 'HOW TO PLAY', 0x2196F3, () => {
-      this.scene.start('HowToPlayScene')
-    })
 
     // Map data
     const maps = [

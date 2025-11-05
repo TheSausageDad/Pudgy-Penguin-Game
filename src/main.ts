@@ -1,3 +1,4 @@
+import { LoadingScene } from "./scenes/LoadingScene"
 import { StartScene } from "./scenes/StartScene"
 import { LevelSelectionScene } from "./scenes/LevelSelectionScene"
 import { TowerDefenseScene } from "./scenes/TowerDefenseScene"
@@ -20,7 +21,7 @@ const config: Phaser.Types.Core.GameConfig = {
     height: GameSettings.canvas.height,
   },
   backgroundColor: "#1a1a1a",
-  scene: [StartScene, LevelSelectionScene, HowToPlayScene, TowerDefenseScene],
+  scene: [LoadingScene, StartScene, LevelSelectionScene, HowToPlayScene, TowerDefenseScene],
   physics: {
     default: "arcade",
   },

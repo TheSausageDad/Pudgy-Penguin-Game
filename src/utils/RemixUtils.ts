@@ -61,8 +61,18 @@ export function initializeRemixSDK(game: Phaser.Game): void {
 
   // Setup play_again handler
   window.FarcadeSDK.on("play_again", () => {
-    // TODO: Restart the game
-    // Your game restart logic is called here
+    // Restart the game by going back to the home screen (StartScene)
+    const currentScene = game.scene.getScenes(true)[0]
+    if (currentScene) {
+      // Stop all scenes
+      game.scene.scenes.forEach(scene => {
+        if (scene.scene.isActive()) {
+          scene.scene.stop()
+        }
+      })
+      // Start the home screen (StartScene)
+      game.scene.start('StartScene')
+    }
 
     // Attempt to bring focus back to the game canvas
     try {
