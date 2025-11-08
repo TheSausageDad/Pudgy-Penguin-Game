@@ -1,4 +1,6 @@
 export class StartScene extends Phaser.Scene {
+  private menuMusic?: Phaser.Sound.BaseSound
+
   constructor() {
     super({ key: 'StartScene' })
   }
@@ -9,6 +11,12 @@ export class StartScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.cameras.main
+
+    // Start menu music
+    if (!this.menuMusic || !this.menuMusic.isPlaying) {
+      this.menuMusic = this.sound.add('menuMusic', { loop: true, volume: 0.5 })
+      this.menuMusic.play()
+    }
 
     // Add background image
     const background = this.add.image(width / 2, height / 2, 'start-background')
@@ -26,6 +34,9 @@ export class StartScene extends Phaser.Scene {
       if (pointer.event) {
         pointer.event.stopPropagation()
       }
+
+      // Play button sound
+      this.sound.play('playButtonSound', { volume: 0.5 })
 
       // Disable the button and input to prevent multiple clicks
       playButton.disableInteractive()

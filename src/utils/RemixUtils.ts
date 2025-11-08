@@ -60,27 +60,34 @@ export function initializeRemixSDK(game: Phaser.Game): void {
   })
 
   // Setup play_again handler
-  window.FarcadeSDK.on("play_again", () => {
-    // Restart the game by going back to the home screen (StartScene)
-    const currentScene = game.scene.getScenes(true)[0]
-    if (currentScene) {
-      // Stop all scenes
-      game.scene.scenes.forEach(scene => {
-        if (scene.scene.isActive()) {
-          scene.scene.stop()
-        }
-      })
-      // Start the home screen (StartScene)
-      game.scene.start('StartScene')
-    }
+  const playAgainHandler = () => {
+    console.log('🎮 REMIX SDK play_again triggered!')
+    console.log('Current scenes:', game.scene.scenes.map(s => s.scene.key))
+
+    // Stop all active scenes
+    game.scene.scenes.forEach(scene => {
+      if (scene.scene.isActive()) {
+        console.log('Stopping scene:', scene.scene.key)
+        scene.scene.stop()
+      }
+    })
+
+    // Start the level selection screen
+    console.log('Starting LevelSelectionScene')
+    game.scene.start('LevelSelectionScene')
 
     // Attempt to bring focus back to the game canvas
     try {
       game.canvas.focus()
     } catch (e) {
-      // Could not programmatically focus game canvas
+      console.error('Could not focus canvas:', e)
     }
-  })
+  }
+
+  window.FarcadeSDK.on("play_again", playAgainHandler)
+
+  // FOR TESTING: Make handler globally accessible
+  ;(window as any).testPlayAgain = playAgainHandler
 }
 
 // Initialize development features (separate from SDK)

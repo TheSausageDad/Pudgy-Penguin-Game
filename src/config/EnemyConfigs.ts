@@ -5,8 +5,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 1,
     name: 'Orange Carrot',
-    health: 25,
-    speed: 60,
+    health: 35,
+    speed: 70,
     reward: 10,
     damage: 1,
     color: 0xFF8C00
@@ -15,8 +15,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 2,
     name: 'Yellow Carrot',
-    health: 20,
-    speed: 90,
+    health: 28,
+    speed: 105,
     reward: 12,
     damage: 1,
     color: 0xFFD700
@@ -25,8 +25,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 3,
     name: 'Purple Carrot',
-    health: 40,
-    speed: 45,
+    health: 60,
+    speed: 55,
     reward: 15,
     damage: 1,
     color: 0x9370DB
@@ -35,8 +35,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 4,
     name: 'Black Carrot',
-    health: 80,
-    speed: 65,
+    health: 120,
+    speed: 80,
     reward: 30,
     damage: 2,
     color: 0x2C2C2C
@@ -45,8 +45,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 5,
     name: 'Steel Carrot',
-    health: 150,
-    speed: 40,
+    health: 220,
+    speed: 50,
     reward: 45,
     damage: 2,
     color: 0x708090
@@ -55,8 +55,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 6,
     name: 'White Carrot',
-    health: 70,
-    speed: 100,
+    health: 100,
+    speed: 120,
     reward: 35,
     damage: 2,
     color: 0xF5F5F5
@@ -65,8 +65,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 7,
     name: 'Blue Carrot',
-    health: 180,
-    speed: 75,
+    health: 270,
+    speed: 90,
     reward: 70,
     damage: 3,
     color: 0x4169E1
@@ -75,8 +75,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 8,
     name: 'Fire Carrot',
-    health: 150,
-    speed: 85,
+    health: 220,
+    speed: 105,
     reward: 80,
     damage: 4,
     color: 0xFF4500
@@ -85,8 +85,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 9,
     name: 'Icy Carrot',
-    health: 350,
-    speed: 50,
+    health: 520,
+    speed: 65,
     reward: 120,
     damage: 4,
     color: 0x87CEEB
@@ -95,8 +95,8 @@ export const ENEMY_CONFIGS: EnemyStats[] = [
   {
     type: 10,
     name: 'Green Carrot',
-    health: 500,
-    speed: 60,
+    health: 750,
+    speed: 75,
     reward: 200,
     damage: 5,
     color: 0x32CD32
@@ -111,129 +111,129 @@ export function getAllEnemyConfigs(): EnemyStats[] {
   return ENEMY_CONFIGS
 }
 
-// Wave composition - Balanced progression with 10 carrot types
+// Wave composition - Aggressive progression with 10 carrot types
 export function getWaveEnemies(waveNumber: number): { type: number, count: number }[] {
   const waves: { type: number, count: number }[] = []
 
-  // Waves 1-5: Tutorial - Only Orange Carrots
-  if (waveNumber <= 5) {
-    waves.push({ type: 1, count: 3 + waveNumber * 2 })
+  // Waves 1-3: Quick tutorial - Only Orange Carrots
+  if (waveNumber <= 3) {
+    waves.push({ type: 1, count: 5 + waveNumber * 3 })
     return waves
   }
 
-  // Waves 6-10: Introduce Yellow Carrot (fast)
-  if (waveNumber <= 10) {
-    waves.push({ type: 1, count: 8 + waveNumber })
-    waves.push({ type: 2, count: Math.floor((waveNumber - 5) * 1.5) })
+  // Waves 4-8: Introduce Yellow Carrot (fast) early
+  if (waveNumber <= 8) {
+    waves.push({ type: 1, count: 12 + waveNumber * 2 })
+    waves.push({ type: 2, count: Math.floor((waveNumber - 3) * 2) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 11-15: Introduce Purple Carrot (tanky)
-  if (waveNumber <= 15) {
-    waves.push({ type: 1, count: 10 + waveNumber })
-    waves.push({ type: 2, count: 5 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: Math.floor((waveNumber - 10) * 1.2) })
+  // Waves 9-12: Introduce Purple Carrot (tanky)
+  if (waveNumber <= 12) {
+    waves.push({ type: 1, count: 15 + waveNumber * 2 })
+    waves.push({ type: 2, count: 8 + waveNumber })
+    waves.push({ type: 3, count: Math.floor((waveNumber - 8) * 2) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 16-22: Introduce Black Carrot (intermediate)
-  if (waveNumber <= 22) {
-    waves.push({ type: 1, count: 12 + waveNumber })
-    waves.push({ type: 2, count: 8 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 5 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: Math.floor((waveNumber - 15) / 2) })
+  // Waves 13-18: Introduce Black Carrot (intermediate)
+  if (waveNumber <= 18) {
+    waves.push({ type: 1, count: 18 + waveNumber * 2 })
+    waves.push({ type: 2, count: 12 + waveNumber })
+    waves.push({ type: 3, count: 8 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: Math.floor((waveNumber - 12) * 1.5) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 23-30: Introduce Steel Carrot (very tanky)
-  if (waveNumber <= 30) {
-    waves.push({ type: 1, count: 15 + waveNumber })
-    waves.push({ type: 2, count: 10 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 8 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: 4 + Math.floor(waveNumber / 4) })
-    waves.push({ type: 5, count: Math.floor((waveNumber - 22) / 2) })
+  // Waves 19-25: Introduce Steel Carrot (very tanky)
+  if (waveNumber <= 25) {
+    waves.push({ type: 1, count: 22 + waveNumber * 2 })
+    waves.push({ type: 2, count: 15 + waveNumber })
+    waves.push({ type: 3, count: 12 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: 6 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 5, count: Math.floor((waveNumber - 18) * 1.5) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 31-40: Introduce White Carrot (fast threat)
-  if (waveNumber <= 40) {
-    waves.push({ type: 1, count: 18 + waveNumber })
-    waves.push({ type: 2, count: 12 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 10 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: 6 + Math.floor(waveNumber / 4) })
-    waves.push({ type: 5, count: 3 + Math.floor(waveNumber / 5) })
-    waves.push({ type: 6, count: Math.floor((waveNumber - 30) / 2) })
+  // Waves 26-32: Introduce White Carrot (fast threat)
+  if (waveNumber <= 32) {
+    waves.push({ type: 1, count: 26 + waveNumber * 2 })
+    waves.push({ type: 2, count: 18 + waveNumber })
+    waves.push({ type: 3, count: 15 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: 10 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 5, count: 5 + Math.floor(waveNumber / 3) })
+    waves.push({ type: 6, count: Math.floor((waveNumber - 25) * 1.5) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 41-52: Introduce Blue Carrot (hard)
+  // Waves 33-42: Introduce Blue Carrot (hard)
+  if (waveNumber <= 42) {
+    waves.push({ type: 1, count: 30 + waveNumber * 2 })
+    waves.push({ type: 2, count: 22 + waveNumber })
+    waves.push({ type: 3, count: 18 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: 14 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 5, count: 8 + Math.floor(waveNumber / 3) })
+    waves.push({ type: 6, count: 6 + Math.floor(waveNumber / 4) })
+    waves.push({ type: 7, count: Math.floor((waveNumber - 32) * 1.2) })
+    return waves.filter(w => w.count > 0)
+  }
+
+  // Waves 43-52: Introduce Fire Carrot (high damage)
   if (waveNumber <= 52) {
-    waves.push({ type: 1, count: 20 + waveNumber })
-    waves.push({ type: 2, count: 15 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 12 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: 8 + Math.floor(waveNumber / 4) })
-    waves.push({ type: 5, count: 5 + Math.floor(waveNumber / 5) })
-    waves.push({ type: 6, count: 4 + Math.floor(waveNumber / 6) })
-    waves.push({ type: 7, count: Math.floor((waveNumber - 40) / 3) })
+    waves.push({ type: 1, count: 35 + waveNumber * 2 })
+    waves.push({ type: 2, count: 28 + waveNumber })
+    waves.push({ type: 3, count: 22 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: 18 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 5, count: 12 + Math.floor(waveNumber / 3) })
+    waves.push({ type: 6, count: 10 + Math.floor(waveNumber / 4) })
+    waves.push({ type: 7, count: 5 + Math.floor(waveNumber / 5) })
+    waves.push({ type: 8, count: Math.floor((waveNumber - 42) * 1.2) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 53-65: Introduce Fire Carrot (high damage)
+  // Waves 53-65: Introduce Icy Carrot (super tanky)
   if (waveNumber <= 65) {
-    waves.push({ type: 1, count: 22 + waveNumber })
-    waves.push({ type: 2, count: 18 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 15 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: 10 + Math.floor(waveNumber / 4) })
-    waves.push({ type: 5, count: 7 + Math.floor(waveNumber / 5) })
-    waves.push({ type: 6, count: 6 + Math.floor(waveNumber / 6) })
-    waves.push({ type: 7, count: 3 + Math.floor(waveNumber / 7) })
-    waves.push({ type: 8, count: Math.floor((waveNumber - 52) / 3) })
+    waves.push({ type: 1, count: 40 + waveNumber * 2 })
+    waves.push({ type: 2, count: 32 + waveNumber })
+    waves.push({ type: 3, count: 26 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: 22 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 5, count: 16 + Math.floor(waveNumber / 3) })
+    waves.push({ type: 6, count: 14 + Math.floor(waveNumber / 4) })
+    waves.push({ type: 7, count: 8 + Math.floor(waveNumber / 5) })
+    waves.push({ type: 8, count: 5 + Math.floor(waveNumber / 6) })
+    waves.push({ type: 9, count: Math.floor((waveNumber - 52) * 1.2) })
     return waves.filter(w => w.count > 0)
   }
 
-  // Waves 66-80: Introduce Icy Carrot (super tanky)
-  if (waveNumber <= 80) {
-    waves.push({ type: 1, count: 25 + waveNumber })
-    waves.push({ type: 2, count: 20 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 18 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: 12 + Math.floor(waveNumber / 4) })
-    waves.push({ type: 5, count: 9 + Math.floor(waveNumber / 5) })
-    waves.push({ type: 6, count: 8 + Math.floor(waveNumber / 6) })
-    waves.push({ type: 7, count: 5 + Math.floor(waveNumber / 7) })
-    waves.push({ type: 8, count: 3 + Math.floor(waveNumber / 8) })
-    waves.push({ type: 9, count: Math.floor((waveNumber - 65) / 4) })
-    return waves.filter(w => w.count > 0)
-  }
-
-  // Waves 81-118: Introduce Green Carrot (boss) + final challenge
+  // Waves 66-118: Introduce Green Carrot (boss) + final challenge
   if (waveNumber <= 118) {
-    waves.push({ type: 1, count: 28 + waveNumber })
-    waves.push({ type: 2, count: 22 + Math.floor(waveNumber / 2) })
-    waves.push({ type: 3, count: 20 + Math.floor(waveNumber / 3) })
-    waves.push({ type: 4, count: 15 + Math.floor(waveNumber / 4) })
-    waves.push({ type: 5, count: 11 + Math.floor(waveNumber / 5) })
-    waves.push({ type: 6, count: 10 + Math.floor(waveNumber / 6) })
-    waves.push({ type: 7, count: 7 + Math.floor(waveNumber / 7) })
-    waves.push({ type: 8, count: 5 + Math.floor(waveNumber / 8) })
-    waves.push({ type: 9, count: 3 + Math.floor(waveNumber / 9) })
-    if (waveNumber >= 81) {
-      waves.push({ type: 10, count: Math.floor((waveNumber - 80) / 5) })
+    waves.push({ type: 1, count: 45 + waveNumber * 2 })
+    waves.push({ type: 2, count: 36 + waveNumber })
+    waves.push({ type: 3, count: 30 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 4, count: 26 + Math.floor(waveNumber / 2) })
+    waves.push({ type: 5, count: 20 + Math.floor(waveNumber / 3) })
+    waves.push({ type: 6, count: 18 + Math.floor(waveNumber / 4) })
+    waves.push({ type: 7, count: 12 + Math.floor(waveNumber / 5) })
+    waves.push({ type: 8, count: 8 + Math.floor(waveNumber / 6) })
+    waves.push({ type: 9, count: 5 + Math.floor(waveNumber / 7) })
+    if (waveNumber >= 66) {
+      waves.push({ type: 10, count: Math.floor((waveNumber - 65) / 4) })
     }
     return waves.filter(w => w.count > 0)
   }
 
-  // Endless mode (100+): All 10 carrot types with scaling
-  const endlessMultiplier = 1 + (waveNumber - 100) * 0.15
-  waves.push({ type: 1, count: Math.floor((30 + waveNumber) * endlessMultiplier) })
-  waves.push({ type: 2, count: Math.floor((25 + waveNumber / 2) * endlessMultiplier) })
-  waves.push({ type: 3, count: Math.floor((22 + waveNumber / 3) * endlessMultiplier) })
-  waves.push({ type: 4, count: Math.floor((18 + waveNumber / 4) * endlessMultiplier) })
-  waves.push({ type: 5, count: Math.floor((14 + waveNumber / 5) * endlessMultiplier) })
-  waves.push({ type: 6, count: Math.floor((12 + waveNumber / 6) * endlessMultiplier) })
-  waves.push({ type: 7, count: Math.floor((10 + waveNumber / 7) * endlessMultiplier) })
-  waves.push({ type: 8, count: Math.floor((8 + waveNumber / 8) * endlessMultiplier) })
-  waves.push({ type: 9, count: Math.floor((6 + waveNumber / 9) * endlessMultiplier) })
-  waves.push({ type: 10, count: Math.floor((4 + waveNumber / 10) * endlessMultiplier) })
+  // Endless mode (119+): All 10 carrot types with scaling
+  const endlessMultiplier = 1 + (waveNumber - 118) * 0.08
+  waves.push({ type: 1, count: Math.floor(50 * endlessMultiplier) })
+  waves.push({ type: 2, count: Math.floor(42 * endlessMultiplier) })
+  waves.push({ type: 3, count: Math.floor(36 * endlessMultiplier) })
+  waves.push({ type: 4, count: Math.floor(30 * endlessMultiplier) })
+  waves.push({ type: 5, count: Math.floor(26 * endlessMultiplier) })
+  waves.push({ type: 6, count: Math.floor(22 * endlessMultiplier) })
+  waves.push({ type: 7, count: Math.floor(18 * endlessMultiplier) })
+  waves.push({ type: 8, count: Math.floor(14 * endlessMultiplier) })
+  waves.push({ type: 9, count: Math.floor(12 * endlessMultiplier) })
+  waves.push({ type: 10, count: Math.floor(10 * endlessMultiplier) })
 
   return waves.filter(w => w.count > 0)
 }

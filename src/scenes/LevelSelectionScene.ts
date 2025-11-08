@@ -17,6 +17,19 @@ export class LevelSelectionScene extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main
 
+    // Stop game music if it's playing and start menu music
+    const gameMusic = this.sound.get('bgMusic')
+    if (gameMusic) {
+      gameMusic.stop()
+      gameMusic.destroy()
+    }
+
+    // Start menu music if not already playing
+    if (!this.sound.get('menuMusic')) {
+      const menuMusic = this.sound.add('menuMusic', { loop: true, volume: 0.5 })
+      menuMusic.play()
+    }
+
     // Background
     const background = this.add.image(width / 2, height / 2, 'level-select-background')
     background.setDisplaySize(width, height)
@@ -111,6 +124,9 @@ export class LevelSelectionScene extends Phaser.Scene {
 
     this.isTransitioning = true
     console.log(`Starting map ${mapId}`)
+
+    // Play level start sound
+    this.sound.play('levelStartSound', { volume: 0.5 })
 
     // Stop this scene and start the game
     this.scene.stop('LevelSelectionScene')

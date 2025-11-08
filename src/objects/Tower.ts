@@ -30,11 +30,11 @@ const TOWER_SPRITE_CONFIG: Record<number, { spriteKey: string; animPrefix: strin
   3: { spriteKey: 'motivated-monster', animPrefix: 'monster', scale: 0.18, mirrorDirection: 'left' },
   4: { spriteKey: 'thoughtful-harpik', animPrefix: 'harpik', scale: 0.18, mirrorDirection: 'right' },
   5: { spriteKey: 'empathy-elephant', animPrefix: 'elephant', scale: 0.18, mirrorDirection: 'right' },
-  6: { spriteKey: 'adaptable-alien', animPrefix: 'alien', scale: 0.18, mirrorDirection: 'left' },
+  6: { spriteKey: 'adaptable-alien', animPrefix: 'alien', scale: 0.20, mirrorDirection: 'left' },
   7: { spriteKey: 'fearless-fairy', animPrefix: 'fairy', scale: 0.18, mirrorDirection: 'left' },
   8: { spriteKey: 'notorious-ninja', animPrefix: 'ninja', scale: 0.18, mirrorDirection: 'left' },
   9: { spriteKey: 'flex-n-fox', animPrefix: 'fox', scale: 0.18, mirrorDirection: 'left' },
-  10: { spriteKey: 'driven-dragon', animPrefix: 'dragon', scale: 0.09, mirrorDirection: 'left' }, // Dragon has 1080px wide frames (2x) - use half scale
+  10: { spriteKey: 'driven-dragon', animPrefix: 'dragon', scale: 0.18, mirrorDirection: 'left' }, // Dragon - matched to other tower sizes
   11: { spriteKey: 'balanced-beetle', animPrefix: 'beetle', scale: 0.18, mirrorDirection: 'right' },
   12: { spriteKey: 'adventurous-astronaut', animPrefix: 'astronaut', scale: 0.18, mirrorDirection: 'left' },
   13: { spriteKey: 'creative-crab', animPrefix: 'crab', scale: 0.18, mirrorDirection: 'left' },
@@ -51,6 +51,7 @@ export class Tower extends Phaser.GameObjects.Container {
 
   private lastFireTime: number = 0
   private rangeCircle: Phaser.GameObjects.Arc
+  private clickCircle!: Phaser.GameObjects.Arc
   private towerGraphic!: Phaser.GameObjects.Shape | Phaser.GameObjects.Sprite
   private target: any = null
   private levelText: Phaser.GameObjects.Text | null = null
@@ -92,22 +93,27 @@ export class Tower extends Phaser.GameObjects.Container {
 
     // Range indicator (hidden by default)
     this.rangeCircle = scene.add.circle(0, 0, this.stats.range, 0xffffff, 0)
-    this.rangeCircle.setStrokeStyle(3, this.stats.color, 0.5)
+    this.rangeCircle.setStrokeStyle(3, this.stats.color, 0) // Start with alpha 0 (hidden)
+    this.rangeCircle.setInteractive(false) // Don't block clicks
+    this.rangeCircle.input = null as any // Disable input completely
     this.add(this.rangeCircle)
 
-    // Create a very small invisible hit area for clicking
-    // This prevents towers from being unclickable when placed close together
-    const clickCircle = scene.add.circle(0, 0, 12, 0xff0000, 0)
-    this.add(clickCircle)
+    // Create a smaller fixed-size invisible hit area for clicking
+    // This stays the same size even when tower scales up
+    this.clickCircle = scene.add.circle(0, 0, 25, 0xff0000, 0)
+    this.add(this.clickCircle)
 
-    clickCircle.setInteractive({ useHandCursor: true })
+    this.clickCircle.setInteractive({ useHandCursor: true })
       .on('pointerover', () => {
-        this.rangeCircle.setAlpha(0.3)
+        // Only show scale effect on hover, not range
         this.setScale(1.05)
+        // Keep click circle at fixed size
+        this.clickCircle.setScale(1 / 1.05)
       })
       .on('pointerout', () => {
-        this.rangeCircle.setAlpha(0)
         this.setScale(1)
+        // Keep click circle at fixed size
+        this.clickCircle.setScale(1)
       })
       .on('pointerdown', () => {
         scene.events.emit('towerClicked', this)
@@ -163,7 +169,7 @@ export class Tower extends Phaser.GameObjects.Container {
         3: { x: 5, y: -18 },     // Motivated Monster
         4: { x: 5, y: -5 },     // Thoughtful Harpik
         5: { x: -7, y: -5 },     // Empathy Elephant
-        6: { x: 12, y: -10 },    // Adaptable Alien
+        6: { x: 8, y: -10 },    // Adaptable Alien
         7: { x: -5, y: -5 },     // Fearless Fairy
         8: { x: 5, y: 0 },     // Notorious Ninja
         9: { x: 0, y: -15 },     // Flex N' Fox
@@ -6636,7 +6642,7 @@ export class Tower extends Phaser.GameObjects.Container {
           3: { x: 5, y: -18 },     // Motivated Monster
           4: { x: 5, y: -5 },     // Thoughtful Harpik
           5: { x: -7, y: -5 },     // Empathy Elephant
-          6: { x: 12, y: -10 },    // Adaptable Alien
+          6: { x: 3, y: -10 },    // Adaptable Alien
           7: { x: -5, y: -5 },     // Fearless Fairy
           8: { x: 5, y: 0 },     // Notorious Ninja
           9: { x: 0, y: -15 },     // Flex N' Fox
@@ -7667,5 +7673,13 @@ export class Tower extends Phaser.GameObjects.Container {
     // 70% refund of base cost + all upgrade costs
     const totalInvestment = this.stats.cost + this.totalUpgradeCost
     return Math.floor(totalInvestment * 0.7)
+  }
+
+  showRange() {
+    this.rangeCircle.setStrokeStyle(3, this.stats.color, 0.5)
+  }
+
+  hideRange() {
+    this.rangeCircle.setStrokeStyle(3, this.stats.color, 0)
   }
 }

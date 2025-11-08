@@ -22,6 +22,13 @@ export class TowerDefenseScene extends Phaser.Scene {
   private enemies!: Phaser.GameObjects.Group
   private projectiles!: Phaser.GameObjects.Group
 
+  // Performance optimization
+  private maxActiveProjectiles: number = 300
+  private maxActiveEnemies: number = 150
+  private updateSkipCounter: number = 0
+  private performanceMode: boolean = false
+  private fpsHistory: number[] = []
+
   // UI
   private livesText!: Phaser.GameObjects.Text
   private coinsText!: Phaser.GameObjects.Text
@@ -67,8 +74,8 @@ export class TowerDefenseScene extends Phaser.Scene {
   init(data: { mapId: number }) {
     this.mapId = data.mapId
     this.lives = 100
-    this.coins = 650 // Starting coins for production
-    this.currentWave = 0
+    this.coins = 450 // Starting coins (reduced for higher difficulty)
+    this.currentWave = 0 // Start at wave 0
     this.isWaveActive = false
     this.gameSpeed = 1
     this.autoStartWaves = false
@@ -79,9 +86,57 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   preload() {
-    // With lazy loading, we don't load tower sprites here
-    // They'll be loaded on-demand when towers are selected
-    console.log('[TowerDefenseScene] Using lazy loading for towers - sprites will load on demand')
+    // Show loading screen
+    const { width, height } = this.cameras.main
+    const loadingBg = this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a1a)
+    const loadingText = this.add.text(width / 2, height / 2 - 50, 'Loading Game...', {
+      fontSize: '48px',
+      color: '#ffd700',
+      fontStyle: 'bold'
+    }).setOrigin(0.5)
+
+    const progressBar = this.add.graphics()
+    const progressBox = this.add.graphics()
+    progressBox.fillStyle(0x222222, 1)
+    progressBox.fillRect(width / 2 - 160, height / 2, 320, 30)
+
+    const percentText = this.add.text(width / 2, height / 2 + 50, '0%', {
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5)
+
+    this.load.on('progress', (value: number) => {
+      progressBar.clear()
+      progressBar.fillStyle(0xffd700, 1)
+      progressBar.fillRect(width / 2 - 155, height / 2 + 5, 310 * value, 20)
+      percentText.setText(`${Math.floor(value * 100)}%`)
+    })
+
+    this.load.on('complete', () => {
+      progressBar.destroy()
+      progressBox.destroy()
+      loadingText.destroy()
+      percentText.destroy()
+      loadingBg.destroy()
+    })
+
+    // Load all tower sprites upfront
+    this.load.spritesheet(SPRITE_CONFIGS.FOCUSED_FALCON.key, SPRITE_CONFIGS.FOCUSED_FALCON.path, SPRITE_CONFIGS.FOCUSED_FALCON.config)
+    this.load.spritesheet(SPRITE_CONFIGS.AMBITIOUS_ANGEL.key, SPRITE_CONFIGS.AMBITIOUS_ANGEL.path, SPRITE_CONFIGS.AMBITIOUS_ANGEL.config)
+    this.load.spritesheet(SPRITE_CONFIGS.MOTIVATED_MONSTER.key, SPRITE_CONFIGS.MOTIVATED_MONSTER.path, SPRITE_CONFIGS.MOTIVATED_MONSTER.config)
+    this.load.spritesheet(SPRITE_CONFIGS.THOUGHTFUL_HARPIK.key, SPRITE_CONFIGS.THOUGHTFUL_HARPIK.path, SPRITE_CONFIGS.THOUGHTFUL_HARPIK.config)
+    this.load.spritesheet(SPRITE_CONFIGS.EMPATHY_ELEPHANT.key, SPRITE_CONFIGS.EMPATHY_ELEPHANT.path, SPRITE_CONFIGS.EMPATHY_ELEPHANT.config)
+    this.load.spritesheet(SPRITE_CONFIGS.ADAPTABLE_ALIEN.key, SPRITE_CONFIGS.ADAPTABLE_ALIEN.path, SPRITE_CONFIGS.ADAPTABLE_ALIEN.config)
+    this.load.spritesheet(SPRITE_CONFIGS.FEARLESS_FAIRY.key, SPRITE_CONFIGS.FEARLESS_FAIRY.path, SPRITE_CONFIGS.FEARLESS_FAIRY.config)
+    this.load.spritesheet(SPRITE_CONFIGS.NOTORIOUS_NINJA.key, SPRITE_CONFIGS.NOTORIOUS_NINJA.path, SPRITE_CONFIGS.NOTORIOUS_NINJA.config)
+    this.load.spritesheet(SPRITE_CONFIGS.FLEX_N_FOX.key, SPRITE_CONFIGS.FLEX_N_FOX.path, SPRITE_CONFIGS.FLEX_N_FOX.config)
+    this.load.spritesheet(SPRITE_CONFIGS.DRIVEN_DRAGON.key, SPRITE_CONFIGS.DRIVEN_DRAGON.path, SPRITE_CONFIGS.DRIVEN_DRAGON.config)
+    this.load.spritesheet(SPRITE_CONFIGS.BALANCED_BEETLE.key, SPRITE_CONFIGS.BALANCED_BEETLE.path, SPRITE_CONFIGS.BALANCED_BEETLE.config)
+    this.load.spritesheet(SPRITE_CONFIGS.ADVENTUROUS_ASTRONAUT.key, SPRITE_CONFIGS.ADVENTUROUS_ASTRONAUT.path, SPRITE_CONFIGS.ADVENTUROUS_ASTRONAUT.config)
+    this.load.spritesheet(SPRITE_CONFIGS.CREATIVE_CRAB.key, SPRITE_CONFIGS.CREATIVE_CRAB.path, SPRITE_CONFIGS.CREATIVE_CRAB.config)
+    this.load.spritesheet(SPRITE_CONFIGS.COMPETITIVE_CLOWN.key, SPRITE_CONFIGS.COMPETITIVE_CLOWN.path, SPRITE_CONFIGS.COMPETITIVE_CLOWN.config)
+    this.load.spritesheet(SPRITE_CONFIGS.CYNICAL_CAT.key, SPRITE_CONFIGS.CYNICAL_CAT.path, SPRITE_CONFIGS.CYNICAL_CAT.config)
+    this.load.spritesheet(SPRITE_CONFIGS.RARE_ROBOT.key, SPRITE_CONFIGS.RARE_ROBOT.path, SPRITE_CONFIGS.RARE_ROBOT.config)
 
     // Load UI button images
     this.load.image('menu-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Menu%20Button-Yq6zJRqINxQgosRgRYe24R5IL82GtM.png')
@@ -92,10 +147,13 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.load.image('3x-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/3x%20Button-lp9wuMiygciPVEywdjSFmQ5pWR69Yy.png')
     this.load.image('start-wave-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Start%20Wave-m9R6w6gUvYWUJ5Y7BcztPyvd8R5v5f.png')
     this.load.image('end-game-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/End%20Game%20Button-4da3DgEQn6uKGc09nu2tZOchZqaKtw.png')
+    this.load.image('tower-select-panel', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Tower%20Select%20Panel-Qwqiiu6v6HzgiqbLuzfVhZD4qVpZz2.png')
     this.load.image('level-select-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Level%20Select-Kz46ddSyt67hZYImSnfwdDQhGv0KU2.png')
+    this.load.image('endless-mode-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Endless%20mode-RqG8OqTm8QutfFFCP4kCvvwUPwJ1Sq.png')
+    this.load.image('congratulations-popup', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/CONGRATULATIONS%21-HZy1hHgRiThl3XzerkgOn78mHq7QtS.png')
 
     // Load background music
-    this.load.audio('bgMusic', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Music%20Loop-yPYC7cMLmOtbATLHj8PF8HxkCyoDqo.mp3')
+    this.load.audio('bgMusic', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/SoundTrack-8FiZpR9Jk84GBkj3DQjLSharraYBr9.mp3')
 
     // Load map background images
     this.load.image('meadow-map-bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Meadow%20Map-jgDQzJNQmX1jeqFdews23JXHhdRNyE.png')
@@ -475,10 +533,25 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.setupInput()
 
     // Setup tower menu
-    await this.setupTowerMenu()
+    this.setupTowerMenu()
 
     // Check if this is the first time playing and show tutorial
     this.checkAndShowTutorial()
+
+    // Setup Remix SDK play_again handler to go to level selection
+    if (window.FarcadeSDK) {
+      // Remove any existing play_again listeners first
+      window.FarcadeSDK.off?.('play_again')
+
+      // Add new handler to go to level selection screen
+      window.FarcadeSDK.on('play_again', () => {
+        console.log('Play again clicked - going to level selection')
+        // Stop all scenes
+        this.scene.stop('TowerDefenseScene')
+        // Start level selection scene
+        this.scene.start('LevelSelectionScene')
+      })
+    }
 
     // Listen for enemy kills to award coins
     this.events.on('enemyKilled', (reward: number) => {
@@ -492,8 +565,14 @@ export class TowerDefenseScene extends Phaser.Scene {
       this.showTowerOptions(tower)
     })
 
-    // Check if music is already playing (from StartScene)
-    // If not, start it here as a fallback
+    // Stop menu music if it's playing
+    const menuMusic = this.sound.get('menuMusic')
+    if (menuMusic) {
+      menuMusic.stop()
+      menuMusic.destroy()
+    }
+
+    // Start game music
     if (!this.sound.get('bgMusic')) {
       this.time.delayedCall(100, () => {
         try {
@@ -502,9 +581,9 @@ export class TowerDefenseScene extends Phaser.Scene {
             volume: 0.7
           })
           music.play()
-          console.log('Background music started (fallback)')
+          console.log('Game music started')
         } catch (error) {
-          console.error('Failed to play background music:', error)
+          console.error('Failed to play game music:', error)
         }
       })
     }
@@ -513,6 +592,11 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private showTowerOptions(tower: Tower) {
+    // Hide range of previously selected tower
+    if (this.selectedTower && this.selectedTower !== tower) {
+      this.selectedTower.hideRange()
+    }
+
     // Clear previous selection
     if (this.sellButton) {
       this.sellButton.destroy()
@@ -522,6 +606,9 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.upgradeButtons = []
 
     this.selectedTower = tower
+
+    // Show range of newly selected tower
+    tower.showRange()
 
     // Hide tower selection pages
     this.towerPageContainers.forEach(container => container.setVisible(false))
@@ -838,6 +925,9 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private sellTower(tower: Tower) {
+    // Hide range before selling
+    tower.hideRange()
+
     // Refund coins
     const sellValue = tower.getSellValue()
     this.coins += sellValue
@@ -887,32 +977,76 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    // Monitor FPS for performance adjustments
+    const fps = this.game.loop.actualFps
+    this.fpsHistory.push(fps)
+    if (this.fpsHistory.length > 60) {
+      this.fpsHistory.shift()
+    }
+
+    // Enable performance mode if average FPS drops below 30
+    if (this.fpsHistory.length === 60) {
+      const avgFps = this.fpsHistory.reduce((a, b) => a + b, 0) / 60
+      if (avgFps < 30 && !this.performanceMode) {
+        this.performanceMode = true
+        console.log('Performance mode enabled - low FPS detected')
+      } else if (avgFps > 45 && this.performanceMode) {
+        this.performanceMode = false
+        console.log('Performance mode disabled - FPS recovered')
+      }
+    }
+
     // Apply game speed multiplier to delta
     const adjustedDelta = delta * this.gameSpeed
 
-    // Update towers
-    this.towers.forEach(tower => {
+    // Performance optimization: skip some update cycles in performance mode
+    this.updateSkipCounter++
+    const shouldSkipThisFrame = this.performanceMode && this.updateSkipCounter % 2 === 0
+
+    // Update towers (always update, they're critical)
+    for (let i = 0; i < this.towers.length; i++) {
+      const tower = this.towers[i]
       if (tower.active) {
         tower.update(time, adjustedDelta, this.enemies, this.projectiles)
       }
-    })
+    }
 
-    // Update projectiles
-    this.projectiles.children.entries.forEach((proj: any) => {
-      if (proj.active) {
-        proj.update(time, adjustedDelta)
+    // Limit active projectiles to prevent memory issues
+    const projectileArray = this.projectiles.children.entries as any[]
+    const activeProjectileCount = projectileArray.filter(p => p.active).length
+    if (activeProjectileCount > this.maxActiveProjectiles) {
+      // Remove oldest projectiles
+      let removed = 0
+      for (let i = 0; i < projectileArray.length && removed < 50; i++) {
+        if (projectileArray[i].active) {
+          projectileArray[i].destroy()
+          removed++
+        }
       }
-    })
+    }
+
+    // Update projectiles (skip every other frame in performance mode)
+    if (!shouldSkipThisFrame) {
+      for (let i = 0; i < projectileArray.length; i++) {
+        const proj = projectileArray[i]
+        if (proj.active) {
+          proj.update(time, adjustedDelta)
+        }
+      }
+    }
 
     // Manually update enemies with adjusted delta
-    this.enemies.children.entries.forEach((enemy: any) => {
+    const enemyArray = this.enemies.children.entries as any[]
+    for (let i = 0; i < enemyArray.length; i++) {
+      const enemy = enemyArray[i]
       if (enemy.active) {
         enemy.update(time, adjustedDelta)
       }
-    })
+    }
 
     // Check for enemies reaching the end
-    this.enemies.children.entries.forEach((enemy: any) => {
+    for (let i = 0; i < enemyArray.length; i++) {
+      const enemy = enemyArray[i]
       if (enemy.active && enemy.hasReachedEnd()) {
         this.lives -= enemy.damage
         enemy.destroy()
@@ -922,7 +1056,7 @@ export class TowerDefenseScene extends Phaser.Scene {
           this.gameOver()
         }
       }
-    })
+    }
 
     // Update mouse coordinates display in path creation mode
     if (this.pathCreationMode) {
@@ -1507,7 +1641,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     const { width, height } = this.cameras.main
 
     // Top bar background
-    const topBar = this.add.rectangle(width / 2, 50, width, 100, 0x000000, 0.8)
+    const topBar = this.add.rectangle(width / 2, 50, width, 100, 0x574325, 0.8)
     topBar.setDepth(100)
 
     // Heart icon for lives
@@ -1553,11 +1687,12 @@ export class TowerDefenseScene extends Phaser.Scene {
       .on('pointerout', () => startWaveBtn.setScale(startWaveBtnScale))
       .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
         pointer.event.stopPropagation()
+        this.sound.play('buttonSound', { volume: 0.5 })
         this.startNextWave()
       })
 
     // Bottom buttons (in tower menu area)
-    const bottomButtonY = height - 270 // Just above tower menu
+    const bottomButtonY = height - 260 // Just above tower menu
     const buttonSpacing = 85
 
     // Speed button (bottom left)
@@ -1570,6 +1705,7 @@ export class TowerDefenseScene extends Phaser.Scene {
       .on('pointerout', () => this.speedButtonImage.setScale(speedButtonScale))
       .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
         pointer.event.stopPropagation()
+        this.sound.play('buttonSound', { volume: 0.5 })
         this.toggleSpeed()
       })
 
@@ -1583,6 +1719,7 @@ export class TowerDefenseScene extends Phaser.Scene {
       .on('pointerout', () => this.autoStartButtonImage.setScale(autoButtonScale))
       .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
         pointer.event.stopPropagation()
+        this.sound.play('buttonSound', { volume: 0.5 })
         this.toggleAutoStart()
       })
 
@@ -1661,6 +1798,7 @@ export class TowerDefenseScene extends Phaser.Scene {
       .on('pointerover', () => endGameBtn.setScale(buttonScale * 1.05))
       .on('pointerout', () => endGameBtn.setScale(buttonScale))
       .on('pointerup', () => {
+        this.sound.play('buttonSound', { volume: 0.5 })
         this.input.enabled = false
         this.togglePauseMenu()
         this.gameOver()
@@ -1812,7 +1950,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     }
   }
 
-  private async setupTowerMenu() {
+  private setupTowerMenu() {
     const { width, height } = this.cameras.main
     const menuHeight = 300
     const menuY = height - menuHeight
@@ -1820,23 +1958,10 @@ export class TowerDefenseScene extends Phaser.Scene {
     // Get all towers
     const allTowers = getAllTowerConfigs()
 
-    // Preload all tower sprites
-    for (const towerConfig of allTowers) {
-      await this.ensureTowerSpriteLoaded(towerConfig.type)
-    }
-
-    // Menu background
-    const menuBg = this.add.rectangle(width / 2, menuY + menuHeight / 2, width, menuHeight, 0x000000, 0.9)
+    // Menu background - use the Tower Select Panel image
+    const menuBg = this.add.image(width / 2, menuY + menuHeight / 2, 'tower-select-panel')
+    menuBg.setDisplaySize(width, menuHeight)
     menuBg.setDepth(200)
-
-    // Title
-    const title = this.add.text(width / 2, menuY + 10, 'SELECT TOWER', {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    })
-    title.setOrigin(0.5, 0)
-    title.setDepth(201)
 
     const towersPerPage = 4
     const totalPages = Math.ceil(allTowers.length / towersPerPage)
@@ -1861,7 +1986,7 @@ export class TowerDefenseScene extends Phaser.Scene {
         const towerConfig = allTowers[i]
         const localIndex = i - startIndex
         const x = startX + localIndex * (buttonWidth + buttonGap) + buttonWidth / 2
-        const y = menuY + 150
+        const y = menuY + 170
 
         const container = this.add.container(x, y)
 
@@ -1953,7 +2078,7 @@ export class TowerDefenseScene extends Phaser.Scene {
     }
 
     // Page dots indicator (clickable navigation)
-    const dotsContainer = this.add.container(width / 2, menuY + 265)
+    const dotsContainer = this.add.container(width / 2, menuY + 280)
     dotsContainer.setDepth(202)
     const dotSpacing = 30 // Increased spacing for better touch targets
     const dotStartX = -(totalPages - 1) * dotSpacing / 2
@@ -2191,6 +2316,11 @@ export class TowerDefenseScene extends Phaser.Scene {
   }
 
   private clearTowerOptions() {
+    // Hide range of selected tower
+    if (this.selectedTower) {
+      this.selectedTower.hideRange()
+    }
+
     if (this.sellButton) {
       this.sellButton.destroy()
       this.sellButton = null
@@ -2333,24 +2463,57 @@ export class TowerDefenseScene extends Phaser.Scene {
     console.log(`Spawning wave ${this.currentWave}`)
 
     const waveEnemies = getWaveEnemies(this.currentWave)
-    let totalEnemies = 0
     let enemiesSpawned = 0
 
-    // Count total enemies
-    waveEnemies.forEach(group => {
-      totalEnemies += group.count
-    })
-
-    // Spawn enemies over time
-    let spawnDelay = 0
-    const spawnInterval = 1000 // milliseconds between spawns (slower = easier to handle)
-
+    // Create a flat array of all enemy configs to spawn
+    const enemySpawnList: any[] = []
     waveEnemies.forEach(group => {
       const enemyConfig = getEnemyConfig(group.type)
       if (!enemyConfig) return
 
+      // Add this enemy type 'count' times to the spawn list
       for (let i = 0; i < group.count; i++) {
-        this.time.delayedCall(spawnDelay, () => {
+        enemySpawnList.push(enemyConfig)
+      }
+    })
+
+    // Shuffle the array for variety
+    for (let i = enemySpawnList.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [enemySpawnList[i], enemySpawnList[j]] = [enemySpawnList[j], enemySpawnList[i]]
+    }
+
+    // Limit max enemies spawned per wave for performance
+    const maxEnemiesPerWave = this.performanceMode ? 100 : 150
+    const cappedEnemyList = enemySpawnList.slice(0, maxEnemiesPerWave)
+    const totalEnemies = cappedEnemyList.length
+
+    if (enemySpawnList.length > maxEnemiesPerWave) {
+      console.log(`Wave capped at ${maxEnemiesPerWave} enemies (was ${enemySpawnList.length})`)
+    }
+
+    // Spawn enemies over time in shuffled order
+    let spawnDelay = 0
+    const spawnInterval = 1000 // milliseconds between spawns (slower = easier to handle)
+
+    cappedEnemyList.forEach(enemyConfig => {
+      this.time.delayedCall(spawnDelay, () => {
+        // Check if we're at max active enemies
+        const activeEnemyCount = this.enemies.getChildren().filter((e: any) => e.active).length
+        if (activeEnemyCount >= this.maxActiveEnemies) {
+          console.log('Max active enemies reached, delaying spawn')
+          // Try again in 500ms
+          this.time.delayedCall(500, () => {
+            const enemy = new Enemy(this, this.path, enemyConfig)
+            this.enemies.add(enemy)
+            enemiesSpawned++
+
+            // Check if all enemies spawned
+            if (enemiesSpawned >= totalEnemies) {
+              this.checkWaveComplete()
+            }
+          })
+        } else {
           const enemy = new Enemy(this, this.path, enemyConfig)
           this.enemies.add(enemy)
           enemiesSpawned++
@@ -2359,9 +2522,9 @@ export class TowerDefenseScene extends Phaser.Scene {
           if (enemiesSpawned >= totalEnemies) {
             this.checkWaveComplete()
           }
-        })
-        spawnDelay += spawnInterval
-      }
+        }
+      })
+      spawnDelay += spawnInterval
     })
   }
 
@@ -2375,6 +2538,12 @@ export class TowerDefenseScene extends Phaser.Scene {
           this.isWaveActive = false
           checkInterval.remove()
           console.log(`Wave ${this.currentWave} complete!`)
+
+          // Check if this was wave 118 (final wave)
+          if (this.currentWave === 118) {
+            this.showVictoryPopup()
+            return
+          }
 
           // Auto-start next wave if enabled
           if (this.autoStartWaves) {
@@ -3081,6 +3250,57 @@ export class TowerDefenseScene extends Phaser.Scene {
     this.autoStartWaves = !this.autoStartWaves
     this.autoStartButtonImage.setTexture(this.autoStartWaves ? 'auto-on-button' : 'auto-off-button')
     console.log(`Auto-start waves: ${this.autoStartWaves ? 'ON' : 'OFF'}`)
+  }
+
+  private showVictoryPopup() {
+    const { width, height } = this.cameras.main
+
+    // Create dark overlay
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8)
+    overlay.setDepth(1000)
+
+    // Create congratulations popup image
+    const popupScale = 0.8
+    const popup = this.add.image(width / 2, height / 2, 'congratulations-popup')
+    popup.setScale(popupScale)
+    popup.setDepth(1001)
+
+    // Endless Mode button
+    const endlessBtnScale = 0.28
+    const endlessBtn = this.add.image(width / 2, height / 2 + 40, 'endless-mode-button')
+    endlessBtn.setScale(endlessBtnScale)
+    endlessBtn.setDepth(1002)
+    endlessBtn.setInteractive({ useHandCursor: true })
+      .on('pointerover', () => endlessBtn.setScale(endlessBtnScale * 1.05))
+      .on('pointerout', () => endlessBtn.setScale(endlessBtnScale))
+      .on('pointerdown', () => {
+        this.sound.play('buttonSound', { volume: 0.5 })
+        // Clean up popup
+        overlay.destroy()
+        popup.destroy()
+        endlessBtn.destroy()
+        endGameBtn.destroy()
+
+        // Continue to endless mode - just start the next wave
+        console.log('Starting Endless Mode!')
+        this.time.delayedCall(500, () => {
+          this.startNextWave()
+        })
+      })
+
+    // End Game button
+    const endGameBtnScale = 0.50
+    const endGameBtn = this.add.image(width / 2, height / 2 + 160, 'end-game-button')
+    endGameBtn.setScale(endGameBtnScale)
+    endGameBtn.setDepth(1002)
+    endGameBtn.setInteractive({ useHandCursor: true })
+      .on('pointerover', () => endGameBtn.setScale(endGameBtnScale * 1.05))
+      .on('pointerout', () => endGameBtn.setScale(endGameBtnScale))
+      .on('pointerdown', () => {
+        this.sound.play('buttonSound', { volume: 0.5 })
+        // Trigger game over to show Remix SDK screen
+        this.gameOver()
+      })
   }
 
   private createTowerSpriteIcon(type: number, x: number, y: number): Phaser.GameObjects.Container {

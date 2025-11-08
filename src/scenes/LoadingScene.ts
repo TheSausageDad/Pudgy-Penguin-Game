@@ -48,7 +48,13 @@ export class LoadingScene extends Phaser.Scene {
     this.load.image('ice-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Ice%20button-JpODQ9jHLtnhqxQjn5Tc2Q3XR3VMkc.png')
 
     // Load background music
-    this.load.audio('bgMusic', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Music%20Loop-yPYC7cMLmOtbATLHj8PF8HxkCyoDqo.mp3')
+    this.load.audio('menuMusic', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Music%20Loop-yPYC7cMLmOtbATLHj8PF8HxkCyoDqo.mp3')
+    this.load.audio('bgMusic', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/SoundTrack-8FiZpR9Jk84GBkj3DQjLSharraYBr9.mp3')
+
+    // Load sound effects
+    this.load.audio('playButtonSound', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Play%20Button%20SOund-7lJZfNtXt0VKHEJAZ3vxDBF8NgvrTl.mp3')
+    this.load.audio('levelStartSound', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Level%20Start%20Sound-zv55FWZrbwmz5COrpffBseVdXO3Xyg.mp3')
+    this.load.audio('buttonSound', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a2619040-d4c3-4748-986a-483e56486a72/Button%20SOund-dwUixkj7Mo7l8Z7utwCNocGS7uC1HY.mp3')
   }
 
   create() {
