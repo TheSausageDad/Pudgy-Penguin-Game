@@ -36,16 +36,48 @@ const config: Phaser.Types.Core.GameConfig = {
   },
 }
 
+// Inject the Sunset Reef UI fonts (Fredoka display + Nunito UI) once
+function injectUIFonts() {
+  if (document.getElementById('sunset-reef-fonts')) return
+  const pre1 = document.createElement('link')
+  pre1.rel = 'preconnect'
+  pre1.href = 'https://fonts.googleapis.com'
+  document.head.appendChild(pre1)
+
+  const pre2 = document.createElement('link')
+  pre2.rel = 'preconnect'
+  pre2.href = 'https://fonts.gstatic.com'
+  pre2.crossOrigin = 'anonymous'
+  document.head.appendChild(pre2)
+
+  const link = document.createElement('link')
+  link.id = 'sunset-reef-fonts'
+  link.rel = 'stylesheet'
+  link.href = 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700;800;900&display=swap'
+  document.head.appendChild(link)
+}
+
 // Wait for fonts to load before starting the game
 async function waitForFonts() {
   try {
+    // Make sure the new UI fonts are requested before we wait
+    injectUIFonts()
+
     // Wait for all fonts to be loaded
     await document.fonts.ready
     console.log('[MAIN] Fonts loaded successfully')
 
     // Double-check that Rubik Bubbles is available
     await document.fonts.load('400 16px "Rubik Bubbles"')
-    console.log('[MAIN] Rubik Bubbles font verified')
+
+    // Verify the Sunset Reef UI fonts are available
+    await Promise.all([
+      document.fonts.load('700 32px "Fredoka"'),
+      document.fonts.load('600 24px "Fredoka"'),
+      document.fonts.load('800 18px "Nunito"'),
+      document.fonts.load('900 14px "Nunito"'),
+    ])
+    console.log('[MAIN] UI fonts (Fredoka, Nunito) verified')
   } catch (error) {
     console.warn('[MAIN] Font loading warning:', error)
     // Continue anyway after a brief delay

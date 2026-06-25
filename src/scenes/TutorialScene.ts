@@ -1,7 +1,23 @@
+// Sunset Reef palette
+const C = {
+  coral: 0xff6b6b,
+  coralDark: 0xd8474f,
+  teal: 0x1fb6a6,
+  tealDark: 0x128b7e,
+  tealLight: 0x3fd0c0,
+  deep: 0x16413c,
+  white: 0xffffff,
+}
+
+// Pastel row-chip fills
+const ROW_MINT = 0xeef9f7
+const ROW_PEACH = 0xfff3ea
+const ROW_ROSE = 0xfdeeee
+
 export class TutorialScene extends Phaser.Scene {
   private currentPage: number = 0
   private readonly totalPages: number = 3
-  private skipButton!: Phaser.GameObjects.Text
+  private skipButton!: Phaser.GameObjects.Container
   private nextButton!: Phaser.GameObjects.Container
   private prevButton!: Phaser.GameObjects.Container
   private pageContent!: Phaser.GameObjects.Container
@@ -38,47 +54,36 @@ export class TutorialScene extends Phaser.Scene {
     const scale = Math.max(scaleX, scaleY)
     background.setScale(scale)
 
-    // Semi-transparent overlay for readability
-    this.add.rectangle(0, 0, width, height, 0x000000, 0.5).setOrigin(0, 0)
+    // Soft teal dim for focus
+    this.add.rectangle(0, 0, width, height, 0x16413c, 0.42).setOrigin(0, 0)
 
-    // Skip button (top right)
-    this.skipButton = this.add.text(width - 20, 20, 'SKIP TUTORIAL', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#FF6B35',
-      padding: { x: 15, y: 10 }
+    // Skip button (top right) - rounded pill
+    this.skipButton = this.createRoundedButton(width - 110, 56, 170, 56, 'SKIP  ✕', C.white, 0xcfe3df, '#1f8e87', 22, () => {
+      this.resumeAudio()
+      localStorage.setItem('pudgy_tutorial_completed', 'true')
+      this.sound.play('game_start', { volume: 0.7 })
+      this.scene.stop('TutorialScene')
+      if (this.scene.get('PudgyGameScene')) {
+        this.scene.stop('PudgyGameScene')
+      }
+      this.scene.start('PudgyGameScene')
     })
-    this.skipButton.setOrigin(1, 0)
-    this.skipButton.setInteractive({ useHandCursor: true })
-      .on('pointerup', () => {
-        // Resume AudioContext if suspended
-        if (this.sound.context && this.sound.context.state === 'suspended') {
-          this.sound.context.resume().then(() => {
-            console.log('[Audio] AudioContext resumed on skip')
-          })
-        }
-
-        localStorage.setItem('pudgy_tutorial_completed', 'true')
-        // Play game start sound
-        this.sound.play('game_start', { volume: 0.7 })
-        // Stop tutorial scene
-        this.scene.stop('TutorialScene')
-        // Make sure game scene is fresh
-        if (this.scene.get('PudgyGameScene')) {
-          this.scene.stop('PudgyGameScene')
-        }
-        this.scene.start('PudgyGameScene')
-      })
 
     // Page container
     this.pageContent = this.add.container(0, 0)
 
     // Navigation buttons
-    this.prevButton = this.createNavButton(100, height - 100, '< PREV', () => this.previousPage())
-    this.nextButton = this.createNavButton(width - 100, height - 100, 'NEXT >', () => this.nextPage())
+    this.prevButton = this.createRoundedButton(130, height - 110, 170, 70, '‹  PREV', C.white, 0xcfe3df, '#1f8e87', 24, () => this.previousPage())
+    this.nextButton = this.createRoundedButton(width - 130, height - 110, 170, 70, 'NEXT  ›', C.tealLight, C.tealDark, '#ffffff', 24, () => this.nextPage())
 
     // Show first page
     this.showPage(0)
+  }
+
+  private resumeAudio() {
+    if (this.sound.context && this.sound.context.state === 'suspended') {
+      this.sound.context.resume().catch(() => {})
+    }
   }
 
   private showPage(pageNum: number) {
@@ -87,13 +92,11 @@ export class TutorialScene extends Phaser.Scene {
 
     const { width, height } = this.cameras.main
 
-    // Page indicator
-    const pageIndicator = this.add.text(width / 2, height - 50, `${pageNum + 1} / ${this.totalPages}`, {
-      fontSize: '20px',
-      color: '#ffffff'
-    })
-    pageIndicator.setOrigin(0.5)
-    this.pageContent.add(pageIndicator)
+    // White sheet
+    this.drawSheet()
+
+    // Page dots indicator
+    this.drawDots(width / 2, height - 250, pageNum)
 
     // Page content based on current page
     switch (pageNum) {
@@ -114,20 +117,11 @@ export class TutorialScene extends Phaser.Scene {
 
     // Show "START" button on last page
     if (pageNum === this.totalPages - 1) {
-      const startButton = this.createNavButton(width - 100, height - 100, 'START!', () => {
-        // Resume AudioContext if suspended
-        if (this.sound.context && this.sound.context.state === 'suspended') {
-          this.sound.context.resume().then(() => {
-            console.log('[Audio] AudioContext resumed on start')
-          })
-        }
-
+      const startButton = this.createRoundedButton(width - 130, height - 110, 180, 70, 'START  ▶', C.coral, C.coralDark, '#ffffff', 24, () => {
+        this.resumeAudio()
         localStorage.setItem('pudgy_tutorial_completed', 'true')
-        // Play game start sound
         this.sound.play('game_start', { volume: 0.7 })
-        // Stop tutorial scene
         this.scene.stop('TutorialScene')
-        // Make sure game scene is fresh
         if (this.scene.get('PudgyGameScene')) {
           this.scene.stop('PudgyGameScene')
         }
@@ -137,311 +131,182 @@ export class TutorialScene extends Phaser.Scene {
     }
   }
 
+  // ---- Shared chrome ----
+
+  private drawSheet() {
+    const { width } = this.cameras.main
+    const sheetX = 40, sheetY = 130, sheetW = width - 80, sheetH = 760
+    const g = this.add.graphics()
+    g.fillStyle(0x000000, 0.18)
+    g.fillRoundedRect(sheetX, sheetY + 10, sheetW, sheetH, 36)
+    g.fillStyle(0xffffff, 1)
+    g.fillRoundedRect(sheetX, sheetY, sheetW, sheetH, 36)
+    this.pageContent.add(g)
+  }
+
+  private headerPill(label: string, accent: number) {
+    const { width } = this.cameras.main
+    const y = 188
+    const text = this.add.text(width / 2, y, label, {
+      fontFamily: 'Nunito',
+      fontStyle: '900',
+      fontSize: '20px',
+      color: this.hex(accent),
+    })
+    text.setOrigin(0.5)
+    const w = text.width + 44
+    const h = 40
+    const pill = this.add.graphics()
+    pill.fillStyle(accent, 0.12)
+    pill.fillRoundedRect(width / 2 - w / 2, y - h / 2, w, h, h / 2)
+    this.pageContent.add(pill)
+    this.pageContent.add(text)
+  }
+
+  // A pastel "legend" row: chip background + icon + title + subtitle
+  private legendRow(y: number, chip: number, iconKey: string, iconSize: number, title: string, subtitle: string, subColor: number) {
+    const { width } = this.cameras.main
+    const rowX = 76, rowW = width - 152, rowH = 86
+
+    const g = this.add.graphics()
+    g.fillStyle(chip, 1)
+    g.fillRoundedRect(rowX, y - rowH / 2, rowW, rowH, 22)
+    this.pageContent.add(g)
+
+    const icon = this.add.image(rowX + 50, y, iconKey)
+    icon.setDisplaySize(iconSize, iconSize)
+    this.pageContent.add(icon)
+
+    const titleText = this.add.text(rowX + 100, y - 16, title, {
+      fontFamily: 'Fredoka',
+      fontStyle: '600',
+      fontSize: '26px',
+      color: '#16413c',
+    })
+    titleText.setOrigin(0, 0.5)
+    this.pageContent.add(titleText)
+
+    const subText = this.add.text(rowX + 100, y + 16, subtitle, {
+      fontFamily: 'Nunito',
+      fontStyle: '700',
+      fontSize: '18px',
+      color: this.hex(subColor),
+    })
+    subText.setOrigin(0, 0.5)
+    this.pageContent.add(subText)
+  }
+
+  private drawDots(x: number, y: number, active: number) {
+    const gap = 24
+    for (let i = 0; i < this.totalPages; i++) {
+      const dot = this.add.circle(x + (i - (this.totalPages - 1) / 2) * gap, y, 7, i === active ? C.coral : 0xd3e3f0)
+      this.pageContent.add(dot)
+    }
+  }
+
+  // ---- Pages ----
+
   private showControlsPage() {
     const { width } = this.cameras.main
 
-    const box = this.add.rectangle(width / 2, 480, 620, 750, 0x1a1a2e, 0.9)
-    box.setStrokeStyle(4, 0xFFD700)
-    this.pageContent.add(box)
+    this.headerPill('HOW TO PLAY', C.teal)
 
-    const title = this.add.text(width / 2, 140, 'HOW TO PLAY', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '48px',
-      color: '#FFD700',
-      stroke: '#000000',
-      strokeThickness: 6
+    const title = this.add.text(width / 2, 250, 'Catch the fish', {
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
+      fontSize: '46px',
+      color: '#16413c',
     })
     title.setOrigin(0.5)
     this.pageContent.add(title)
 
-    // Controls text - larger and more prominent
-    const controlsText = this.add.text(width / 2, 250,
-      'DESKTOP: A/D or Arrow Keys\nMOBILE: Tap & hold left/right side',
+    const controlsText = this.add.text(width / 2, 312,
+      'Desktop: A / D or Arrow Keys\nMobile: tap & hold left / right',
       {
-        fontFamily: '"Rubik Bubbles"',
-        fontSize: '28px',
-        color: '#ffffff',
+        fontFamily: 'Nunito',
+        fontStyle: '700',
+        fontSize: '24px',
+        color: '#7b94a6',
         align: 'center',
-        lineSpacing: 12,
-        stroke: '#000000',
-        strokeThickness: 3
+        lineSpacing: 8,
       }
     )
     controlsText.setOrigin(0.5)
     this.pageContent.add(controlsText)
 
-    // Game objectives with icons - better spacing and larger icons
-    let startY = 380
-    const lineHeight = 95
-    const iconSize = 65
-    const leftOffset = 100 // Starting position from left edge of box
-
-    // Fish icon + text
-    const fishIcon = this.add.image(leftOffset, startY, 'blue_fish')
-    fishIcon.setDisplaySize(iconSize, iconSize)
-    this.pageContent.add(fishIcon)
-    const fishText = this.add.text(leftOffset + 80, startY, 'Catch fish to score points', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '32px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    fishText.setOrigin(0, 0.5)
-    this.pageContent.add(fishText)
-
-    // Trash icon + text
-    startY += lineHeight
-    const trashIcon = this.add.image(leftOffset, startY, 'trash')
-    trashIcon.setDisplaySize(iconSize, iconSize)
-    this.pageContent.add(trashIcon)
-    const trashText = this.add.text(leftOffset + 80, startY, 'Avoid trash & obstacles', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '32px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    trashText.setOrigin(0, 0.5)
-    this.pageContent.add(trashText)
-
-    // Frenzy text (with lightning emoji as "icon")
-    startY += lineHeight
-    const frenzyText = this.add.text(leftOffset, startY, '⚡', {
-      fontSize: '60px'
-    })
-    frenzyText.setOrigin(0.5)
-    this.pageContent.add(frenzyText)
-    const frenzyInfo = this.add.text(leftOffset + 80, startY, 'Fill bar for Frenzy Mode', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '32px',
-      color: '#FFD700',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    frenzyInfo.setOrigin(0, 0.5)
-    this.pageContent.add(frenzyInfo)
-
-    // Shark icon + text
-    startY += lineHeight
-    const sharkIcon = this.add.image(leftOffset, startY, 'shark')
-    sharkIcon.setDisplaySize(iconSize, iconSize)
-    this.pageContent.add(sharkIcon)
-    const sharkText = this.add.text(leftOffset + 80, startY, 'Watch out for sharks!', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '32px',
-      color: '#FF4444',
-      stroke: '#000000',
-      strokeThickness: 4
-    })
-    sharkText.setOrigin(0, 0.5)
-    this.pageContent.add(sharkText)
+    let y = 430
+    const step = 102
+    this.legendRow(y, ROW_MINT, 'blue_fish', 56, 'Catch fish', 'Score points', C.teal)
+    y += step
+    this.legendRow(y, ROW_PEACH, 'golden_fish', 56, 'Fill the bar', 'Trigger Frenzy Mode', 0xcf9a16)
+    y += step
+    this.legendRow(y, ROW_ROSE, 'trash', 50, 'Avoid trash', '−1 life', C.coral)
+    y += step
+    this.legendRow(y, ROW_ROSE, 'shark', 58, 'Watch for sharks!', 'They strike from above', C.coral)
   }
 
   private showCollectiblesPage() {
     const { width } = this.cameras.main
 
-    const box = this.add.rectangle(width / 2, 480, 620, 750, 0x1a1a2e, 0.9)
-    box.setStrokeStyle(4, 0x4A90E2)
-    this.pageContent.add(box)
+    this.headerPill('COLLECTIBLES', C.teal)
 
-    const title = this.add.text(width / 2, 140, 'COLLECTIBLES', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '42px',
-      color: '#4A90E2',
-      stroke: '#000000',
-      strokeThickness: 5
+    const title = this.add.text(width / 2, 250, 'Good stuff', {
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
+      fontSize: '46px',
+      color: '#16413c',
     })
     title.setOrigin(0.5)
     this.pageContent.add(title)
 
-    let startY = 270
-    const lineHeight = 70
-
-    // Blue fish
-    const blueFish = this.add.image(width / 2 - 210, startY, 'blue_fish')
-    blueFish.setDisplaySize(50, 50)
-    this.pageContent.add(blueFish)
-    const blueFishText = this.add.text(width / 2 - 150, startY, 'BLUE FISH: +10 points', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    blueFishText.setOrigin(0, 0.5)
-    this.pageContent.add(blueFishText)
-
-    // Red fish
-    startY += lineHeight
-    const redFish = this.add.image(width / 2 - 210, startY, 'red_fish')
-    redFish.setDisplaySize(50, 50)
-    this.pageContent.add(redFish)
-    const redFishText = this.add.text(width / 2 - 150, startY, 'RED FISH: +15 points', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    redFishText.setOrigin(0, 0.5)
-    this.pageContent.add(redFishText)
-
-    // Golden fish
-    startY += lineHeight
-    const goldenFish = this.add.image(width / 2 - 210, startY, 'golden_fish')
-    goldenFish.setDisplaySize(50, 50)
-    this.pageContent.add(goldenFish)
-    const goldenFishText = this.add.text(width / 2 - 150, startY, 'GOLDEN: +50 + 3x multi', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#FFD700',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    goldenFishText.setOrigin(0, 0.5)
-    this.pageContent.add(goldenFishText)
-
-    // Heart
-    startY += lineHeight
-    const heartIcon = this.add.image(width / 2 - 210, startY, 'heart')
-    heartIcon.setDisplaySize(50, 50)
-    this.pageContent.add(heartIcon)
-    const heartText = this.add.text(width / 2 - 150, startY, 'HEART: Restore 1 life', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    heartText.setOrigin(0, 0.5)
-    this.pageContent.add(heartText)
-
-    // Shield
-    startY += lineHeight
-    const shieldIcon = this.add.image(width / 2 - 210, startY, 'shield')
-    shieldIcon.setDisplaySize(50, 50)
-    this.pageContent.add(shieldIcon)
-    const shieldText = this.add.text(width / 2 - 150, startY, 'SHIELD: 5 sec invincible', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    shieldText.setOrigin(0, 0.5)
-    this.pageContent.add(shieldText)
-
-    // Frenzy mode info
-    startY += lineHeight + 10
-    const frenzyInfo = this.add.text(width / 2, startY,
-      '⚡ FRENZY MODE ⚡\nCatch 20 fish to activate!\nFast fish + bonus multipliers',
-      {
-        fontFamily: '"Rubik Bubbles"',
-        fontSize: '24px',
-        color: '#FFD700',
-        align: 'center',
-        lineSpacing: 8,
-        stroke: '#000000',
-        strokeThickness: 3
-      }
-    )
-    frenzyInfo.setOrigin(0.5, 0)
-    this.pageContent.add(frenzyInfo)
+    let y = 360
+    const step = 102
+    this.legendRow(y, ROW_MINT, 'blue_fish', 54, 'Blue fish', '+10 points', C.teal)
+    y += step
+    this.legendRow(y, ROW_MINT, 'red_fish', 54, 'Red fish', '+15 points', C.teal)
+    y += step
+    this.legendRow(y, ROW_PEACH, 'golden_fish', 54, 'Golden fish', '+50 & 3× for 7s', 0xcf9a16)
+    y += step
+    this.legendRow(y, ROW_MINT, 'heart', 50, 'Heart', 'Restore 1 life', C.teal)
+    y += step
+    this.legendRow(y, ROW_MINT, 'shield', 50, 'Shield', '5s invincibility', C.teal)
   }
 
   private showDangersPage() {
     const { width } = this.cameras.main
 
-    const box = this.add.rectangle(width / 2, 480, 620, 750, 0x1a1a2e, 0.9)
-    box.setStrokeStyle(4, 0xFF4444)
-    this.pageContent.add(box)
+    this.headerPill('DANGERS', C.coral)
 
-    const title = this.add.text(width / 2, 140, 'DANGERS', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '42px',
-      color: '#FF4444',
-      stroke: '#000000',
-      strokeThickness: 5
+    const title = this.add.text(width / 2, 250, 'Watch out', {
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
+      fontSize: '46px',
+      color: '#16413c',
     })
     title.setOrigin(0.5)
     this.pageContent.add(title)
 
-    let startY = 250
-    const lineHeight = 95
+    let y = 380
+    const step = 110
+    this.legendRow(y, ROW_ROSE, 'trash', 50, 'Trash', '−1 life · resets multiplier', C.coral)
+    y += step
+    this.legendRow(y, ROW_ROSE, 'bird', 52, 'Birds', '−1 life · resets multiplier', C.coral)
+    y += step
+    this.legendRow(y, ROW_ROSE, 'shark', 58, 'Sharks', '−1 life · watch the warning!', C.coral)
 
-    // Trash
-    const trashIcon = this.add.image(width / 2 - 210, startY, 'trash')
-    trashIcon.setDisplaySize(50, 50)
-    this.pageContent.add(trashIcon)
-    const trashText = this.add.text(width / 2 - 150, startY, 'TRASH: -1 life\nResets multiplier', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      lineSpacing: 5,
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    trashText.setOrigin(0, 0.5)
-    this.pageContent.add(trashText)
-
-    // Birds
-    startY += lineHeight
-    const birdIcon = this.add.image(width / 2 - 210, startY, 'bird')
-    birdIcon.setDisplaySize(50, 50)
-    this.pageContent.add(birdIcon)
-    const birdText = this.add.text(width / 2 - 150, startY, 'BIRDS: -1 life\nResets multiplier', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      lineSpacing: 5,
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    birdText.setOrigin(0, 0.5)
-    this.pageContent.add(birdText)
-
-    // Sharks
-    startY += lineHeight
-    const sharkIcon = this.add.image(width / 2 - 210, startY, 'shark')
-    sharkIcon.setDisplaySize(50, 50)
-    this.pageContent.add(sharkIcon)
-    const sharkText = this.add.text(width / 2 - 150, startY, 'SHARKS: -1 life\nWatch for warnings!', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      lineSpacing: 5,
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    sharkText.setOrigin(0, 0.5)
-    this.pageContent.add(sharkText)
-
-    // Warning section
-    startY += lineHeight + 30
-    const warningTitle = this.add.text(width / 2, startY, '⚠️ HITTING OBSTACLES ⚠️', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '28px',
-      color: '#FF4444',
-      align: 'center',
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    warningTitle.setOrigin(0.5, 0.5)
-    this.pageContent.add(warningTitle)
-
-    startY += 60
-    const warningText = this.add.text(width / 2, startY, '• Lose 1 life\n• Reset frenzy & multiplier', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '26px',
-      color: '#ffffff',
-      align: 'center',
-      lineSpacing: 10,
-      stroke: '#000000',
-      strokeThickness: 3
-    })
-    warningText.setOrigin(0.5, 0)
-    this.pageContent.add(warningText)
+    const note = this.add.text(width / 2, y + 96,
+      'Hitting any obstacle resets your\nFrenzy bar and multiplier.',
+      {
+        fontFamily: 'Nunito',
+        fontStyle: '700',
+        fontSize: '20px',
+        color: '#7b94a6',
+        align: 'center',
+        lineSpacing: 6,
+      }
+    )
+    note.setOrigin(0.5)
+    this.pageContent.add(note)
   }
 
   private nextPage() {
@@ -456,37 +321,67 @@ export class TutorialScene extends Phaser.Scene {
     }
   }
 
-  private createNavButton(x: number, y: number, text: string, callback: () => void): Phaser.GameObjects.Container {
-    const button = this.add.container(x, y)
+  // ---- Helpers ----
 
-    const bg = this.add.rectangle(0, 0, 150, 60, 0xFF6B35)
-    bg.setStrokeStyle(3, 0xffffff)
+  private hex(color: number): string {
+    return '#' + color.toString(16).padStart(6, '0')
+  }
 
-    const buttonText = this.add.text(0, 0, text, {
-      fontSize: '24px',
-      color: '#ffffff',
-      fontStyle: 'bold'
+  private createRoundedButton(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    label: string,
+    fill: number,
+    shadow: number,
+    textColor: string,
+    fontSize: number,
+    callback: () => void,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y)
+    const r = Math.min(h / 2, 22)
+
+    const g = this.add.graphics()
+    const draw = (offset: number) => {
+      g.clear()
+      g.fillStyle(shadow, 1)
+      g.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, r)
+      g.fillStyle(fill, 1)
+      g.fillRoundedRect(-w / 2, -h / 2 + offset, w, h - 4, r)
+      g.lineStyle(3, 0xffffff, 1)
+      g.strokeRoundedRect(-w / 2, -h / 2 + offset, w, h - 4, r)
+    }
+    draw(0)
+
+    const text = this.add.text(0, -2, label, {
+      fontFamily: 'Fredoka',
+      fontStyle: '600',
+      fontSize: `${fontSize}px`,
+      color: textColor,
     })
-    buttonText.setOrigin(0.5)
+    text.setOrigin(0.5)
 
-    button.add([bg, buttonText])
-    button.setSize(150, 60)
+    container.add([g, text])
+    container.setSize(w, h)
 
-    bg.setInteractive({ useHandCursor: true })
-      .on('pointerover', () => {
-        bg.setFillStyle(0xFF8C5A)
-        button.setScale(1.05)
-      })
+    const hit = this.add.zone(0, 0, w, h).setOrigin(0.5)
+    hit.setInteractive({ useHandCursor: true })
+    container.add(hit)
+
+    hit
+      .on('pointerover', () => container.setScale(1.04))
       .on('pointerout', () => {
-        bg.setFillStyle(0xFF6B35)
-        button.setScale(1)
+        container.setScale(1)
+        draw(0)
       })
-      .on('pointerdown', () => button.setScale(0.95))
+      .on('pointerdown', () => draw(4))
       .on('pointerup', () => {
-        button.setScale(1.05)
+        draw(0)
+        container.setScale(1.04)
         callback()
       })
 
-    return button
+    return container
   }
 }

@@ -305,19 +305,33 @@ export class PudgyGameScene extends Phaser.Scene {
   private setupUI() {
     const { width } = this.cameras.main
 
-    // Score
-    this.scoreText = this.add.text(20, 20, 'Score: 0', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '48px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 6
+    // Score pill (clean white rounded card with SCORE caption + number)
+    const pillX = 16, pillY = 16, pillW = 250, pillH = 78
+    const scorePill = this.add.graphics()
+    scorePill.fillStyle(0xffffff, 0.92)
+    scorePill.fillRoundedRect(pillX, pillY, pillW, pillH, 22)
+    scorePill.lineStyle(3, 0xffffff, 1)
+    scorePill.strokeRoundedRect(pillX, pillY, pillW, pillH, 22)
+
+    this.add.text(pillX + 20, pillY + 12, 'SCORE', {
+      fontFamily: 'Nunito',
+      fontStyle: '800',
+      fontSize: '18px',
+      color: '#5aa39b'
     })
 
-    // Lives - create 3 heart icons
+    // Score
+    this.scoreText = this.add.text(pillX + 20, pillY + 32, '0', {
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
+      fontSize: '40px',
+      color: '#16413c'
+    })
+
+    // Lives - create 3 heart icons (below the score pill)
     for (let i = 0; i < 3; i++) {
-      const heart = this.add.image(20 + (i * 70), 90, 'heart')
-      heart.setDisplaySize(65, 65)
+      const heart = this.add.image(22 + (i * 64), 108, 'heart')
+      heart.setDisplaySize(56, 56)
       heart.setOrigin(0, 0)
       this.heartIcons.push(heart)
     }
@@ -347,43 +361,55 @@ export class PudgyGameScene extends Phaser.Scene {
     // Frenzy bar
     this.frenzyBar = this.add.graphics()
 
+    // Multiplier badge (rounded coral chip) behind the multiplier text
+    const badgeX = width - 60, badgeY = 630, badgeSize = 66
+    const multBadge = this.add.graphics()
+    multBadge.fillStyle(0xd23b54, 1)
+    multBadge.fillRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2 + 5, badgeSize, badgeSize, 18)
+    multBadge.fillStyle(0xff6b6b, 1)
+    multBadge.fillRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize - 3, 18)
+    multBadge.lineStyle(3, 0xffffff, 1)
+    multBadge.strokeRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize - 3, 18)
+
     // Frenzy multiplier - positioned below the bar on right side
-    this.frenzyMultiplierText = this.add.text(width - 60, 630, '1x', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '42px',
-      color: '#FFD700',
-      stroke: '#000000',
-      strokeThickness: 4
+    this.frenzyMultiplierText = this.add.text(badgeX, badgeY, '1x', {
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
+      fontSize: '34px',
+      color: '#ffffff'
     })
     this.frenzyMultiplierText.setOrigin(0.5, 0.5)
 
     // Golden multiplier (shown when active) - positioned below hearts
-    this.goldenMultiplierText = this.add.text(20, 175, '', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '28px',
-      color: '#FFD700',
-      stroke: '#000000',
-      strokeThickness: 3
+    this.goldenMultiplierText = this.add.text(20, 180, '', {
+      fontFamily: 'Fredoka',
+      fontStyle: '600',
+      fontSize: '26px',
+      color: '#b9791a',
+      stroke: '#ffffff',
+      strokeThickness: 4
     })
     this.goldenMultiplierText.setOrigin(0, 0)
 
     // Shield timer text (hidden initially) - positioned below golden text
-    this.shieldText = this.add.text(20, 215, '', {
-      fontFamily: '"Rubik Bubbles"',
-      fontSize: '28px',
-      color: '#00FFFF',
-      stroke: '#000000',
-      strokeThickness: 3
+    this.shieldText = this.add.text(20, 220, '', {
+      fontFamily: 'Fredoka',
+      fontStyle: '600',
+      fontSize: '26px',
+      color: '#1f8e87',
+      stroke: '#ffffff',
+      strokeThickness: 4
     })
     this.shieldText.setOrigin(0, 0)
 
     // Frenzy popup (hidden initially)
     this.frenzyPopup = this.add.text(width / 2, 400, 'FRENZY MODE!!', {
-      fontFamily: '"Rubik Bubbles"',
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
       fontSize: '64px',
-      color: '#FFD700',
-      stroke: '#FF0000',
-      strokeThickness: 8
+      color: '#ffffff',
+      stroke: '#ff5b6e',
+      strokeThickness: 10
     })
     this.frenzyPopup.setOrigin(0.5)
     this.frenzyPopup.setVisible(false)
@@ -394,10 +420,11 @@ export class PudgyGameScene extends Phaser.Scene {
 
     let count = 3
     const countdownText = this.add.text(width / 2, height / 2, '3', {
-      fontFamily: '"Rubik Bubbles"',
+      fontFamily: 'Fredoka',
+      fontStyle: '700',
       fontSize: '128px',
       color: '#ffffff',
-      stroke: '#000000',
+      stroke: '#16413c',
       strokeThickness: 8
     })
     countdownText.setOrigin(0.5)
@@ -1039,7 +1066,7 @@ export class PudgyGameScene extends Phaser.Scene {
   }
 
   private updateUI() {
-    this.scoreText.setText(`Score: ${this.score}`)
+    this.scoreText.setText(`${this.score.toLocaleString()}`)
 
     // Update heart icons visibility based on lives
     this.heartIcons.forEach((heart, index) => {
@@ -1062,31 +1089,33 @@ export class PudgyGameScene extends Phaser.Scene {
 
     if (barHeight > 0) {
       // Draw outer glow
-      this.frenzyBar.fillStyle(0xFF0000, 0.3)
+      this.frenzyBar.fillStyle(0xff6b6b, 0.3)
       this.frenzyBar.fillRoundedRect(barX - 2, barBottomY - barHeight - 2, barWidth + 4, barHeight + 4, cornerRadius + 2)
 
       // Draw dark background/shadow
-      this.frenzyBar.fillStyle(0x660000, 0.8)
+      this.frenzyBar.fillStyle(0x8a3b2f, 0.7)
       this.frenzyBar.fillRoundedRect(barX, barBottomY - barHeight, barWidth, barHeight, cornerRadius)
 
-      // Draw main gradient (simulate gradient with multiple layers)
+      // Draw main gradient: gold at top -> coral -> pink at bottom
       const layers = 5
       for (let i = 0; i < layers; i++) {
         const layerHeight = barHeight / layers
         const layerY = barBottomY - barHeight + (i * layerHeight)
-        const brightness = 0.6 + (i / layers) * 0.4 // Darker at top, brighter at bottom
-        const red = Math.floor(200 + (brightness * 55))
-        const color = (red << 16) | (50 << 8) | 50
+        const f = layers > 1 ? i / (layers - 1) : 0 // 0 = top (gold), 1 = bottom (pink)
+        const red = 255
+        const green = Math.round(0xd8 + (0x5b - 0xd8) * f)
+        const blue = Math.round(0x6b + (0x6e - 0x6b) * f)
+        const color = (red << 16) | (green << 8) | blue
         this.frenzyBar.fillStyle(color, 1)
         this.frenzyBar.fillRoundedRect(barX, layerY, barWidth, layerHeight + 1, i === 0 ? cornerRadius : 0)
       }
 
       // Add highlight on left side
-      this.frenzyBar.fillStyle(0xFF6666, 0.4)
+      this.frenzyBar.fillStyle(0xffe3a0, 0.45)
       this.frenzyBar.fillRoundedRect(barX + 2, barBottomY - barHeight + 2, 8, barHeight - 4, 4)
 
       // Add inner border
-      this.frenzyBar.lineStyle(2, 0xFF3333, 0.8)
+      this.frenzyBar.lineStyle(2, 0xffb15a, 0.8)
       this.frenzyBar.strokeRoundedRect(barX + 1, barBottomY - barHeight + 1, barWidth - 2, barHeight - 2, cornerRadius - 1)
     }
 
@@ -1264,6 +1293,12 @@ export class PudgyGameScene extends Phaser.Scene {
   private gameOver() {
     console.log('Game Over! Final Score:', this.score)
 
+    // Persist best score for the Start screen "BEST" pill
+    const prevBest = parseInt(localStorage.getItem('pudgy_best_score') || '0', 10)
+    if (this.score > prevBest) {
+      localStorage.setItem('pudgy_best_score', String(this.score))
+    }
+
     // Stop the game immediately to prevent any further spawning or updates
     this.gameActive = false
 
@@ -1312,12 +1347,125 @@ export class PudgyGameScene extends Phaser.Scene {
       }
     }
 
-    // Return to start scene after a brief delay
-    this.time.delayedCall(2000, () => {
-      // Properly stop this scene before starting the next one
+    // Show the styled Game Over panel (SDK has already been notified above)
+    this.time.delayedCall(600, () => {
+      this.showGameOverPanel()
+    })
+  }
+
+  private showGameOverPanel() {
+    const { width, height } = this.cameras.main
+    const best = parseInt(localStorage.getItem('pudgy_best_score') || '0', 10)
+
+    const layer = this.add.container(0, 0)
+    layer.setDepth(5000)
+
+    // Dim backdrop
+    const dim = this.add.rectangle(0, 0, width, height, 0x16413c, 0.55).setOrigin(0, 0)
+    dim.setInteractive() // swallow taps behind the panel
+    layer.add(dim)
+
+    // Penguin
+    const peng = this.add.image(width / 2, height * 0.22, 'player')
+    peng.setDisplaySize(180, 282)
+    layer.add(peng)
+
+    // Sheet
+    const sheetX = 50, sheetW = width - 100, sheetH = 540
+    const sheetY = height - sheetH - 70
+    const sheet = this.add.graphics()
+    sheet.fillStyle(0x000000, 0.22)
+    sheet.fillRoundedRect(sheetX, sheetY + 12, sheetW, sheetH, 40)
+    sheet.fillStyle(0xffffff, 1)
+    sheet.fillRoundedRect(sheetX, sheetY, sheetW, sheetH, 40)
+    layer.add(sheet)
+
+    // "NICE RUN!" pill
+    const pillText = this.add.text(width / 2, sheetY + 56, 'NICE RUN!', {
+      fontFamily: 'Nunito', fontStyle: '900', fontSize: '22px', color: '#1f8e87',
+    }).setOrigin(0.5)
+    const pw = pillText.width + 44
+    const pill = this.add.graphics()
+    pill.fillStyle(0x1fb6a6, 0.12)
+    pill.fillRoundedRect(width / 2 - pw / 2, sheetY + 36, pw, 40, 20)
+    layer.add(pill)
+    layer.add(pillText)
+
+    // Title
+    const title = this.add.text(width / 2, sheetY + 116, 'Game Over', {
+      fontFamily: 'Fredoka', fontStyle: '700', fontSize: '54px', color: '#16413c',
+    }).setOrigin(0.5)
+    layer.add(title)
+
+    // Stat cards
+    const cardY = sheetY + 210, cardH = 110, gap = 24
+    const cardW = (sheetW - 2 * 40 - gap) / 2
+    const leftX = sheetX + 40
+    const rightX = leftX + cardW + gap
+
+    const makeStat = (cx: number, chip: number, label: string, labelColor: string, value: string) => {
+      const g = this.add.graphics()
+      g.fillStyle(chip, 1)
+      g.fillRoundedRect(cx, cardY, cardW, cardH, 22)
+      layer.add(g)
+      layer.add(this.add.text(cx + cardW / 2, cardY + 30, label, {
+        fontFamily: 'Nunito', fontStyle: '800', fontSize: '17px', color: labelColor,
+      }).setOrigin(0.5))
+      layer.add(this.add.text(cx + cardW / 2, cardY + 70, value, {
+        fontFamily: 'Fredoka', fontStyle: '700', fontSize: '44px', color: '#16413c',
+      }).setOrigin(0.5))
+    }
+    makeStat(leftX, 0xeef9f7, 'SCORE', '#5aa39b', this.score.toLocaleString())
+    makeStat(rightX, 0xfff3ea, 'BEST', '#d98a52', best.toLocaleString())
+
+    // Buttons
+    const btnPlay = this.gameOverButton(width / 2, cardY + cardH + 80, sheetW - 80, 96, '▶  Play Again', 0xff6b6b, 0xd8474f, '#ffffff', 30, () => {
+      this.scene.stop('PudgyGameScene')
+      this.scene.start('PudgyGameScene')
+    })
+    layer.add(btnPlay)
+
+    const btnMenu = this.gameOverButton(width / 2, cardY + cardH + 184, sheetW - 80, 82, 'Menu', 0x3fd0c0, 0x128b7e, '#ffffff', 26, () => {
       this.scene.stop('PudgyGameScene')
       this.scene.start('StartScene')
     })
+    layer.add(btnMenu)
+
+    // Subtle pop-in
+    layer.setAlpha(0)
+    this.tweens.add({ targets: layer, alpha: 1, duration: 250, ease: 'Sine.easeOut' })
+  }
+
+  private gameOverButton(
+    x: number, y: number, w: number, h: number, label: string,
+    fill: number, shadow: number, textColor: string, fontSize: number, callback: () => void,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y)
+    const r = Math.min(h / 2, 24)
+    const g = this.add.graphics()
+    const draw = (offset: number) => {
+      g.clear()
+      g.fillStyle(shadow, 1)
+      g.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, r)
+      g.fillStyle(fill, 1)
+      g.fillRoundedRect(-w / 2, -h / 2 + offset, w, h - 4, r)
+      g.lineStyle(4, 0xffffff, 1)
+      g.strokeRoundedRect(-w / 2, -h / 2 + offset, w, h - 4, r)
+    }
+    draw(0)
+    const text = this.add.text(0, -2, label, {
+      fontFamily: 'Fredoka', fontStyle: '600', fontSize: `${fontSize}px`, color: textColor,
+    }).setOrigin(0.5)
+    container.add([g, text])
+    container.setSize(w, h)
+    const hit = this.add.zone(0, 0, w, h).setOrigin(0.5).setInteractive({ useHandCursor: true })
+    container.add(hit)
+    hit
+      .on('pointerover', () => container.setScale(1.03))
+      .on('pointerout', () => { container.setScale(1); draw(0) })
+      .on('pointerdown', () => draw(6))
+      .on('pointerup', () => { draw(0); callback() })
+    return container
   }
 
   shutdown() {
