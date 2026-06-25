@@ -16,6 +16,7 @@ interface FallingItem extends Phaser.GameObjects.Sprite {
   velocity: number
   horizontalVelocity?: number
   isSpinning?: boolean
+  fz?: boolean // whether this item was spawned during frenzy mode
 }
 
 export class PudgyGameScene extends Phaser.Scene {
@@ -47,6 +48,7 @@ export class PudgyGameScene extends Phaser.Scene {
   private frenzyMultiplier: number = 1 // 1-5
   private isFrenzyMode: boolean = false
   private frenzyTimeLeft: number = 0
+  private __lastFz: boolean = false // frenzy state of the most recently collected fish
 
   // Golden fish multiplier
   private goldenMultiplier: number = 1
@@ -203,9 +205,13 @@ export class PudgyGameScene extends Phaser.Scene {
       })
     }
 
+    // playableBottom scales with the dynamic canvas height so the penguin sits
+    // just above the bottom on tall phones instead of floating.
+    this.playableBottom = height * 1020 / 1080
+
     // Create player with placeholder
-    this.player = this.add.sprite(width / 2, this.playableBottom - 40, 'player')
-    this.player.setDisplaySize(160, 250)
+    this.player = this.add.sprite(width / 2, this.playableBottom - 90, 'player')
+    this.player.setDisplaySize(216, 338)
 
     // Add waddle animation (starts paused)
     this.waddleTween = this.tweens.add({
@@ -767,6 +773,8 @@ export class PudgyGameScene extends Phaser.Scene {
 
   private collectItem(item: FallingItem) {
     const itemType = item.itemType
+    // Remember whether this fish was spawned during a frenzy (carryover fix)
+    this.__lastFz = item.fz ?? false
 
     switch (itemType) {
       case ItemType.BLUE_FISH:
@@ -808,8 +816,9 @@ export class PudgyGameScene extends Phaser.Scene {
   private collectFish(points: number) {
     this.addScore(points)
 
-    // Only count fish towards frenzy bar when NOT in frenzy mode
-    if (!this.isFrenzyMode) {
+    // Only count fish towards the frenzy bar when NOT in frenzy mode and the
+    // fish wasn't itself spawned during a frenzy (carryover fix).
+    if (!this.isFrenzyMode && !this.__lastFz) {
       this.consecutiveFish++
       this.frenzyProgress = Math.min(20, this.consecutiveFish)
 
@@ -1019,12 +1028,16 @@ export class PudgyGameScene extends Phaser.Scene {
       item.velocity = Phaser.Math.Linear(200, 550, difficulty)
     }
 
-    // Smaller size for trash to make hitbox tighter
+    // Larger sprites for visibility on mobile; trash kept slightly smaller for a tighter hitbox
     if (itemType === ItemType.TRASH) {
-      item.setDisplaySize(70, 70)
+      item.setDisplaySize(95, 95)
     } else {
-      item.setDisplaySize(85, 85)
+      item.setDisplaySize(115, 115)
     }
+
+    // Tag with the frenzy state at spawn so frenzy-spawned fish never count
+    // toward the next frenzy bar (carryover fix).
+    item.fz = this.isFrenzyMode
 
     this.activeItems.push(item)
   }
@@ -1045,7 +1058,7 @@ export class PudgyGameScene extends Phaser.Scene {
     const bird = this.add.sprite(x, y, 'bird_down') as FallingItem
     bird.itemType = ItemType.BIRD
     bird.velocity = velocity
-    bird.setDisplaySize(85, 85) // Bigger size for visibility
+    bird.setDisplaySize(115, 115) // Bigger size for visibility
 
     // Play flying animation
     bird.play('bird_fly')

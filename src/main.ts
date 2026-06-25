@@ -18,7 +18,7 @@ const config: Phaser.Types.Core.GameConfig = {
     width: GameSettings.canvas.width,
     height: GameSettings.canvas.height,
   },
-  backgroundColor: "#1a1a1a",
+  backgroundColor: "#8ec5e6", // sky-blue letterbox for the dynamic-height canvas
   scene: [StartScene, TutorialScene, PudgyGameScene],
   physics: {
     default: "arcade",
@@ -30,9 +30,9 @@ const config: Phaser.Types.Core.GameConfig = {
   // Additional WebGL settings
   pixelArt: false,
   antialias: true,
-  // Preserve drawing buffer for underglow effect
+  // Disabled for performance on mobile (no underglow effect is used)
   render: {
-    preserveDrawingBuffer: true,
+    preserveDrawingBuffer: false,
   },
 }
 
