@@ -55,7 +55,7 @@ export class TutorialScene extends Phaser.Scene {
     // Skip button (top right) - rounded pill
     this.skipButton = this.createRoundedButton(width - 110, 56, 170, 56, 'SKIP  ✕', C.white, 0xcfe3df, '#1f8e87', 22, () => {
       this.resumeAudio()
-      localStorage.setItem('pudgy_tutorial_completed', 'true')
+      this.registry.set('pudgy_tutorial_completed', true)
       this.sound.play('game_start', { volume: 0.7 })
       this.scene.stop('TutorialScene')
       if (this.scene.get('PudgyGameScene')) {
@@ -114,7 +114,7 @@ export class TutorialScene extends Phaser.Scene {
     if (pageNum === this.totalPages - 1) {
       const startButton = this.createRoundedButton(width - 130, height - 110, 180, 70, 'START  ▶', C.coral, C.coralDark, '#ffffff', 24, () => {
         this.resumeAudio()
-        localStorage.setItem('pudgy_tutorial_completed', 'true')
+        this.registry.set('pudgy_tutorial_completed', true)
         this.sound.play('game_start', { volume: 0.7 })
         this.scene.stop('TutorialScene')
         if (this.scene.get('PudgyGameScene')) {

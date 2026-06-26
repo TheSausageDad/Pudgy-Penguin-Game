@@ -36,12 +36,12 @@ export class StartScene extends Phaser.Scene {
       this.resumeAudio()
       this.sound.play('game_start', { volume: 0.7 })
 
-      const tutorialCompleted = localStorage.getItem('pudgy_tutorial_completed')
+      const tutorialCompleted = this.registry.get('pudgy_tutorial_completed')
       this.scene.stop('StartScene')
       if (this.scene.get('PudgyGameScene')) {
         this.scene.stop('PudgyGameScene')
       }
-      if (tutorialCompleted === 'true') {
+      if (tutorialCompleted) {
         this.scene.start('PudgyGameScene')
       } else {
         this.scene.start('TutorialScene')
@@ -124,7 +124,7 @@ export class StartScene extends Phaser.Scene {
   }
 
   private createBestPill(x: number, y: number) {
-    const best = parseInt(localStorage.getItem('pudgy_best_score') || '0', 10)
+    const best = (this.registry.get('pudgy_best_score') as number) || 0
     const label = `★ BEST   ${best.toLocaleString()}`
 
     const text = this.add.text(x, y, label, {

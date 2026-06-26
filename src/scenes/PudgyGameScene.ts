@@ -1297,10 +1297,12 @@ export class PudgyGameScene extends Phaser.Scene {
   private gameOver() {
     console.log('Game Over! Final Score:', this.score)
 
-    // Persist best score for the Start screen "BEST" pill
-    const prevBest = parseInt(localStorage.getItem('pudgy_best_score') || '0', 10)
+    // Best score for the Start screen "BEST" pill — kept in the in-memory
+    // registry only (survives Play Again within a session, resets on reload).
+    // No localStorage: persisted scores would be editable/cheatable.
+    const prevBest = (this.registry.get('pudgy_best_score') as number) || 0
     if (this.score > prevBest) {
-      localStorage.setItem('pudgy_best_score', String(this.score))
+      this.registry.set('pudgy_best_score', this.score)
     }
 
     // Stop the game immediately to prevent any further spawning or updates
