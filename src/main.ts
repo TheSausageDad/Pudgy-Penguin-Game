@@ -105,6 +105,29 @@ async function initializeApp() {
   game.events.once("ready", async () => {
     await initializeRemixSDK(game)
 
+    // Wire up the Remix SDK (@remix-gg/sdk). Remix renders the native
+    // game-over screen and its "Play Again" button; we only reset on its
+    // callback and mirror the host mute state — no in-game restart UI.
+    const remix = (window as any).RemixSDK
+    if (remix) {
+      try {
+        if (typeof remix.onPlayAgain === 'function') {
+          remix.onPlayAgain(() => {
+            const active = game.scene.getScenes(true)[0]
+            if (active) active.scene.start('StartScene')
+            try { game.canvas.focus() } catch {}
+          })
+        }
+        if (typeof remix.onToggleMute === 'function') {
+          remix.onToggleMute((data: { isMuted: boolean }) => {
+            game.sound.mute = !!(data && data.isMuted)
+          })
+        }
+      } catch (e) {
+        console.error('[Remix SDK] setup error:', e)
+      }
+    }
+
     // Initialize development features (only active in dev mode)
     if (process.env.NODE_ENV !== 'production') {
       initializeDevelopment()

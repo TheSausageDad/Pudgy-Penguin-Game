@@ -820,6 +820,12 @@ export class PudgyGameScene extends Phaser.Scene {
     // Play damage sound
     this.sound.play('take_damage', { volume: 0.6 })
 
+    // Haptic feedback on hit (Remix SDK)
+    const sdk = (window as any).RemixSDK
+    if (sdk && typeof sdk.hapticFeedback === 'function') {
+      try { sdk.hapticFeedback() } catch {}
+    }
+
     // Reset frenzy
     this.consecutiveFish = 0
     this.frenzyProgress = 0
@@ -1335,11 +1341,14 @@ export class PudgyGameScene extends Phaser.Scene {
       this.warningSignTop.setVisible(false)
     }
 
-    // Integrate with Remix SDK
-    if (window.FarcadeSDK) {
+    // Integrate with Remix SDK — report the final score so Remix shows its
+    // native game-over screen (with Play Again). Falls back to the legacy
+    // FarcadeSDK global if the Remix SDK isn't present.
+    const sdk = (window as any).RemixSDK || window.FarcadeSDK
+    if (sdk) {
       try {
-        // Report final score to the SDK
-        window.FarcadeSDK.singlePlayer.actions.gameOver({ score: this.score })
+        if (typeof sdk.hapticFeedback === 'function') sdk.hapticFeedback()
+        sdk.singlePlayer.actions.gameOver({ score: this.score })
       } catch (error) {
         console.error('Error reporting game over to SDK:', error)
       }
