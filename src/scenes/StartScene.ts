@@ -81,21 +81,21 @@ export class StartScene extends Phaser.Scene {
   }
 
   private drawTitleAndHero(width: number, height: number) {
-    // Eyebrow pill
-    const eb = this.add.text(width / 2, 80, 'PUDGY PENGUINS', {
+    // Eyebrow pill (pushed down so it clears the top edge / phone notch)
+    const eb = this.add.text(width / 2, 130, 'PUDGY PENGUINS', {
       fontFamily: 'Nunito', fontStyle: '900', fontSize: '22px', color: '#c2683f',
     }).setOrigin(0.5)
     const ew = eb.width + 56
     const ebg = this.add.graphics()
     ebg.fillStyle(0xffffff, 0.8)
-    ebg.fillRoundedRect(width / 2 - ew / 2, 80 - 22, ew, 44, 22)
+    ebg.fillRoundedRect(width / 2 - ew / 2, 130 - 22, ew, 44, 22)
     eb.setDepth(1)
 
     // Title
-    this.add.text(width / 2, 122, 'FISH', {
+    this.add.text(width / 2, 172, 'FISH', {
       fontFamily: 'Fredoka', fontStyle: '700', fontSize: '120px', color: '#ffffff',
     }).setOrigin(0.5, 0).setShadow(0, 4, '#e8845a', 0, true, false)
-    this.add.text(width / 2, 232, 'CATCH', {
+    this.add.text(width / 2, 282, 'CATCH', {
       fontFamily: 'Fredoka', fontStyle: '700', fontSize: '120px', color: '#ffffff',
     }).setOrigin(0.5, 0).setShadow(0, 4, '#e8845a', 0, true, false)
 
@@ -110,9 +110,9 @@ export class StartScene extends Phaser.Scene {
 
     // Penguin hero (buttons are created after this, so they render on top).
     // Lowered + sized so it sits below the "CATCH" title instead of covering it.
-    const penguin = this.add.image(width / 2, 565, 'penguin')
+    const penguin = this.add.image(width / 2, 585, 'penguin')
     penguin.setDisplaySize(225, 352)
-    this.tweens.add({ targets: penguin, y: 549, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+    this.tweens.add({ targets: penguin, y: 569, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
   }
 
   private resumeAudio() {
