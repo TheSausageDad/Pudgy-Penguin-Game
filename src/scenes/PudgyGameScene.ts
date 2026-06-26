@@ -308,7 +308,8 @@ export class PudgyGameScene extends Phaser.Scene {
     const { width } = this.cameras.main
 
     // Score pill (clean white rounded card with SCORE caption + number)
-    const pillX = 20, pillY = 20, pillW = 330, pillH = 104
+    // pillY pushed down so it clears the top-left back-arrow / safe area
+    const pillX = 20, pillY = 116, pillW = 330, pillH = 104
     const scorePill = this.add.graphics()
     scorePill.fillStyle(0xffffff, 0.92)
     scorePill.fillRoundedRect(pillX, pillY, pillW, pillH, 26)
@@ -332,7 +333,7 @@ export class PudgyGameScene extends Phaser.Scene {
 
     // Lives - create 3 heart icons (below the score pill)
     for (let i = 0; i < 3; i++) {
-      const heart = this.add.image(26 + (i * 86), 144, 'heart')
+      const heart = this.add.image(26 + (i * 86), 240, 'heart')
       heart.setDisplaySize(76, 76)
       heart.setOrigin(0, 0)
       this.heartIcons.push(heart)
@@ -371,7 +372,7 @@ export class PudgyGameScene extends Phaser.Scene {
     this.frenzyMultiplierText.setOrigin(0.5, 0.5)
 
     // Golden multiplier (shown when active) - positioned below hearts
-    this.goldenMultiplierText = this.add.text(24, 240, '', {
+    this.goldenMultiplierText = this.add.text(24, 336, '', {
       fontFamily: 'Fredoka',
       fontStyle: '600',
       fontSize: '30px',
@@ -382,7 +383,7 @@ export class PudgyGameScene extends Phaser.Scene {
     this.goldenMultiplierText.setOrigin(0, 0)
 
     // Shield timer text (hidden initially) - positioned below golden text
-    this.shieldText = this.add.text(24, 286, '', {
+    this.shieldText = this.add.text(24, 382, '', {
       fontFamily: 'Fredoka',
       fontStyle: '600',
       fontSize: '30px',
