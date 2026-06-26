@@ -108,10 +108,11 @@ export class StartScene extends Phaser.Scene {
     gold.setScale(112 / gold.width).setAngle(-8)
     this.tweens.add({ targets: gold, y: 560, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
 
-    // Penguin hero (buttons are created after this, so they render on top)
-    const penguin = this.add.image(width / 2, 470, 'penguin')
-    penguin.setScale(270 / penguin.width)
-    this.tweens.add({ targets: penguin, y: 450, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+    // Penguin hero (buttons are created after this, so they render on top).
+    // Lowered + sized so it sits below the "CATCH" title instead of covering it.
+    const penguin = this.add.image(width / 2, 565, 'penguin')
+    penguin.setDisplaySize(225, 352)
+    this.tweens.add({ targets: penguin, y: 549, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
   }
 
   private resumeAudio() {

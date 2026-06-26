@@ -308,32 +308,32 @@ export class PudgyGameScene extends Phaser.Scene {
     const { width } = this.cameras.main
 
     // Score pill (clean white rounded card with SCORE caption + number)
-    const pillX = 16, pillY = 16, pillW = 250, pillH = 78
+    const pillX = 20, pillY = 20, pillW = 330, pillH = 104
     const scorePill = this.add.graphics()
     scorePill.fillStyle(0xffffff, 0.92)
-    scorePill.fillRoundedRect(pillX, pillY, pillW, pillH, 22)
+    scorePill.fillRoundedRect(pillX, pillY, pillW, pillH, 26)
     scorePill.lineStyle(3, 0xffffff, 1)
-    scorePill.strokeRoundedRect(pillX, pillY, pillW, pillH, 22)
+    scorePill.strokeRoundedRect(pillX, pillY, pillW, pillH, 26)
 
-    this.add.text(pillX + 20, pillY + 12, 'SCORE', {
+    this.add.text(pillX + 26, pillY + 16, 'SCORE', {
       fontFamily: 'Nunito',
       fontStyle: '800',
-      fontSize: '18px',
+      fontSize: '24px',
       color: '#5aa39b'
     })
 
     // Score
-    this.scoreText = this.add.text(pillX + 20, pillY + 32, '0', {
+    this.scoreText = this.add.text(pillX + 26, pillY + 44, '0', {
       fontFamily: 'Fredoka',
       fontStyle: '700',
-      fontSize: '40px',
+      fontSize: '54px',
       color: '#16413c'
     })
 
     // Lives - create 3 heart icons (below the score pill)
     for (let i = 0; i < 3; i++) {
-      const heart = this.add.image(22 + (i * 64), 108, 'heart')
-      heart.setDisplaySize(56, 56)
+      const heart = this.add.image(26 + (i * 86), 144, 'heart')
+      heart.setDisplaySize(76, 76)
       heart.setOrigin(0, 0)
       this.heartIcons.push(heart)
     }
@@ -352,29 +352,29 @@ export class PudgyGameScene extends Phaser.Scene {
     this.frenzyBar = this.add.graphics()
 
     // Multiplier badge (rounded coral chip) behind the multiplier text
-    const badgeX = width - 60, badgeY = 630, badgeSize = 66
+    const badgeX = width - 70, badgeY = 706, badgeSize = 92
     const multBadge = this.add.graphics()
     multBadge.fillStyle(0xd23b54, 1)
-    multBadge.fillRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2 + 5, badgeSize, badgeSize, 18)
+    multBadge.fillRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2 + 6, badgeSize, badgeSize, 24)
     multBadge.fillStyle(0xff6b6b, 1)
-    multBadge.fillRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize - 3, 18)
-    multBadge.lineStyle(3, 0xffffff, 1)
-    multBadge.strokeRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize - 3, 18)
+    multBadge.fillRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize - 4, 24)
+    multBadge.lineStyle(4, 0xffffff, 1)
+    multBadge.strokeRoundedRect(badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize - 4, 24)
 
     // Frenzy multiplier - positioned below the bar on right side
     this.frenzyMultiplierText = this.add.text(badgeX, badgeY, '1x', {
       fontFamily: 'Fredoka',
       fontStyle: '700',
-      fontSize: '34px',
+      fontSize: '46px',
       color: '#ffffff'
     })
     this.frenzyMultiplierText.setOrigin(0.5, 0.5)
 
     // Golden multiplier (shown when active) - positioned below hearts
-    this.goldenMultiplierText = this.add.text(20, 180, '', {
+    this.goldenMultiplierText = this.add.text(24, 240, '', {
       fontFamily: 'Fredoka',
       fontStyle: '600',
-      fontSize: '26px',
+      fontSize: '30px',
       color: '#b9791a',
       stroke: '#ffffff',
       strokeThickness: 4
@@ -382,10 +382,10 @@ export class PudgyGameScene extends Phaser.Scene {
     this.goldenMultiplierText.setOrigin(0, 0)
 
     // Shield timer text (hidden initially) - positioned below golden text
-    this.shieldText = this.add.text(20, 220, '', {
+    this.shieldText = this.add.text(24, 286, '', {
       fontFamily: 'Fredoka',
       fontStyle: '600',
-      fontSize: '26px',
+      fontSize: '30px',
       color: '#1f8e87',
       stroke: '#ffffff',
       strokeThickness: 4
@@ -1078,11 +1078,11 @@ export class PudgyGameScene extends Phaser.Scene {
     // Bar positioned inside border - vertical on right side
     // Border is at width - 60, starts at Y=200, with height of 600
     // Bar fills from bottom to top
-    const barHeight = (this.isFrenzyMode ? (this.frenzyTimeLeft / 10) : (this.frenzyProgress / 20)) * 370 // Reduced max length
-    const barX = this.cameras.main.width - 89 // Center of border (adjusted for wider bar)
-    const barBottomY = 595 // Bottom of the border
-    const barWidth = 58
-    const cornerRadius = 8
+    const barHeight = (this.isFrenzyMode ? (this.frenzyTimeLeft / 10) : (this.frenzyProgress / 20)) * 520 // taller meter
+    const barX = this.cameras.main.width - 110 // left edge; 80px-wide bar centered under the multiplier badge
+    const barBottomY = 640 // bottom of the meter, just above the badge
+    const barWidth = 80
+    const cornerRadius = 10
 
     if (barHeight > 0) {
       // Draw outer glow
@@ -1362,14 +1362,17 @@ export class PudgyGameScene extends Phaser.Scene {
     dim.setInteractive() // swallow taps behind the panel
     layer.add(dim)
 
-    // Penguin
-    const peng = this.add.image(width / 2, height * 0.22, 'player')
-    peng.setDisplaySize(180, 282)
+    // Sheet — vertically centred so it fits any canvas height
+    const sheetH = 580
+    const sheetX = 50, sheetW = width - 100
+    const sheetY = Math.round((height - sheetH) / 2 + 40)
+
+    // Penguin hero — seated just over the top edge of the card (added before the
+    // sheet so the sheet covers its base; it peeks above rather than floating)
+    const peng = this.add.image(width / 2, sheetY - 96, 'player')
+    peng.setDisplaySize(200, 312)
     layer.add(peng)
 
-    // Sheet
-    const sheetX = 50, sheetW = width - 100, sheetH = 540
-    const sheetY = height - sheetH - 70
     const sheet = this.add.graphics()
     sheet.fillStyle(0x000000, 0.22)
     sheet.fillRoundedRect(sheetX, sheetY + 12, sheetW, sheetH, 40)
@@ -1378,24 +1381,24 @@ export class PudgyGameScene extends Phaser.Scene {
     layer.add(sheet)
 
     // "NICE RUN!" pill
-    const pillText = this.add.text(width / 2, sheetY + 56, 'NICE RUN!', {
+    const pillText = this.add.text(width / 2, sheetY + 60, 'NICE RUN!', {
       fontFamily: 'Nunito', fontStyle: '900', fontSize: '22px', color: '#1f8e87',
     }).setOrigin(0.5)
     const pw = pillText.width + 44
     const pill = this.add.graphics()
     pill.fillStyle(0x1fb6a6, 0.12)
-    pill.fillRoundedRect(width / 2 - pw / 2, sheetY + 36, pw, 40, 20)
+    pill.fillRoundedRect(width / 2 - pw / 2, sheetY + 40, pw, 40, 20)
     layer.add(pill)
     layer.add(pillText)
 
     // Title
-    const title = this.add.text(width / 2, sheetY + 116, 'Game Over', {
+    const title = this.add.text(width / 2, sheetY + 120, 'Game Over', {
       fontFamily: 'Fredoka', fontStyle: '700', fontSize: '54px', color: '#16413c',
     }).setOrigin(0.5)
     layer.add(title)
 
     // Stat cards
-    const cardY = sheetY + 210, cardH = 110, gap = 24
+    const cardY = sheetY + 200, cardH = 120, gap = 24
     const cardW = (sheetW - 2 * 40 - gap) / 2
     const leftX = sheetX + 40
     const rightX = leftX + cardW + gap
@@ -1405,24 +1408,25 @@ export class PudgyGameScene extends Phaser.Scene {
       g.fillStyle(chip, 1)
       g.fillRoundedRect(cx, cardY, cardW, cardH, 22)
       layer.add(g)
-      layer.add(this.add.text(cx + cardW / 2, cardY + 30, label, {
-        fontFamily: 'Nunito', fontStyle: '800', fontSize: '17px', color: labelColor,
+      layer.add(this.add.text(cx + cardW / 2, cardY + 34, label, {
+        fontFamily: 'Nunito', fontStyle: '800', fontSize: '18px', color: labelColor,
       }).setOrigin(0.5))
-      layer.add(this.add.text(cx + cardW / 2, cardY + 70, value, {
-        fontFamily: 'Fredoka', fontStyle: '700', fontSize: '44px', color: '#16413c',
+      layer.add(this.add.text(cx + cardW / 2, cardY + 78, value, {
+        fontFamily: 'Fredoka', fontStyle: '700', fontSize: '46px', color: '#16413c',
       }).setOrigin(0.5))
     }
     makeStat(leftX, 0xeef9f7, 'SCORE', '#5aa39b', this.score.toLocaleString())
     makeStat(rightX, 0xfff3ea, 'BEST', '#d98a52', best.toLocaleString())
 
-    // Buttons
-    const btnPlay = this.gameOverButton(width / 2, cardY + cardH + 80, sheetW - 80, 96, '▶  Play Again', 0xff6b6b, 0xd8474f, '#ffffff', 30, () => {
+    // Buttons (kept comfortably inside the sheet)
+    const btnW = sheetW - 96
+    const btnPlay = this.gameOverButton(width / 2, sheetY + 400, btnW, 100, '▶  Play Again', 0xff6b6b, 0xd8474f, '#ffffff', 30, () => {
       this.scene.stop('PudgyGameScene')
       this.scene.start('PudgyGameScene')
     })
     layer.add(btnPlay)
 
-    const btnMenu = this.gameOverButton(width / 2, cardY + cardH + 184, sheetW - 80, 82, 'Menu', 0x3fd0c0, 0x128b7e, '#ffffff', 26, () => {
+    const btnMenu = this.gameOverButton(width / 2, sheetY + 512, btnW, 86, 'Menu', 0x3fd0c0, 0x128b7e, '#ffffff', 26, () => {
       this.scene.stop('PudgyGameScene')
       this.scene.start('StartScene')
     })
