@@ -30,9 +30,6 @@ export class TutorialScene extends Phaser.Scene {
     // Load game start sound
     this.load.audio('game_start', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/game%20start-RHdnzRKrjI9adHseJbv8QJP8KT1Ajy.wav?sXuB')
 
-    // Load game background
-    this.load.image('tutorial_bg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Background-3EIPuXBlKw45qHiCmeh2PccLohitwr.jpg?y9qA')
-
     // Load game sprites for tutorial
     this.load.image('blue_fish', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Blue%20Fish-sg15xOysFaz1zmk5kkMJeDCEqC6xOn.png?MSgz')
     this.load.image('red_fish', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Red%20Fish-F03ziigEosFvisjUrY7Sa3DzGmqD16.png?NZce')
@@ -47,12 +44,10 @@ export class TutorialScene extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main
 
-    // Background - same as game
-    const background = this.add.image(width / 2, height / 2, 'tutorial_bg')
-    const scaleX = width / background.width
-    const scaleY = height / background.height
-    const scale = Math.max(scaleX, scaleY)
-    background.setScale(scale)
+    // Drawn water gradient background (matches the game)
+    const bg = this.add.graphics()
+    bg.fillGradientStyle(0x7fd6cd, 0x7fd6cd, 0x2a8f88, 0x2a8f88, 1)
+    bg.fillRect(0, 0, width, height)
 
     // Soft teal dim for focus
     this.add.rectangle(0, 0, width, height, 0x16413c, 0.42).setOrigin(0, 0)

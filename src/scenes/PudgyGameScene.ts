@@ -130,9 +130,6 @@ export class PudgyGameScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load background image
-    this.load.image('game_background', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Background-3EIPuXBlKw45qHiCmeh2PccLohitwr.jpg?y9qA')
-
     // Load player sprite
     this.load.image('player', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Penguin-pa081jGQgZll7Q8pPekZuLmbJ71fms.png?8KmQ')
 
@@ -162,7 +159,7 @@ export class PudgyGameScene extends Phaser.Scene {
     this.load.image('shark_warning', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Shark%20sign-R84ZKLTd6IKWWbNrQxrIEYOtj21VC5.png?G9nf')
 
     // Load frenzy bar border
-    this.load.image('frenzy_border', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/Multi%20Border-irqjtX3PmU7JlCY0EXj9QGtgkhITE2.png?hbtU')
+    // (removed — the frenzy meter is now drawn directly)
 
     // Load audio
     this.load.audio('bg_music', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/a419a4e5-9cbc-4586-8ef3-fde74c7c187e/fish%20catch%20audio%20loop-YRM7VDWquwb1cyvh7zmW28Ahd9qjRj.mp3?FEQu')
@@ -183,14 +180,13 @@ export class PudgyGameScene extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main
 
-    // Background - scale to cover screen while maintaining aspect ratio
-    this.background = this.add.image(width / 2, height / 2, 'game_background')
-
-    // Scale to cover the screen (use larger scale to ensure full coverage)
-    const scaleX = width / this.background.width
-    const scaleY = height / this.background.height
-    const scale = Math.max(scaleX, scaleY)
-    this.background.setScale(scale)
+    // Drawn water gradient background (Sunset Reef) — replaces the old photo
+    const bg = this.add.graphics()
+    bg.fillGradientStyle(0x7fd6cd, 0x7fd6cd, 0x2a8f88, 0x2a8f88, 1)
+    bg.fillRect(0, 0, width, height)
+    // soft light ray
+    bg.fillStyle(0xffffff, 0.10)
+    bg.fillRect(width * 0.30, 0, 130, height)
 
     // Create bird animation (only if it doesn't exist)
     if (!this.anims.exists('bird_fly')) {
@@ -351,18 +347,6 @@ export class PudgyGameScene extends Phaser.Scene {
       strokeThickness: 4
     })
     this.livesText.setVisible(false)
-
-    // Frenzy bar border image (portrait orientation on right side)
-    const frenzyBorder = this.add.image(width - 60, 200, 'frenzy_border')
-    frenzyBorder.setOrigin(0.5, 0) // Top-center anchor
-    // No rotation - image is already in portrait orientation
-    const targetBorderHeight = 600 // Height when vertical
-    const borderScale = targetBorderHeight / frenzyBorder.height // Scale based on height
-    frenzyBorder.setScale(borderScale)
-
-    // Calculate the scaled border dimensions for proper bar positioning
-    const borderWidth = frenzyBorder.width * borderScale
-    const borderHeight = frenzyBorder.height * borderScale
 
     // Frenzy bar
     this.frenzyBar = this.add.graphics()
