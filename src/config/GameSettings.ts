@@ -9,8 +9,9 @@ export const GameSettings = {
   canvas: {
     width: 720,
     // Dynamic height derived from the viewport ratio so Phaser Scale.FIT fills
-    // tall phones instead of letterboxing. Clamped to a sane portrait range.
-    height: Math.round(720 * Math.min(Math.max(window.innerHeight / window.innerWidth, 1.4), 1.85)),
+    // the screen instead of letterboxing. Ceiling raised to 2.2 so tall modern
+    // phones (≈2.0–2.16 aspect) are covered edge-to-edge.
+    height: Math.round(720 * Math.min(Math.max(window.innerHeight / window.innerWidth, 1.4), 2.2)),
   },
 }
 
